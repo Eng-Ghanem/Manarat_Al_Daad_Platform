@@ -1,0 +1,49 @@
+@import "tailwindcss";
+
+@custom-variant dark (&:is(.dark *));
+
+@theme {
+  --font-sans: 'Tajawal', system-ui, sans-serif;
+  --font-arabic: 'Cairo', 'Tajawal', sans-serif;
+  --color-gold-50: #fefce8;
+  --color-gold-300: #fde047;
+  --color-gold-400: #facc15;
+  --color-gold-500: #eab308;
+  --color-gold-600: #ca8a04;
+  --color-gold-900: #713f12;
+  
+  --animate-fade-up: fade-up 0.8s ease-out forwards;
+  
+  @keyframes fade-up {
+    from {
+      opacity: 0;
+      transform: translateY(30px);
+    }
+    to {
+      opacity: 1;
+      transform: translateY(0);
+    }
+  }
+}
+
+@layer base {
+  html {
+    scroll-behavior: smooth;
+  }
+  body {
+    @apply antialiased selection:bg-blue-600 selection:text-white;
+  }
+  .dark body {
+    @apply selection:bg-blue-500 selection:text-white;
+  }
+}
+
+/* Subtle Islamic-inspired background pattern */
+.bg-arabic-pattern {
+  background-image: radial-gradient(rgba(234, 179, 8, 0.15) 2px, transparent 2px), radial-gradient(rgba(234, 179, 8, 0.15) 2px, transparent 2px);
+  background-size: 32px 32px;
+  background-position: 0 0, 16px 16px;
+}
+.dark .bg-arabic-pattern {
+  background-image: radial-gradient(rgba(234, 179, 8, 0.05) 2px, transparent 2px), radial-gradient(rgba(234, 179, 8, 0.05) 2px, transparent 2px);
+}

@@ -1,0 +1,161 @@
+import { useTranslation } from 'react-i18next';
+import { BookOpen, Award, Clock, PlayCircle, Settings, User, LogOut, Star } from 'lucide-react';
+import { Link, useNavigate } from 'react-router-dom';
+import FadeIn from '../components/FadeIn';
+import { useAuth } from '../context/AuthContext';
+import { useEffect } from 'react';
+
+export default function Dashboard() {
+  const { t } = useTranslation();
+  const { user, profile, logout } = useAuth();
+  const navigate = useNavigate();
+
+  useEffect(() => {
+    if (!user) {
+      navigate('/login');
+    }
+  }, [user, navigate]);
+  
+  // Student data
+  const student = {
+    name: profile?.full_name || user?.email || '',
+    enrolledCourses: 3,
+    completedCourses: 1,
+    points: profile?.xp_points || 450
+  };
+
+  const activeCourses = [
+    {
+      id: 'foundation-nahw',
+      title: t('course_nahw_mock'),
+      progress: 65,
+      lastLesson: t('lesson_nahw_mock')
+    },
+    {
+      id: 'foundation-imla',
+      title: t('course_imla_mock'),
+      progress: 20,
+      lastLesson: t('lesson_imla_mock')
+    }
+  ];
+
+  return (
+    <div className="min-h-screen bg-gray-50 dark:bg-slate-900 py-12">
+      <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
+        
+        {/* Header / Welcome Section */}
+        <FadeIn>
+          <div className="bg-white dark:bg-slate-800 rounded-3xl p-8 shadow-sm border border-gray-100 dark:border-slate-700/50 mb-8 flex flex-col md:flex-row items-center justify-between gap-6 relative overflow-hidden">
+            <div className="absolute top-0 right-0 w-64 h-64 bg-blue-500/10 blur-[80px] rounded-full pointer-events-none"></div>
+            
+            <div className="flex items-center gap-6 relative z-10">
+              <div className="w-20 h-20 rounded-full bg-blue-100 dark:bg-blue-900/50 flex items-center justify-center border-4 border-white dark:border-slate-700 shadow-md">
+                <User className="w-10 h-10 text-blue-600 dark:text-blue-400" />
+              </div>
+              <div>
+                <h1 className="text-3xl font-extrabold text-gray-900 dark:text-white font-arabic tracking-tight mb-2">
+                  {t('dash_welcome')} {student.name} 👋
+                </h1>
+                <p className="text-gray-500 dark:text-gray-400">
+                  {t('dash_subtitle')}
+                </p>
+              </div>
+            </div>
+
+            <div className="flex gap-4 relative z-10 w-full md:w-auto">
+              <Link to="/settings" className="flex-1 md:flex-none flex items-center justify-center gap-2 px-6 py-3 bg-gray-100 dark:bg-slate-700 hover:bg-gray-200 dark:hover:bg-slate-600 rounded-xl text-gray-700 dark:text-white font-bold transition-colors">
+                <Settings className="w-5 h-5" />
+                <span className="hidden sm:inline">{t('dash_settings')}</span>
+              </Link>
+              <button 
+                onClick={logout}
+                className="flex-1 md:flex-none flex items-center justify-center gap-2 px-6 py-3 bg-red-50 dark:bg-red-900/20 hover:bg-red-100 dark:hover:bg-red-900/40 text-red-600 dark:text-red-400 rounded-xl font-bold transition-colors"
+              >
+                <LogOut className="w-5 h-5" />
+                <span className="hidden sm:inline">{t('dash_logout')}</span>
+              </button>
+            </div>
+          </div>
+        </FadeIn>
+
+        {/* Stats Grid */}
+        <div className="grid grid-cols-1 sm:grid-cols-3 gap-6 mb-8">
+          <FadeIn delay={100}>
+            <div className="bg-white dark:bg-slate-800 rounded-2xl p-6 shadow-sm border border-gray-100 dark:border-slate-700/50 flex items-center gap-4">
+              <div className="w-14 h-14 rounded-2xl bg-blue-50 dark:bg-blue-900/30 flex items-center justify-center text-blue-600 dark:text-blue-400">
+                <BookOpen className="w-7 h-7" />
+              </div>
+              <div>
+                <p className="text-gray-500 dark:text-gray-400 text-sm font-bold mb-1">{t('dash_current_courses')}</p>
+                <p className="text-2xl font-extrabold text-gray-900 dark:text-white">{student.enrolledCourses}</p>
+              </div>
+            </div>
+          </FadeIn>
+          <FadeIn delay={200}>
+            <div className="bg-white dark:bg-slate-800 rounded-2xl p-6 shadow-sm border border-gray-100 dark:border-slate-700/50 flex items-center gap-4">
+              <div className="w-14 h-14 rounded-2xl bg-green-50 dark:bg-green-900/30 flex items-center justify-center text-green-600 dark:text-green-400">
+                <Award className="w-7 h-7" />
+              </div>
+              <div>
+                <p className="text-gray-500 dark:text-gray-400 text-sm font-bold mb-1">{t('dash_completed_certs')}</p>
+                <p className="text-2xl font-extrabold text-gray-900 dark:text-white">{student.completedCourses}</p>
+              </div>
+            </div>
+          </FadeIn>
+          <FadeIn delay={300}>
+            <div className="bg-white dark:bg-slate-800 rounded-2xl p-6 shadow-sm border border-gray-100 dark:border-slate-700/50 flex items-center gap-4">
+              <div className="w-14 h-14 rounded-2xl bg-gold-50 dark:bg-gold-900/30 flex items-center justify-center text-gold-600 dark:text-gold-400">
+                <Star className="w-7 h-7" />
+              </div>
+              <div>
+                <p className="text-gray-500 dark:text-gray-400 text-sm font-bold mb-1">{t('dash_xp')}</p>
+                <p className="text-2xl font-extrabold text-gray-900 dark:text-white">{student.points}</p>
+              </div>
+            </div>
+          </FadeIn>
+        </div>
+
+        {/* Enrolled Courses */}
+        <div className="mb-8">
+          <h2 className="text-2xl font-bold text-gray-900 dark:text-white font-arabic mb-6">{t('dash_continue_learning')}</h2>
+          <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+            {activeCourses.map((course, idx) => (
+              <FadeIn key={idx} delay={400 + (idx * 100)}>
+                <div className="bg-white dark:bg-slate-800 rounded-3xl p-6 sm:p-8 shadow-md border border-gray-100 dark:border-slate-700/50 relative group">
+                  <h3 className="text-xl font-bold text-gray-900 dark:text-white font-arabic mb-4">
+                    {course.title}
+                  </h3>
+                  
+                  <div className="flex items-center justify-between text-sm text-gray-500 dark:text-gray-400 mb-2">
+                    <span className="flex items-center gap-2">
+                      <Clock className="w-4 h-4 text-blue-500" />
+                      {t('dash_next_lesson')} {course.lastLesson}
+                    </span>
+                    <span className="font-bold text-blue-600 dark:text-blue-400">{course.progress}%</span>
+                  </div>
+                  
+                  {/* Progress Bar */}
+                  <div className="w-full h-3 bg-gray-100 dark:bg-slate-700 rounded-full overflow-hidden mb-6">
+                    <div 
+                      className="h-full bg-gradient-to-r from-blue-500 to-blue-600 rounded-full transition-all duration-1000"
+                      style={{ width: `${course.progress}%` }}
+                    ></div>
+                  </div>
+
+                  <Link 
+                    to={`/course/${course.id}`}
+                    className="flex items-center justify-center gap-2 w-full py-3 bg-blue-50 dark:bg-blue-900/20 hover:bg-blue-100 dark:hover:bg-blue-900/40 text-blue-700 dark:text-blue-400 rounded-xl font-bold transition-colors"
+                  >
+                    <PlayCircle className="w-5 h-5" />
+                    {t('dash_resume_course')}
+                  </Link>
+                </div>
+              </FadeIn>
+            ))}
+          </div>
+        </div>
+
+      </div>
+    </div>
+  );
+}

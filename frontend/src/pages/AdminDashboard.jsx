@@ -1,7 +1,7 @@
 import { useEffect, useState } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
 import { useTranslation } from 'react-i18next';
-import { Users, BookOpen, Settings, AlertTriangle, ShieldCheck, Plus, Edit, Trash2, Video } from 'lucide-react';
+import { Users, BookOpen, Settings, AlertTriangle, ShieldCheck, Plus, Edit, Trash2, Video, FileText } from 'lucide-react';
 import FadeIn from '../components/FadeIn';
 import { supabase } from '../lib/supabase';
 import { getDirectImageUrl } from '../utils/helpers';
@@ -30,9 +30,15 @@ export default function AdminDashboard() {
         .select('*', { count: 'exact' })
         .order('created_at', { ascending: false });
 
+      const { count: pendingSubscriptions } = await supabase
+        .from('subscriptions')
+        .select('*', { count: 'exact', head: true })
+        .eq('status', 'pending');
+
       setStats({
         students: studentsCount || 0,
-        courses: coursesCount || 0
+        courses: coursesCount || 0,
+        pendingSubscriptions: pendingSubscriptions || 0
       });
 
       if (coursesData) setCourses(coursesData);
@@ -103,6 +109,24 @@ export default function AdminDashboard() {
               </div>
               <p className="text-3xl font-extrabold text-gray-900 dark:text-white">{stats.courses}</p>
             </div>
+          </FadeIn>
+
+          <FadeIn delay={300}>
+            <Link to="/admin-dashboard/subscriptions" className="block bg-white dark:bg-slate-800 p-6 rounded-2xl shadow-sm border border-gray-100 dark:border-slate-700 hover:border-blue-500 transition-colors group relative overflow-hidden">
+              <div className="absolute top-0 right-0 w-32 h-32 bg-blue-500/10 rounded-full blur-[40px] pointer-events-none group-hover:bg-blue-500/20 transition-colors"></div>
+              <div className="flex items-center gap-4 mb-4 relative z-10">
+                <div className="w-12 h-12 rounded-xl bg-orange-50 dark:bg-orange-900/30 text-orange-600 dark:text-orange-400 flex items-center justify-center">
+                  <FileText className="w-6 h-6" />
+                </div>
+                <h3 className="font-bold text-gray-700 dark:text-gray-300">طلبات الاشتراك</h3>
+              </div>
+              <div className="flex items-end justify-between relative z-10">
+                <p className="text-3xl font-extrabold text-gray-900 dark:text-white">{stats.pendingSubscriptions || 0}</p>
+                <span className="text-sm text-blue-600 dark:text-blue-400 font-bold flex items-center gap-1 group-hover:gap-2 transition-all">
+                  مراجعة الطلبات
+                </span>
+              </div>
+            </Link>
           </FadeIn>
         </div>
 

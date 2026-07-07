@@ -1,12 +1,13 @@
 import { useState, useEffect } from 'react';
 import { useParams, useNavigate, Link } from 'react-router-dom';
 import { useTranslation } from 'react-i18next';
-import { PlayCircle, FileText, CheckCircle2, Clock, BookOpen, Star, ChevronDown, Award, Play, Loader, FileType2 } from 'lucide-react';
+import { PlayCircle, FileText, CheckCircle2, Clock, BookOpen, Star, ChevronDown, Award, Play, Loader, FileType2, Lock } from 'lucide-react';
 import { supabase } from '../lib/supabase';
 import FadeIn from '../components/FadeIn';
 import { getDirectImageUrl } from '../utils/helpers';
 import BackButton from '../components/BackButton';
 import { motion, AnimatePresence } from 'framer-motion';
+import { useAuth } from '../context/AuthContext';
 
 export default function CourseDetails() {
   const { id } = useParams();
@@ -20,13 +21,19 @@ export default function CourseDetails() {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
   const [showPdf, setShowPdf] = useState(false);
+  const [isVideoLoading, setIsVideoLoading] = useState(true);
+  const [isSubscribed, setIsSubscribed] = useState(false);
+  const [subscription, setSubscription] = useState(null);
+  
+  const { user } = useAuth();
 
   useEffect(() => {
     fetchCourseAndLessons();
-  }, [id]);
+  }, [id, user]);
 
   useEffect(() => {
     setShowPdf(false);
+    setIsVideoLoading(true);
   }, [activeLesson]);
 
   const fetchCourseAndLessons = async () => {
@@ -57,6 +64,24 @@ export default function CourseDetails() {
         setActiveLesson(firstFree || lessonsData[0]);
       }
 
+      // Check subscription
+      if (user) {
+        const { data: subData, error: subError } = await supabase
+          .from('subscriptions')
+          .select('status, created_at')
+          .eq('course_id', id)
+          .eq('user_id', user.id)
+          .eq('status', 'active')
+          .limit(1);
+          
+        if (subData && subData.length > 0) {
+          setIsSubscribed(true);
+          setSubscription(subData[0]);
+        } else if (subError) {
+          console.error('Subscription check error:', subError);
+        }
+      }
+
     } catch (err) {
       console.error('Error fetching course:', err);
       setError('حدث خطأ أثناء جلب تفاصيل الكورس. قد يكون غير موجود أو تم حذفه.');
@@ -68,12 +93,32 @@ export default function CourseDetails() {
   const renderVideoPlayer = () => {
     if (!activeLesson) return null;
 
-    if (!activeLesson.is_free_preview) {
+    const hasAccess = activeLesson.is_free_preview || isSubscribed;
+
+    if (!hasAccess) {
       return (
-        <div className="w-full aspect-video bg-slate-900 rounded-2xl border border-slate-700 shadow-2xl overflow-hidden relative flex flex-col items-center justify-center p-6 text-center">
-          <BookOpen className="w-16 h-16 text-gray-500 mb-4" />
-          <h3 className="text-xl font-bold text-white mb-2">محتوى حصري للمشتركين</h3>
-          <p className="text-gray-400 max-w-md">يرجى الاشتراك في الكورس لمشاهدة هذا الدرس وتنزيل المرفقات.</p>
+        <div className="w-full aspect-video bg-gradient-to-br from-slate-900 to-slate-800 rounded-3xl border border-slate-700 shadow-2xl overflow-hidden relative flex flex-col items-center justify-center p-8 text-center group">
+          <div className="absolute top-0 right-0 w-64 h-64 bg-blue-500/10 blur-[80px] rounded-full pointer-events-none"></div>
+          <div className="absolute bottom-0 left-0 w-64 h-64 bg-purple-500/10 blur-[80px] rounded-full pointer-events-none"></div>
+          
+          <div className="relative z-10 flex flex-col items-center">
+            <div className="w-24 h-24 mb-6 rounded-full bg-slate-800/80 border-4 border-slate-700 flex items-center justify-center shadow-lg group-hover:scale-105 transition-transform duration-500">
+              <Lock className="w-10 h-10 text-gray-400 group-hover:text-blue-400 transition-colors" />
+            </div>
+            <h3 className="text-3xl font-extrabold text-white mb-3 font-arabic">محتوى مقفول</h3>
+            <p className="text-lg text-gray-400 max-w-md mb-8">
+              هذا المحتوى متاح للمشتركين فقط. يرجى الاشتراك في الكورس لمشاهدة جميع الدروس وتنزيل المرفقات.
+            </p>
+            <Link 
+              to={`/checkout/${course?.id}`}
+              className="px-8 py-4 bg-gradient-to-r from-blue-600 to-blue-800 hover:from-blue-500 hover:to-blue-700 text-white rounded-2xl font-bold text-lg shadow-[0_0_30px_rgba(37,99,235,0.3)] hover:shadow-[0_0_40px_rgba(37,99,235,0.5)] transform hover:-translate-y-1 transition-all duration-300 flex items-center gap-2"
+            >
+              اشترك في الكورس الآن
+              <div className="w-8 h-8 rounded-full bg-white/20 flex items-center justify-center">
+                <ChevronDown className="w-5 h-5 rotate-90 rtl:-rotate-90" />
+              </div>
+            </Link>
+          </div>
         </div>
       );
     }
@@ -97,16 +142,28 @@ export default function CourseDetails() {
       if (videoIdMatch && videoIdMatch[1]) {
         embedUrl = `https://www.youtube.com/embed/${videoIdMatch[1]}`;
       }
+    } else if (activeLesson.video_url.includes('drive.google.com')) {
+      const driveMatch = activeLesson.video_url.match(/\/file\/d\/([a-zA-Z0-9_-]+)/);
+      if (driveMatch && driveMatch[1]) {
+        embedUrl = `https://drive.google.com/file/d/${driveMatch[1]}/preview`;
+      }
     }
 
     return (
-      <div className="w-full aspect-video bg-black rounded-2xl shadow-2xl overflow-hidden relative border border-slate-700">
+      <div className="w-full aspect-video bg-slate-900 rounded-2xl shadow-2xl overflow-hidden relative border border-slate-700 flex items-center justify-center">
+        {isVideoLoading && (
+          <div className="absolute inset-0 flex flex-col items-center justify-center bg-slate-900 z-0">
+            <Loader className="w-10 h-10 text-blue-500 animate-spin mb-4" />
+            <p className="text-sm text-slate-400 font-arabic">جاري تحميل المشغل...</p>
+          </div>
+        )}
         <iframe
           src={embedUrl}
           title={activeLesson.title}
-          className="w-full h-full"
-          allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture"
+          className={`w-full h-full absolute top-0 left-0 z-10 transition-opacity duration-300 ${isVideoLoading ? 'opacity-0' : 'opacity-100'}`}
+          allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture; fullscreen"
           allowFullScreen
+          onLoad={() => setIsVideoLoading(false)}
         ></iframe>
       </div>
     );
@@ -224,7 +281,7 @@ export default function CourseDetails() {
             {/* Video Player */}
             <FadeIn delay={100}>
               {renderVideoPlayer()}
-              {activeLesson && activeLesson.is_free_preview && activeLesson.pdf_url && (
+              {activeLesson && (activeLesson.is_free_preview || isSubscribed) && activeLesson.pdf_url && (
                 <div className="mt-8 flex items-center justify-between bg-white dark:bg-slate-800 p-5 rounded-2xl border border-gray-100 dark:border-slate-700 shadow-sm">
                   <div className="flex items-center gap-4">
                     <div className="w-12 h-12 rounded-xl bg-red-50 dark:bg-red-900/20 flex items-center justify-center">
@@ -243,12 +300,13 @@ export default function CourseDetails() {
                   </button>
                 </div>
               )}
-              {showPdf && activeLesson && activeLesson.pdf_url && (
-                <div className="mt-8 w-full h-[600px] sm:h-[800px] rounded-xl overflow-hidden border border-gray-200 dark:border-slate-700 shadow-sm bg-white dark:bg-slate-900 relative">
+              {showPdf && activeLesson && (activeLesson.is_free_preview || isSubscribed) && activeLesson.pdf_url && (
+                <div className="mt-8 relative">
                   <iframe 
-                    src={`${activeLesson.pdf_url}#view=FitH`} 
-                    className="w-full h-full border-0 absolute inset-0"
+                    src={activeLesson.pdf_url} 
+                    className="w-full h-[70vh] rounded-xl shadow-lg border border-gray-700"
                     title={`ملف الشرح - ${activeLesson.title}`}
+                    allowFullScreen
                   />
                 </div>
               )}
@@ -288,14 +346,47 @@ export default function CourseDetails() {
                   )}
                 </div>
 
-                <Link 
-                  to="/login" 
-                  className="w-full flex items-center justify-center py-4 bg-gradient-to-r from-blue-600 to-blue-800 hover:from-blue-700 hover:to-blue-900 text-white rounded-2xl font-bold text-lg transition-all duration-300 shadow-[0_8px_20px_rgb(37,99,235,0.3)] hover:-translate-y-1 mb-4"
-                >
-                  اشتراك الآن
-                </Link>
+                {!isSubscribed ? (
+                  <Link 
+                    to={user ? `/checkout/${course.id}` : "/login"} 
+                    className="w-full flex items-center justify-center py-4 bg-gradient-to-r from-blue-600 to-blue-800 hover:from-blue-700 hover:to-blue-900 text-white rounded-2xl font-bold text-lg transition-all duration-300 shadow-[0_8px_20px_rgb(37,99,235,0.3)] hover:-translate-y-1 mb-4"
+                  >
+                    اشتراك الآن
+                  </Link>
+                ) : (
+                  <div className="mb-4">
+                    {course.access_duration_days && subscription?.created_at ? (
+                      (() => {
+                        const createdDate = new Date(subscription.created_at);
+                        const expiryDate = new Date(createdDate.getTime() + course.access_duration_days * 24 * 60 * 60 * 1000);
+                        const today = new Date();
+                        const diffTime = expiryDate - today;
+                        const diffDays = Math.ceil(diffTime / (1000 * 60 * 60 * 24));
+                        const daysText = diffDays > 0 ? `متبقي ${diffDays} يوم` : 'انتهى الاشتراك';
+                        const isExpiringSoon = diffDays > 0 && diffDays <= 3;
 
-                {course.access_duration_days && (
+                        return (
+                          <div className={`text-center py-3 px-4 rounded-xl border ${isExpiringSoon ? 'bg-orange-50 border-orange-200 text-orange-700 dark:bg-orange-900/20 dark:border-orange-800/50 dark:text-orange-400' : 'bg-green-50 border-green-200 text-green-700 dark:bg-green-900/20 dark:border-green-800/50 dark:text-green-400'}`}>
+                            <p className="font-bold mb-1">أنت مشترك في الكورس</p>
+                            <p className="text-sm font-bold flex items-center justify-center gap-1">
+                              <Clock className="w-4 h-4" />
+                              {daysText}
+                            </p>
+                          </div>
+                        );
+                      })()
+                    ) : (
+                      <div className="text-center py-3 px-4 rounded-xl border bg-green-50 border-green-200 text-green-700 dark:bg-green-900/20 dark:border-green-800/50 dark:text-green-400">
+                        <p className="font-bold flex items-center justify-center gap-2">
+                          <CheckCircle2 className="w-5 h-5" />
+                          أنت مشترك في الكورس
+                        </p>
+                      </div>
+                    )}
+                  </div>
+                )}
+
+                {course.access_duration_days && !isSubscribed && (
                   <div className="text-center mb-4 bg-orange-50 dark:bg-orange-900/20 py-2 rounded-xl border border-orange-100 dark:border-orange-800/50">
                     <p className="text-sm font-bold text-orange-600 dark:text-orange-400 flex items-center justify-center gap-2">
                       <Clock className="w-4 h-4" />

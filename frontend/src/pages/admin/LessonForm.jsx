@@ -23,9 +23,6 @@ export default function LessonForm() {
     is_free_preview: false
   });
 
-  const [pdfFile, setPdfFile] = useState(null);
-  const fileInputRef = useRef(null);
-
   useEffect(() => {
     if (isEditing) {
       fetchLesson();
@@ -86,57 +83,18 @@ export default function LessonForm() {
     }));
   };
 
-  const handlePdfChange = (e) => {
-    const file = e.target.files[0];
-    if (file) {
-      if (file.type === 'application/pdf') {
-        setPdfFile(file);
-      } else {
-        alert('يرجى اختيار ملف PDF فقط.');
-      }
-    }
-  };
-
-  const uploadPdf = async () => {
-    if (!pdfFile) return formData.pdf_url;
-    
-    const fileExt = pdfFile.name.split('.').pop();
-    const fileName = `${Math.random().toString(36).substring(2, 15)}_${Date.now()}.${fileExt}`;
-    const filePath = `${fileName}`;
-
-    const { error: uploadError, data } = await supabase.storage
-      .from('lesson-files')
-      .upload(filePath, pdfFile);
-
-    if (uploadError) {
-      throw new Error('فشل رفع ملف الـ PDF. تأكد من أنك قمت بتنفيذ سكربت قاعدة البيانات (update_database.sql).');
-    }
-
-    const { data: { publicUrl } } = supabase.storage
-      .from('lesson-files')
-      .getPublicUrl(filePath);
-
-    return publicUrl;
-  };
-
   const handleSubmit = async (e) => {
     e.preventDefault();
     setLoading(true);
     setError('');
 
     try {
-      // 1. Upload PDF if a new one is selected
-      let finalPdfUrl = formData.pdf_url;
-      if (pdfFile) {
-        finalPdfUrl = await uploadPdf();
-      }
-
       const lessonData = {
         course_id: courseId,
         title: formData.title,
         description: formData.description,
         video_url: formData.video_url,
-        pdf_url: finalPdfUrl,
+        pdf_url: formData.pdf_url,
         order_index: Number(formData.order_index),
         is_free_preview: formData.is_free_preview
       };
@@ -246,43 +204,22 @@ export default function LessonForm() {
               </div>
 
               <div>
-                <label className="block text-sm font-bold text-gray-700 dark:text-gray-300 mb-2">
-                  ملف الشرح (PDF) - اختياري
-                </label>
-                <div 
-                  className={`border-2 border-dashed rounded-xl p-6 text-center transition-colors cursor-pointer relative ${pdfFile || formData.pdf_url ? 'border-red-400 bg-red-50/50 dark:bg-red-900/10 dark:border-red-800' : 'border-gray-300 dark:border-slate-600 hover:bg-gray-50 dark:hover:bg-slate-800'}`}
-                  onClick={() => fileInputRef.current?.click()}
-                >
-                  <input 
-                    type="file" 
-                    accept="application/pdf" 
-                    ref={fileInputRef}
-                    onChange={handlePdfChange}
-                    className="hidden" 
+                <label className="block text-sm font-bold text-gray-700 dark:text-gray-300 mb-2">رابط مذكرة الدرس (Google Drive Embed) - اختياري</label>
+                <div className="relative">
+                  <div className="absolute inset-y-0 right-0 pr-4 flex items-center pointer-events-none text-gray-400">
+                    <LinkIcon className="w-5 h-5" />
+                  </div>
+                  <input
+                    type="url"
+                    name="pdf_url"
+                    value={formData.pdf_url}
+                    onChange={handleChange}
+                    className="w-full pr-12 pl-4 py-3 rounded-xl bg-gray-50 dark:bg-slate-900/50 border border-gray-200 dark:border-slate-700 text-gray-900 dark:text-white focus:outline-none focus:border-blue-500 dark:focus:border-blue-500 transition-colors text-left"
+                    placeholder="https://drive.google.com/file/d/.../preview"
+                    dir="ltr"
                   />
-                  
-                  {pdfFile ? (
-                    <div className="flex flex-col items-center justify-center py-2">
-                      <FileType2 className="w-12 h-12 text-red-500 mb-3" />
-                      <p className="text-gray-900 dark:text-white font-bold mb-1" dir="ltr">{pdfFile.name}</p>
-                      <p className="text-gray-500 text-sm">تم اختيار الملف بنجاح. اضغط لتغييره.</p>
-                    </div>
-                  ) : formData.pdf_url ? (
-                    <div className="flex flex-col items-center justify-center py-2">
-                      <FileType2 className="w-12 h-12 text-red-500 mb-3" />
-                      <p className="text-gray-900 dark:text-white font-bold mb-1">يوجد ملف PDF مرفق مسبقاً</p>
-                      <p className="text-gray-500 text-sm">اضغط هنا لاستبداله بملف جديد</p>
-                    </div>
-                  ) : (
-                    <div className="flex flex-col items-center justify-center py-4">
-                      <div className="w-14 h-14 rounded-full bg-red-50 dark:bg-red-900/30 text-red-500 flex items-center justify-center mb-4">
-                        <UploadCloud className="w-6 h-6" />
-                      </div>
-                      <p className="text-gray-900 dark:text-white font-bold mb-1">اضغط هنا لرفع ملف PDF</p>
-                      <p className="text-gray-500 text-sm">سيتمكن الطلاب من تصفحه وقراءته داخل الكورس.</p>
-                    </div>
-                  )}
                 </div>
+                <p className="text-xs text-gray-500 mt-2">قم بوضع رابط التضمين (Embed Link) الخاص بالملف من Google Drive لضمان حمايته.</p>
               </div>
 
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-6 pt-4 border-t border-gray-100 dark:border-slate-700">

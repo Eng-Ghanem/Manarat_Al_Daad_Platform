@@ -89,23 +89,22 @@ export default function Footer() {
             </ul>
           </div>
 
-          {/* Newsletter / CTA */}
+          {/* Support / Quick Help */}
           <div>
-            <h3 className="text-white font-bold text-lg mb-6">{t('footer_newsletter_title')}</h3>
-            <p className="text-slate-400 text-sm mb-4">{t('footer_newsletter_desc')}</p>
-            <form className="flex flex-col gap-3" onSubmit={(e) => e.preventDefault()}>
-              <input 
-                type="email" 
-                placeholder={t('footer_email_placeholder')} 
-                className="w-full px-4 py-3 rounded-xl bg-slate-800 border border-slate-700 text-white placeholder-slate-500 focus:outline-none focus:border-blue-500 transition-colors text-sm"
-              />
-              <button 
-                type="submit"
-                className="w-full px-4 py-3 rounded-xl bg-blue-600 hover:bg-blue-700 text-white font-bold transition-colors text-sm"
+            <h3 className="text-white font-bold text-lg mb-6">دعم فني ومساعدة</h3>
+            <p className="text-slate-400 text-sm mb-4 leading-relaxed">
+              نحن هنا لمساعدتك في أي وقت. إذا واجهتك أي مشكلة أثناء استخدام المنصة، أو لديك استفسار بخصوص الاشتراكات، لا تتردد في التواصل معنا.
+            </p>
+            <div className="flex flex-col gap-3">
+              <a 
+                href="https://wa.me/201033511516" 
+                target="_blank" 
+                rel="noreferrer"
+                className="w-full flex items-center justify-center gap-2 px-4 py-3 rounded-xl bg-green-600 hover:bg-green-700 text-white font-bold transition-colors text-sm"
               >
-                {t('footer_subscribe_btn')}
-              </button>
-            </form>
+                تواصل معنا عبر واتساب
+              </a>
+            </div>
           </div>
 
         </div>

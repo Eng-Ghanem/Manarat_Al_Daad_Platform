@@ -15,10 +15,12 @@ import AdminDashboard from './pages/AdminDashboard';
 import CourseForm from './pages/admin/CourseForm';
 import CourseDetailsAdmin from './pages/admin/CourseDetailsAdmin';
 import LessonForm from './pages/admin/LessonForm';
+import AdminSubscriptions from './pages/admin/AdminSubscriptions';
 import Settings from './pages/Settings';
 import NotFound from './pages/NotFound';
 import Terms from './pages/Terms';
 import Privacy from './pages/Privacy';
+import Checkout from './pages/Checkout';
 
 import AuthLayout from './components/layouts/AuthLayout';
 import MainLayout from './components/layouts/MainLayout';
@@ -60,6 +62,7 @@ function App() {
               <Route path="/courses/category/:categoryId" element={<CategoryCourses />} />
               <Route path="/courses" element={<FoundationCourses />} />
               <Route path="/course/:id" element={<CourseDetails />} />
+              <Route path="/checkout/:courseId" element={<Checkout />} />
               <Route path="/terms" element={<Terms />} />
               <Route path="/privacy" element={<Privacy />} />
 
@@ -69,6 +72,7 @@ function App() {
 
               {/* Protected Admin Routes */}
               <Route path="/admin-dashboard" element={<AdminRoute><AdminDashboard /></AdminRoute>} />
+              <Route path="/admin-dashboard/subscriptions" element={<AdminRoute><AdminSubscriptions /></AdminRoute>} />
               {/* Redirect old /admin to /admin-dashboard */}
               <Route path="/admin" element={<Navigate to="/admin-dashboard" replace />} />
               

@@ -28,6 +28,7 @@ const CourseDetailsAdmin = lazy(() => import('./pages/admin/CourseDetailsAdmin')
 const LessonForm = lazy(() => import('./pages/admin/LessonForm'));
 const AdminSubscriptions = lazy(() => import('./pages/admin/AdminSubscriptions'));
 const Settings = lazy(() => import('./pages/Settings'));
+const Certificates = lazy(() => import('./pages/Certificates'));
 const NotFound = lazy(() => import('./pages/NotFound'));
 const Terms = lazy(() => import('./pages/Terms'));
 const Privacy = lazy(() => import('./pages/Privacy'));
@@ -77,6 +78,7 @@ function App() {
                 {/* Protected Student Routes */}
                 <Route path="/dashboard" element={<Dashboard />} />
                 <Route path="/settings" element={<Settings />} />
+                <Route path="/certificates" element={<Certificates />} />
 
                 {/* Protected Admin Routes */}
                 <Route path="/admin-dashboard" element={<AdminRoute><AdminDashboard /></AdminRoute>} />

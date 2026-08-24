@@ -62,8 +62,13 @@ export default function Checkout() {
       alert('يرجى إدخال رقم المحفظة المحول منها.');
       return;
     }
+    if (walletNumber.length !== 11 || !/^\d+$/.test(walletNumber)) {
+      alert('رقم المحفظة يجب أن يتكون من 11 رقماً.');
+      return;
+    }
     if (!receiptFile) {
-      if (!window.confirm('لم تقم برفع صورة الإيصال. الاستمرار بدون صورة قد يؤخر عملية تفعيل اشتراكك. هل تود الاستمرار؟')) return;
+      alert('إيصال التحويل مطلوب لتأكيد الدفع.');
+      return;
     }
     
     setProcessing(true);
@@ -301,13 +306,14 @@ export default function Checkout() {
                                         <input 
                                           type="tel"
                                           value={walletNumber}
-                                          onChange={(e) => setWalletNumber(e.target.value)}
+                                          onChange={(e) => setWalletNumber(e.target.value.replace(/\D/g, ''))}
+                                          maxLength={11}
                                           className="w-full px-4 py-3 rounded-xl bg-gray-50 dark:bg-slate-900/50 border border-gray-200 dark:border-slate-700 focus:outline-none focus:border-blue-500 text-gray-900 dark:text-white text-left"
                                           placeholder="01xxxxxxxxx"
                                           dir="ltr"
                                         />
                                         <div className="mt-4">
-                                          <label className="block text-sm font-bold text-gray-700 dark:text-gray-300 mb-2">صورة الإيصال (اختياري / لتسريع التفعيل)</label>
+                                          <label className="block text-sm font-bold text-gray-700 dark:text-gray-300 mb-2">صورة الإيصال *</label>
                                           <input type="file" className="w-full text-sm text-slate-500 file:mr-4 file:py-2 file:px-4 file:rounded-full file:border-0 file:text-sm file:font-semibold file:bg-blue-50 file:text-blue-700 hover:file:bg-blue-100 dark:file:bg-slate-700 dark:file:text-slate-300" accept="image/*" onChange={(e) => setReceiptFile(e.target.files[0])} />
                                         </div>
                                       </div>

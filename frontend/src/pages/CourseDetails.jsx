@@ -418,9 +418,7 @@ export default function CourseDetails() {
                   </div>
                 )}
 
-                <p className="text-center text-sm text-gray-500 dark:text-gray-400">
-                  {t('cd_money_back')}
-                </p>
+                
               </div>
             </FadeIn>
           </div>

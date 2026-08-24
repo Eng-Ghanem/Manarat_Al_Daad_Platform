@@ -1,6 +1,6 @@
 import { useState } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
-import { Mail, Lock, User, ArrowRight, Loader, Eye, EyeOff, Phone, CheckCircle, XCircle } from 'lucide-react';
+import { Mail, Lock, User, ArrowRight, Loader, Eye, EyeOff, Phone, CheckCircle, XCircle, GraduationCap } from 'lucide-react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { useTranslation } from 'react-i18next';
 import { useAuth } from '../context/AuthContext';
@@ -16,6 +16,7 @@ export default function Register() {
   const [email, setEmail] = useState('');
   const [phone, setPhone] = useState('');
   const [gender, setGender] = useState('male');
+  const [gradeLevel, setGradeLevel] = useState('');
   const [password, setPassword] = useState('');
   const [confirmPassword, setConfirmPassword] = useState('');
   const [showPassword, setShowPassword] = useState(false);
@@ -54,7 +55,7 @@ export default function Register() {
     setLoading(true);
 
     try {
-      const { data: authData, error } = await register(email, password, fullName, phone, gender);
+      const { data: authData, error } = await register(email, password, fullName, phone, gender, gradeLevel);
       if (error) throw error;
       
 
@@ -209,6 +210,40 @@ export default function Register() {
                 <input type="radio" name="gender" value="female" className="sr-only" checked={gender === 'female'} onChange={(e) => setGender(e.target.value)} />
                 {t('gender_female')}
               </label>
+            </div>
+          </div>
+
+          <div>
+            <label className="block text-sm font-bold text-gray-700 dark:text-gray-300 mb-2 px-1">الصف الدراسي (اختياري)</label>
+            <div className="relative group">
+              <div className="absolute inset-y-0 right-0 pr-4 flex items-center pointer-events-none text-gray-400 group-focus-within:text-blue-600 transition-colors">
+                <GraduationCap className="w-5 h-5" />
+              </div>
+              <select
+                value={gradeLevel}
+                onChange={(e) => setGradeLevel(e.target.value)}
+                className="block w-full pr-12 pl-4 py-3.5 bg-white/50 dark:bg-slate-900/50 border border-gray-200 dark:border-slate-600 rounded-2xl focus:ring-4 focus:ring-blue-500/20 focus:border-blue-500 transition-all text-gray-900 dark:text-white placeholder-gray-400 font-medium appearance-none"
+              >
+                <option value="">اختر الصف الدراسي (اختياري)</option>
+                <optgroup label="المرحلة الابتدائية">
+                  <option value="primary_1">الصف الأول الابتدائي</option>
+                  <option value="primary_2">الصف الثاني الابتدائي</option>
+                  <option value="primary_3">الصف الثالث الابتدائي</option>
+                  <option value="primary_4">الصف الرابع الابتدائي</option>
+                  <option value="primary_5">الصف الخامس الابتدائي</option>
+                  <option value="primary_6">الصف السادس الابتدائي</option>
+                </optgroup>
+                <optgroup label="المرحلة الإعدادية">
+                  <option value="prep_1">الصف الأول الإعدادي</option>
+                  <option value="prep_2">الصف الثاني الإعدادي</option>
+                  <option value="prep_3">الصف الثالث الإعدادي</option>
+                </optgroup>
+                <optgroup label="المرحلة الثانوية">
+                  <option value="sec_1">الصف الأول الثانوي</option>
+                  <option value="sec_2">الصف الثاني الثانوي</option>
+                  <option value="sec_3">الصف الثالث الثانوي</option>
+                </optgroup>
+              </select>
             </div>
           </div>
 

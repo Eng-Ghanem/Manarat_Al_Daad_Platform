@@ -81,7 +81,7 @@ export const AuthProvider = ({ children }) => {
     return supabase.auth.signInWithPassword({ email: emailToUse, password });
   };
 
-  const register = async (email, password, fullName, phone, gender) => {
+  const register = async (email, password, fullName, phone, gender, gradeLevel) => {
     return supabase.auth.signUp({
       email,
       password,
@@ -89,7 +89,8 @@ export const AuthProvider = ({ children }) => {
         data: {
           full_name: fullName,
           phone: phone || null,
-          gender: gender || null
+          gender: gender || null,
+          grade_level: gradeLevel || null
         }
       }
     });

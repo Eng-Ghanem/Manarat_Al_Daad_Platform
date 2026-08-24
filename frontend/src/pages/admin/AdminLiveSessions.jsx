@@ -13,7 +13,6 @@ export default function AdminLiveSessions() {
   const { t } = useTranslation();
   
   const [sessions, setSessions] = useState([]);
-  const [courses, setCourses] = useState([]);
   const [loading, setLoading] = useState(true);
   
   // Modal state
@@ -28,7 +27,7 @@ export default function AdminLiveSessions() {
     start_time: '',
     end_time: '',
     zoom_link: '',
-    course_id: ''
+    grade_level: ''
   });
   const [formLoading, setFormLoading] = useState(false);
 
@@ -42,21 +41,10 @@ export default function AdminLiveSessions() {
   const fetchData = async () => {
     setLoading(true);
     try {
-      // Fetch courses for the dropdown
-      const { data: coursesData } = await supabase
-        .from('courses')
-        .select('id, title, is_published')
-        .order('created_at', { ascending: false });
-      
-      if (coursesData) setCourses(coursesData);
-
       // Fetch sessions
       const { data: sessionsData, error } = await supabase
         .from('online_sessions')
-        .select(`
-          *,
-          courses(title)
-        `)
+        .select('*')
         .order('start_time', { ascending: true });
 
       if (error) throw error;
@@ -83,7 +71,7 @@ export default function AdminLiveSessions() {
         start_time: toLocalDatetimeStr(session.start_time),
         end_time: toLocalDatetimeStr(session.end_time),
         zoom_link: session.zoom_link,
-        course_id: session.course_id || ''
+        grade_level: session.grade_level || ''
       });
       setIsEditing(true);
       setCurrentSessionId(session.id);
@@ -94,7 +82,7 @@ export default function AdminLiveSessions() {
         start_time: '',
         end_time: '',
         zoom_link: '',
-        course_id: ''
+        grade_level: ''
       });
       setIsEditing(false);
       setCurrentSessionId(null);
@@ -110,7 +98,7 @@ export default function AdminLiveSessions() {
       start_time: '',
       end_time: '',
       zoom_link: '',
-      course_id: ''
+      grade_level: ''
     });
   };
 
@@ -125,7 +113,7 @@ export default function AdminLiveSessions() {
         start_time: new Date(formData.start_time).toISOString(),
         end_time: new Date(formData.end_time).toISOString(),
         zoom_link: formData.zoom_link,
-        course_id: formData.course_id === '' ? null : formData.course_id
+        grade_level: formData.grade_level === '' ? null : formData.grade_level
       };
 
       if (isEditing) {
@@ -262,8 +250,21 @@ export default function AdminLiveSessions() {
                           <span dir="ltr">{new Date(session.end_time).toLocaleTimeString('ar-EG', { hour: '2-digit', minute: '2-digit' })}</span>
                         </div>
                         <div className="flex items-center gap-1.5 text-gray-700 dark:text-gray-300 bg-white dark:bg-slate-800 px-4 py-2 rounded-xl shadow-sm border border-gray-100 dark:border-slate-700">
-                          {session.course_id ? (
-                            <><BookOpen className="w-4 h-4 text-green-600" /> كورس: {session.courses?.title}</>
+                          {session.grade_level ? (
+                            <><BookOpen className="w-4 h-4 text-green-600" /> صف: {
+                              session.grade_level === 'primary_1' ? 'الأول الابتدائي' :
+                              session.grade_level === 'primary_2' ? 'الثاني الابتدائي' :
+                              session.grade_level === 'primary_3' ? 'الثالث الابتدائي' :
+                              session.grade_level === 'primary_4' ? 'الرابع الابتدائي' :
+                              session.grade_level === 'primary_5' ? 'الخامس الابتدائي' :
+                              session.grade_level === 'primary_6' ? 'السادس الابتدائي' :
+                              session.grade_level === 'prep_1' ? 'الأول الإعدادي' :
+                              session.grade_level === 'prep_2' ? 'الثاني الإعدادي' :
+                              session.grade_level === 'prep_3' ? 'الثالث الإعدادي' :
+                              session.grade_level === 'sec_1' ? 'الأول الثانوي' :
+                              session.grade_level === 'sec_2' ? 'الثاني الثانوي' :
+                              session.grade_level === 'sec_3' ? 'الثالث الثانوي' : session.grade_level
+                            }</>
                           ) : (
                             <><Users className="w-4 h-4 text-purple-600" /> عام للجميع</>
                           )}
@@ -405,20 +406,35 @@ export default function AdminLiveSessions() {
               </div>
 
               <div>
-                <label className="block text-sm font-bold text-gray-700 dark:text-gray-300 mb-2">تخصيص لكورس (اختياري)</label>
+                <label className="block text-sm font-bold text-gray-700 dark:text-gray-300 mb-2">تخصيص لصف دراسي (اختياري)</label>
                 <select
-                  value={formData.course_id}
-                  onChange={(e) => setFormData({...formData, course_id: e.target.value})}
+                  value={formData.grade_level}
+                  onChange={(e) => setFormData({...formData, grade_level: e.target.value})}
                   className="w-full px-4 py-3 rounded-xl bg-gray-50 dark:bg-slate-900/50 border border-gray-200 dark:border-slate-700 focus:ring-2 focus:ring-blue-500 text-gray-900 dark:text-white"
                 >
                   <option value="">عام لجميع الطلاب</option>
-                  {courses.map(course => (
-                    <option key={course.id} value={course.id}>{course.title}</option>
-                  ))}
+                  <optgroup label="المرحلة الابتدائية">
+                    <option value="primary_1">الصف الأول الابتدائي</option>
+                    <option value="primary_2">الصف الثاني الابتدائي</option>
+                    <option value="primary_3">الصف الثالث الابتدائي</option>
+                    <option value="primary_4">الصف الرابع الابتدائي</option>
+                    <option value="primary_5">الصف الخامس الابتدائي</option>
+                    <option value="primary_6">الصف السادس الابتدائي</option>
+                  </optgroup>
+                  <optgroup label="المرحلة الإعدادية">
+                    <option value="prep_1">الصف الأول الإعدادي</option>
+                    <option value="prep_2">الصف الثاني الإعدادي</option>
+                    <option value="prep_3">الصف الثالث الإعدادي</option>
+                  </optgroup>
+                  <optgroup label="المرحلة الثانوية">
+                    <option value="sec_1">الصف الأول الثانوي</option>
+                    <option value="sec_2">الصف الثاني الثانوي</option>
+                    <option value="sec_3">الصف الثالث الثانوي</option>
+                  </optgroup>
                 </select>
                 <p className="text-xs text-gray-500 mt-2 flex items-center gap-1">
                   <AlertCircle className="w-3 h-3" />
-                  إذا اخترت كورس، سيتمكن طلاب هذا الكورس فقط (ذوي الاشتراك الفعال) من رؤية رابط الحصة.
+                  إذا اخترت صف دراسي، سيتمكن طلاب هذا الصف فقط من رؤية رابط الحصة.
                 </p>
               </div>
 

@@ -109,7 +109,7 @@ CREATE TABLE online_sessions (
     start_time TIMESTAMP WITH TIME ZONE NOT NULL,
     end_time TIMESTAMP WITH TIME ZONE NOT NULL,
     zoom_link TEXT NOT NULL,
-    course_id UUID REFERENCES courses(id) ON DELETE CASCADE,
+    grade_level TEXT, -- e.g., 'sec_1', 'prep_2' or null for global
     created_at TIMESTAMP WITH TIME ZONE DEFAULT TIMEZONE('utc'::text, NOW()) NOT NULL,
     updated_at TIMESTAMP WITH TIME ZONE DEFAULT TIMEZONE('utc'::text, NOW()) NOT NULL
 );
@@ -120,12 +120,11 @@ CREATE POLICY "Admins can manage online sessions." ON online_sessions FOR ALL US
     EXISTS (SELECT 1 FROM profiles WHERE id = auth.uid() AND role = 'admin')
 );
 
-CREATE POLICY "Students can view enrolled or global sessions." ON online_sessions FOR SELECT USING (
-    course_id IS NULL OR EXISTS (
-        SELECT 1 FROM enrollments 
-        WHERE user_id = auth.uid() 
-        AND course_id = online_sessions.course_id 
-        AND status = 'active'
+CREATE POLICY "Students can view sessions for their grade or global sessions." ON online_sessions FOR SELECT USING (
+    grade_level IS NULL OR EXISTS (
+        SELECT 1 FROM profiles 
+        WHERE id = auth.uid() 
+        AND grade_level = online_sessions.grade_level
     )
 );
 CREATE POLICY "Users can view their own progress." ON lesson_progress FOR SELECT USING (auth.uid() = user_id);

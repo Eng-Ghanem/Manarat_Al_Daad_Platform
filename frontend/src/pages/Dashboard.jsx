@@ -109,7 +109,7 @@ export default function Dashboard() {
 
         {/* Stats Grid */}
         <div className="grid grid-cols-1 sm:grid-cols-2 gap-6 mb-8">
-          <FadeIn delay={100}>
+          <FadeIn>
             <div className="bg-white dark:bg-slate-800 rounded-2xl p-6 shadow-sm border border-gray-100 dark:border-slate-700/50 flex items-center gap-4">
               <div className="w-14 h-14 rounded-2xl bg-blue-50 dark:bg-blue-900/30 flex items-center justify-center text-blue-600 dark:text-blue-400">
                 <BookOpen className="w-7 h-7" />
@@ -121,7 +121,7 @@ export default function Dashboard() {
             </div>
           </FadeIn>
           
-          <FadeIn delay={200}>
+          <FadeIn>
             {/* Clickable Certificates Card */}
             <Link to="/certificates" className="block bg-white dark:bg-slate-800 rounded-2xl p-6 shadow-sm border border-gray-100 dark:border-slate-700/50 flex items-center justify-between hover:shadow-md hover:border-blue-200 dark:hover:border-blue-800 transition-all cursor-pointer group">
               <div className="flex items-center gap-4">
@@ -145,13 +145,13 @@ export default function Dashboard() {
           <h2 className="text-2xl font-bold text-gray-900 dark:text-white font-arabic mb-6">{t('dash_continue_learning')}</h2>
           
           {loading ? (
-            <FadeIn delay={300}>
+            <FadeIn>
               <div className="flex justify-center items-center py-20">
                 <Loader className="w-10 h-10 text-blue-600 animate-spin" />
               </div>
             </FadeIn>
           ) : activeCourses.length === 0 ? (
-            <FadeIn delay={300}>
+            <FadeIn>
               <div className="bg-white dark:bg-slate-800 rounded-3xl p-10 text-center border border-gray-100 dark:border-slate-700/50 shadow-sm">
                 <BookOpen className="w-16 h-16 text-gray-300 dark:text-slate-600 mx-auto mb-4" />
                 <h3 className="text-xl font-bold text-gray-900 dark:text-white mb-2">لا توجد كورسات حالية</h3>
@@ -164,7 +164,7 @@ export default function Dashboard() {
           ) : (
             <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
               {activeCourses.map((course, idx) => (
-                <FadeIn key={course.id} delay={300 + (idx * 100)}>
+                <FadeIn key={course.id}>
                   <div className="bg-white dark:bg-slate-800 rounded-3xl p-6 sm:p-8 shadow-md border border-gray-100 dark:border-slate-700/50 relative group">
                     <h3 className="text-xl font-bold text-gray-900 dark:text-white font-arabic mb-4 line-clamp-1">
                       {course.title}

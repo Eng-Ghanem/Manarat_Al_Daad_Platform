@@ -23,10 +23,7 @@ export default function StudentLiveSessions() {
       // Due to RLS, this will only return sessions the student has access to
       const { data, error } = await supabase
         .from('online_sessions')
-        .select(`
-          *,
-          courses(title)
-        `)
+        .select('*')
         .order('start_time', { ascending: true });
 
       if (error) throw error;
@@ -95,9 +92,22 @@ export default function StudentLiveSessions() {
                   
                   <div className="relative z-10 w-full md:w-2/3 mb-6 md:mb-0">
                     <h3 className="text-2xl font-bold text-white mb-2">{session.title}</h3>
-                    {session.course_id && (
+                    {session.grade_level && (
                       <p className="text-blue-200 font-medium mb-4 flex items-center gap-2">
-                        <BookOpen className="w-4 h-4" /> كورس: {session.courses?.title}
+                        <BookOpen className="w-4 h-4" /> صف: {
+                              session.grade_level === 'primary_1' ? 'الأول الابتدائي' :
+                              session.grade_level === 'primary_2' ? 'الثاني الابتدائي' :
+                              session.grade_level === 'primary_3' ? 'الثالث الابتدائي' :
+                              session.grade_level === 'primary_4' ? 'الرابع الابتدائي' :
+                              session.grade_level === 'primary_5' ? 'الخامس الابتدائي' :
+                              session.grade_level === 'primary_6' ? 'السادس الابتدائي' :
+                              session.grade_level === 'prep_1' ? 'الأول الإعدادي' :
+                              session.grade_level === 'prep_2' ? 'الثاني الإعدادي' :
+                              session.grade_level === 'prep_3' ? 'الثالث الإعدادي' :
+                              session.grade_level === 'sec_1' ? 'الأول الثانوي' :
+                              session.grade_level === 'sec_2' ? 'الثاني الثانوي' :
+                              session.grade_level === 'sec_3' ? 'الثالث الثانوي' : session.grade_level
+                            }
                       </p>
                     )}
                     <p className="text-blue-100/80 mb-6">{session.description}</p>
@@ -158,9 +168,22 @@ export default function StudentLiveSessions() {
                         <Clock className="w-4 h-4 text-orange-500" />
                         <span dir="ltr">{new Date(session.start_time).toLocaleTimeString('ar-EG', { hour: '2-digit', minute: '2-digit' })}</span>
                       </div>
-                      {session.course_id && (
+                      {session.grade_level && (
                         <div className="flex items-center gap-1.5 text-gray-700 dark:text-gray-300 bg-gray-50 dark:bg-slate-900/50 px-4 py-2 rounded-xl">
-                          <BookOpen className="w-4 h-4 text-green-600" /> كورس: {session.courses?.title}
+                          <BookOpen className="w-4 h-4 text-green-600" /> صف: {
+                              session.grade_level === 'primary_1' ? 'الأول الابتدائي' :
+                              session.grade_level === 'primary_2' ? 'الثاني الابتدائي' :
+                              session.grade_level === 'primary_3' ? 'الثالث الابتدائي' :
+                              session.grade_level === 'primary_4' ? 'الرابع الابتدائي' :
+                              session.grade_level === 'primary_5' ? 'الخامس الابتدائي' :
+                              session.grade_level === 'primary_6' ? 'السادس الابتدائي' :
+                              session.grade_level === 'prep_1' ? 'الأول الإعدادي' :
+                              session.grade_level === 'prep_2' ? 'الثاني الإعدادي' :
+                              session.grade_level === 'prep_3' ? 'الثالث الإعدادي' :
+                              session.grade_level === 'sec_1' ? 'الأول الثانوي' :
+                              session.grade_level === 'sec_2' ? 'الثاني الثانوي' :
+                              session.grade_level === 'sec_3' ? 'الثالث الثانوي' : session.grade_level
+                            }
                         </div>
                       )}
                     </div>

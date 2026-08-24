@@ -103,6 +103,23 @@ export default function CourseDetails() {
     }
   };
 
+  const getEmbedUrl = (url) => {
+    if (!url) return null;
+    let embedUrl = url;
+    if (url.includes('youtube.com') || url.includes('youtu.be')) {
+      const videoIdMatch = url.match(/(?:youtu\.be\/|youtube\.com\/(?:embed\/|v\/|watch\?v=|watch\?.+&v=))([^&?]+)/);
+      if (videoIdMatch && videoIdMatch[1]) {
+        embedUrl = `https://www.youtube.com/embed/${videoIdMatch[1]}`;
+      }
+    } else if (url.includes('drive.google.com')) {
+      const driveMatch = url.match(/\/file\/d\/([a-zA-Z0-9_-]+)/);
+      if (driveMatch && driveMatch[1]) {
+        embedUrl = `https://drive.google.com/file/d/${driveMatch[1]}/preview?rm=minimal#toolbar=0`;
+      }
+    }
+    return embedUrl;
+  };
+
   const renderVideoPlayer = () => {
     if (!activeLesson) return null;
 
@@ -147,20 +164,7 @@ export default function CourseDetails() {
     }
 
     // Try to embed youtube directly if it's a youtube link
-    const isYoutube = activeLesson.video_url.includes('youtube.com') || activeLesson.video_url.includes('youtu.be');
-    let embedUrl = activeLesson.video_url;
-    
-    if (isYoutube) {
-      const videoIdMatch = activeLesson.video_url.match(/(?:youtu\.be\/|youtube\.com\/(?:embed\/|v\/|watch\?v=|watch\?.+&v=))([^&?]+)/);
-      if (videoIdMatch && videoIdMatch[1]) {
-        embedUrl = `https://www.youtube.com/embed/${videoIdMatch[1]}`;
-      }
-    } else if (activeLesson.video_url.includes('drive.google.com')) {
-      const driveMatch = activeLesson.video_url.match(/\/file\/d\/([a-zA-Z0-9_-]+)/);
-      if (driveMatch && driveMatch[1]) {
-        embedUrl = `https://drive.google.com/file/d/${driveMatch[1]}/preview`;
-      }
-    }
+    const embedUrl = getEmbedUrl(activeLesson.video_url);
 
     return (
       <div className="w-full aspect-video bg-slate-900 rounded-2xl shadow-2xl overflow-hidden relative border border-slate-700 flex items-center justify-center">
@@ -315,23 +319,12 @@ export default function CourseDetails() {
               )}
               {showPdf && activeLesson && (activeLesson.is_free_preview || isSubscribed) && activeLesson.pdf_url && (
                 <div className="mt-8 relative">
-                  {(() => {
-                    let embedPdfUrl = activeLesson.pdf_url;
-                    if (embedPdfUrl.includes('drive.google.com')) {
-                      const driveMatch = embedPdfUrl.match(/\/file\/d\/([a-zA-Z0-9_-]+)/);
-                      if (driveMatch && driveMatch[1]) {
-                        embedPdfUrl = `https://drive.google.com/file/d/${driveMatch[1]}/preview?rm=minimal#toolbar=0`;
-                      }
-                    }
-                    return (
-                      <iframe 
-                        src={embedPdfUrl} 
-                        className="w-full h-[70vh] rounded-xl shadow-lg border border-gray-700"
-                        title={`ملف الشرح - ${activeLesson.title}`}
-                        allowFullScreen
-                      />
-                    );
-                  })()}
+                  <iframe 
+                    src={getEmbedUrl(activeLesson.pdf_url)} 
+                    className="w-full h-[70vh] rounded-xl shadow-lg border border-gray-700"
+                    title={`ملف الشرح - ${activeLesson.title}`}
+                    allowFullScreen
+                  />
                 </div>
               )}
             </FadeIn>
@@ -435,6 +428,27 @@ export default function CourseDetails() {
           </div>
         </div>
       </div>
+
+      {/* Smart Preloader for Next Lesson */}
+      {(() => {
+        if (!activeLesson || !lessons || lessons.length === 0) return null;
+        const currentIndex = lessons.findIndex(l => l.id === activeLesson.id);
+        if (currentIndex === -1 || currentIndex === lessons.length - 1) return null;
+        const nextLesson = lessons[currentIndex + 1];
+        const hasAccessToNext = nextLesson.is_free_preview || isSubscribed;
+        
+        if (hasAccessToNext) {
+          const nextVideoEmbed = getEmbedUrl(nextLesson.video_url);
+          const nextPdfEmbed = getEmbedUrl(nextLesson.pdf_url);
+          return (
+            <div style={{ position: 'absolute', width: 0, height: 0, overflow: 'hidden', opacity: 0, pointerEvents: 'none' }} aria-hidden="true">
+              {nextVideoEmbed && <iframe src={nextVideoEmbed} title="preload-video" loading="eager" />}
+              {nextPdfEmbed && <iframe src={nextPdfEmbed} title="preload-pdf" loading="eager" />}
+            </div>
+          );
+        }
+        return null;
+      })()}
     </div>
   );
 }

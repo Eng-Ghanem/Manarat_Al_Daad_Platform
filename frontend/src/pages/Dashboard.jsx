@@ -64,13 +64,7 @@ export default function Dashboard() {
     fetchDashboardData();
   }, [user, navigate]);
   
-  if (loading) {
-    return (
-      <div className="min-h-screen bg-gray-50 dark:bg-slate-900 flex items-center justify-center">
-        <Loader className="w-10 h-10 text-blue-600 animate-spin" />
-      </div>
-    );
-  }
+
 
   const studentName = profile?.full_name || user?.email || '';
 
@@ -122,7 +116,7 @@ export default function Dashboard() {
               </div>
               <div>
                 <p className="text-gray-500 dark:text-gray-400 text-sm font-bold mb-1">{t('dash_current_courses')}</p>
-                <p className="text-2xl font-extrabold text-gray-900 dark:text-white">{activeCourses.length}</p>
+                <p className="text-2xl font-extrabold text-gray-900 dark:text-white">{loading ? '-' : activeCourses.length}</p>
               </div>
             </div>
           </FadeIn>
@@ -136,7 +130,7 @@ export default function Dashboard() {
                 </div>
                 <div>
                   <p className="text-gray-500 dark:text-gray-400 text-sm font-bold mb-1">{t('dash_completed_certs')}</p>
-                  <p className="text-2xl font-extrabold text-gray-900 dark:text-white">{completedCertificates}</p>
+                  <p className="text-2xl font-extrabold text-gray-900 dark:text-white">{loading ? '-' : completedCertificates}</p>
                 </div>
               </div>
               <div className="text-blue-600 dark:text-blue-400 text-sm font-bold bg-blue-50 dark:bg-blue-900/30 px-3 py-1.5 rounded-lg opacity-0 group-hover:opacity-100 transition-opacity">
@@ -150,7 +144,13 @@ export default function Dashboard() {
         <div className="mb-8">
           <h2 className="text-2xl font-bold text-gray-900 dark:text-white font-arabic mb-6">{t('dash_continue_learning')}</h2>
           
-          {activeCourses.length === 0 ? (
+          {loading ? (
+            <FadeIn delay={300}>
+              <div className="flex justify-center items-center py-20">
+                <Loader className="w-10 h-10 text-blue-600 animate-spin" />
+              </div>
+            </FadeIn>
+          ) : activeCourses.length === 0 ? (
             <FadeIn delay={300}>
               <div className="bg-white dark:bg-slate-800 rounded-3xl p-10 text-center border border-gray-100 dark:border-slate-700/50 shadow-sm">
                 <BookOpen className="w-16 h-16 text-gray-300 dark:text-slate-600 mx-auto mb-4" />

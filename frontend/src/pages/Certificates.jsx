@@ -27,7 +27,7 @@ export default function Certificates() {
         <div className="mb-8 flex flex-col md:flex-row items-center justify-between gap-4">
           <div className="flex items-center gap-4">
             <Link to="/dashboard" className="w-10 h-10 flex items-center justify-center rounded-full bg-white dark:bg-slate-800 text-gray-500 hover:text-blue-600 shadow-sm transition-colors border border-gray-100 dark:border-slate-700">
-              <ArrowRight className="w-5 h-5 rtl:-scale-x-100" />
+              <ArrowRight className="w-5 h-5" />
             </Link>
             <h1 className="text-3xl font-extrabold text-gray-900 dark:text-white font-arabic tracking-tight">
               شهاداتي

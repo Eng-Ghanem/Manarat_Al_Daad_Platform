@@ -232,6 +232,16 @@ export default function AdminDashboard() {
                       <p className="text-sm text-gray-500 dark:text-gray-400">تفعيل حسابات الطلاب</p>
                     </div>
                   </Link>
+
+                  <Link to="/admin-dashboard/live-sessions" className="flex items-center gap-4 p-4 rounded-2xl bg-gray-50 dark:bg-slate-900/50 border border-gray-200 dark:border-slate-700 hover:border-purple-500 hover:bg-purple-50 dark:hover:bg-purple-900/20 transition-all group cursor-pointer">
+                    <div className="w-12 h-12 rounded-xl bg-purple-100 dark:bg-purple-900/40 text-purple-600 dark:text-purple-400 flex items-center justify-center group-hover:scale-110 transition-transform">
+                      <Video className="w-6 h-6" />
+                    </div>
+                    <div>
+                      <h4 className="font-bold text-gray-900 dark:text-white group-hover:text-purple-600 dark:group-hover:text-purple-400 transition-colors">حصص الأونلاين</h4>
+                      <p className="text-sm text-gray-500 dark:text-gray-400">إدارة حصص Zoom المباشرة</p>
+                    </div>
+                  </Link>
                 </div>
               </div>
             </FadeIn>

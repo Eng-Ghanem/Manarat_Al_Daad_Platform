@@ -28,7 +28,8 @@ export default function Navbar() {
   const navLinks = [
     { to: '/', label: t('home') },
     { to: '/classes', label: t('classes') },
-    { to: '/courses', label: t('courses') }
+    { to: '/courses', label: t('courses') },
+    { to: '/live-sessions', label: 'حصص الأونلاين' }
   ];
 
   return (

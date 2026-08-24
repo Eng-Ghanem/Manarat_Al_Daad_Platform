@@ -27,8 +27,10 @@ const CourseForm = lazy(() => import('./pages/admin/CourseForm'));
 const CourseDetailsAdmin = lazy(() => import('./pages/admin/CourseDetailsAdmin'));
 const LessonForm = lazy(() => import('./pages/admin/LessonForm'));
 const AdminSubscriptions = lazy(() => import('./pages/admin/AdminSubscriptions'));
+const AdminLiveSessions = lazy(() => import('./pages/admin/AdminLiveSessions'));
 const Settings = lazy(() => import('./pages/Settings'));
 const Certificates = lazy(() => import('./pages/Certificates'));
+const StudentLiveSessions = lazy(() => import('./pages/StudentLiveSessions'));
 const NotFound = lazy(() => import('./pages/NotFound'));
 const Terms = lazy(() => import('./pages/Terms'));
 const Privacy = lazy(() => import('./pages/Privacy'));
@@ -79,10 +81,12 @@ function App() {
                 <Route path="/dashboard" element={<Dashboard />} />
                 <Route path="/settings" element={<Settings />} />
                 <Route path="/certificates" element={<Certificates />} />
+                <Route path="/live-sessions" element={<StudentLiveSessions />} />
 
                 {/* Protected Admin Routes */}
                 <Route path="/admin-dashboard" element={<AdminRoute><AdminDashboard /></AdminRoute>} />
                 <Route path="/admin-dashboard/subscriptions" element={<AdminRoute><AdminSubscriptions /></AdminRoute>} />
+                <Route path="/admin-dashboard/live-sessions" element={<AdminRoute><AdminLiveSessions /></AdminRoute>} />
                 {/* Redirect old /admin to /admin-dashboard */}
                 <Route path="/admin" element={<Navigate to="/admin-dashboard" replace />} />
                 

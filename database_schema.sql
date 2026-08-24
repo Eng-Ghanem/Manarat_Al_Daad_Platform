@@ -98,6 +98,36 @@ CREATE POLICY "Users can view their own enrollments." ON enrollments FOR SELECT 
 CREATE POLICY "Admins can manage enrollments." ON enrollments FOR ALL USING (EXISTS (SELECT 1 FROM profiles WHERE id = auth.uid() AND role = 'admin'));
 
 -- Lesson Progress Policies
+CREATE POLICY "Users can update their own progress." ON lesson_progress FOR ALL USING (auth.uid() = user_id);
+CREATE POLICY "Admins can view all progress." ON lesson_progress FOR SELECT USING (EXISTS (SELECT 1 FROM profiles WHERE id = auth.uid() AND role = 'admin'));
+
+-- 6. Online Live Sessions Table
+CREATE TABLE online_sessions (
+    id UUID DEFAULT uuid_generate_v4() PRIMARY KEY,
+    title TEXT NOT NULL,
+    description TEXT,
+    start_time TIMESTAMP WITH TIME ZONE NOT NULL,
+    end_time TIMESTAMP WITH TIME ZONE NOT NULL,
+    zoom_link TEXT NOT NULL,
+    course_id UUID REFERENCES courses(id) ON DELETE CASCADE,
+    created_at TIMESTAMP WITH TIME ZONE DEFAULT TIMEZONE('utc'::text, NOW()) NOT NULL,
+    updated_at TIMESTAMP WITH TIME ZONE DEFAULT TIMEZONE('utc'::text, NOW()) NOT NULL
+);
+
+ALTER TABLE online_sessions ENABLE ROW LEVEL SECURITY;
+
+CREATE POLICY "Admins can manage online sessions." ON online_sessions FOR ALL USING (
+    EXISTS (SELECT 1 FROM profiles WHERE id = auth.uid() AND role = 'admin')
+);
+
+CREATE POLICY "Students can view enrolled or global sessions." ON online_sessions FOR SELECT USING (
+    course_id IS NULL OR EXISTS (
+        SELECT 1 FROM enrollments 
+        WHERE user_id = auth.uid() 
+        AND course_id = online_sessions.course_id 
+        AND status = 'active'
+    )
+);
 CREATE POLICY "Users can view their own progress." ON lesson_progress FOR SELECT USING (auth.uid() = user_id);
 CREATE POLICY "Users can insert their own progress." ON lesson_progress FOR INSERT WITH CHECK (auth.uid() = user_id);
 CREATE POLICY "Users can update their own progress." ON lesson_progress FOR UPDATE USING (auth.uid() = user_id);

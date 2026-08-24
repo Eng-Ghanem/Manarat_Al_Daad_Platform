@@ -76,9 +76,17 @@ export default function HeroSection() {
                   <img 
                     src="/teacher.jpeg" 
                     alt={t('hero_subtitle')}
-                    className="w-full h-auto object-cover rounded-3xl shadow-2xl border-[6px] border-white dark:border-slate-800 bg-white dark:bg-slate-800 aspect-[3/4]"
+                    className="w-full h-auto object-cover rounded-3xl shadow-2xl border-[6px] border-white dark:border-slate-800 bg-white dark:bg-slate-800 aspect-[3/4] dark:hidden"
                     onError={(e) => {
                       e.target.src = 'https://via.placeholder.com/600x800.png?text=Teacher+Image';
+                    }}
+                  />
+                  <img 
+                    src="/teacher_dark.png" 
+                    alt={t('hero_subtitle')}
+                    className="w-full h-auto object-cover rounded-3xl shadow-2xl border-[6px] border-white dark:border-slate-800 bg-white dark:bg-slate-800 aspect-[3/4] hidden dark:block"
+                    onError={(e) => {
+                      e.target.src = '/teacher.jpeg'; // fallback to light image
                     }}
                   />
                   {/* Floating Badge */}

@@ -1,6 +1,6 @@
 import { useState, useEffect } from 'react';
 import { useTranslation } from 'react-i18next';
-import { User, Save, Loader, ArrowRight, Mail, Lock } from 'lucide-react';
+import { User, Save, Loader, ArrowRight, Mail, Lock, GraduationCap } from 'lucide-react';
 import { useAuth } from '../context/AuthContext';
 import { useNavigate, Link } from 'react-router-dom';
 import FadeIn from '../components/FadeIn';
@@ -13,6 +13,7 @@ export default function Settings() {
 
   const [fullName, setFullName] = useState('');
   const [email, setEmail] = useState('');
+  const [gradeLevel, setGradeLevel] = useState('');
   const [password, setPassword] = useState('');
   const [loading, setLoading] = useState(false);
   const [message, setMessage] = useState('');
@@ -20,7 +21,10 @@ export default function Settings() {
 
   useEffect(() => {
     if (user) setEmail(user.email || '');
-    if (profile) setFullName(profile.full_name || '');
+    if (profile) {
+      setFullName(profile.full_name || '');
+      setGradeLevel(profile.grade_level || '');
+    }
   }, [user, profile]);
 
   const handleUpdate = async (e) => {
@@ -30,9 +34,13 @@ export default function Settings() {
     setError('');
 
     try {
-      // 1. Update Profile (Name)
-      if (fullName !== profile?.full_name) {
-        const { error: profileError } = await updateProfile(user.id, { full_name: fullName });
+      // 1. Update Profile (Name & Grade)
+      const profileUpdates = {};
+      if (fullName !== profile?.full_name) profileUpdates.full_name = fullName;
+      if (gradeLevel !== profile?.grade_level) profileUpdates.grade_level = gradeLevel;
+
+      if (Object.keys(profileUpdates).length > 0) {
+        const { error: profileError } = await updateProfile(user.id, profileUpdates);
         if (profileError) throw profileError;
       }
 
@@ -135,6 +143,40 @@ export default function Settings() {
                     className="block w-full pr-12 pl-4 py-3 bg-gray-50 dark:bg-slate-900/50 border border-gray-200 dark:border-slate-700 rounded-xl focus:ring-2 focus:ring-blue-500 focus:border-blue-500 transition-colors text-gray-900 dark:text-white placeholder-gray-400"
                     placeholder="example@email.com"
                   />
+                </div>
+              </div>
+
+              <div>
+                <label className="block text-sm font-bold text-gray-700 dark:text-gray-300 mb-2">الصف الدراسي</label>
+                <div className="relative">
+                  <div className="absolute inset-y-0 right-0 pr-4 flex items-center pointer-events-none text-gray-400">
+                    <GraduationCap className="h-5 w-5" />
+                  </div>
+                  <select
+                    value={gradeLevel}
+                    onChange={(e) => setGradeLevel(e.target.value)}
+                    className="block w-full pr-12 pl-4 py-3 bg-gray-50 dark:bg-slate-900/50 border border-gray-200 dark:border-slate-700 rounded-xl focus:ring-2 focus:ring-blue-500 focus:border-blue-500 transition-colors text-gray-900 dark:text-white placeholder-gray-400 appearance-none"
+                  >
+                    <option value="">اختر الصف الدراسي</option>
+                    <optgroup label="المرحلة الابتدائية">
+                      <option value="primary_1">الصف الأول الابتدائي</option>
+                      <option value="primary_2">الصف الثاني الابتدائي</option>
+                      <option value="primary_3">الصف الثالث الابتدائي</option>
+                      <option value="primary_4">الصف الرابع الابتدائي</option>
+                      <option value="primary_5">الصف الخامس الابتدائي</option>
+                      <option value="primary_6">الصف السادس الابتدائي</option>
+                    </optgroup>
+                    <optgroup label="المرحلة الإعدادية">
+                      <option value="prep_1">الصف الأول الإعدادي</option>
+                      <option value="prep_2">الصف الثاني الإعدادي</option>
+                      <option value="prep_3">الصف الثالث الإعدادي</option>
+                    </optgroup>
+                    <optgroup label="المرحلة الثانوية">
+                      <option value="sec_1">الصف الأول الثانوي</option>
+                      <option value="sec_2">الصف الثاني الثانوي</option>
+                      <option value="sec_3">الصف الثالث الثانوي</option>
+                    </optgroup>
+                  </select>
                 </div>
               </div>
 

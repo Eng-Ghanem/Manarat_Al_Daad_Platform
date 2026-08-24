@@ -1,8 +1,13 @@
 import { useState, useEffect } from 'react';
 import { useTranslation } from 'react-i18next';
-import { CheckCircle, XCircle, Search, Eye, Filter, Loader, AlertTriangle, ShieldCheck } from 'lucide-react';
+import { 
+  CheckCircle, XCircle, Search, Eye, Filter, Loader, AlertTriangle, 
+  ShieldCheck, FileText, X, ArrowRight 
+} from 'lucide-react';
+import { Link } from 'react-router-dom';
 import FadeIn from '../../components/FadeIn';
 import { supabase } from '../../lib/supabase';
+import { getDirectImageUrl } from '../../utils/helpers';
 
 export default function AdminSubscriptions() {
   const { t } = useTranslation();
@@ -89,165 +94,195 @@ export default function AdminSubscriptions() {
   };
 
   const filteredRequests = requests.filter(req => req.status === filter);
+  const pendingCount = requests.filter(req => req.status === 'pending').length;
 
   if (loading) {
     return (
-      <div className="min-h-screen bg-gray-50 dark:bg-slate-900 flex items-center justify-center">
-        <Loader className="w-10 h-10 text-blue-600 animate-spin" />
+      <div className="min-h-screen flex items-center justify-center bg-gray-50 dark:bg-slate-900">
+        <div className="w-12 h-12 border-4 border-blue-600 border-t-transparent rounded-full animate-spin shadow-lg"></div>
       </div>
     );
   }
 
   return (
-    <div className="min-h-screen bg-gray-50 dark:bg-slate-900 py-12">
-      <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
+    <div className="min-h-screen bg-gray-50 dark:bg-slate-900 pb-12">
+      
+      {/* High-End Header */}
+      <div className="bg-gradient-to-r from-blue-900 via-indigo-900 to-slate-900 pt-20 pb-24 px-4 sm:px-6 lg:px-8 relative overflow-hidden shadow-xl">
+        <div className="absolute top-0 right-0 w-96 h-96 bg-blue-500/20 blur-[100px] rounded-full pointer-events-none mix-blend-screen"></div>
+        <div className="absolute bottom-0 left-0 w-96 h-96 bg-indigo-500/20 blur-[100px] rounded-full pointer-events-none mix-blend-screen"></div>
         
-        <FadeIn>
-          <div className="bg-gradient-to-r from-blue-900 to-slate-900 rounded-3xl p-8 mb-8 text-white flex flex-col md:flex-row items-center justify-between shadow-xl gap-6">
-            <div>
-              <h1 className="text-3xl font-extrabold font-arabic mb-2 flex items-center gap-3">
-                <ShieldCheck className="w-8 h-8 text-blue-400" />
+        <div className="max-w-7xl mx-auto relative z-10 flex flex-col items-center">
+          <Link to="/admin-dashboard" className="absolute top-0 right-0 flex items-center gap-2 px-4 py-2 bg-white/10 hover:bg-white/20 text-white rounded-full transition-colors backdrop-blur-md font-bold text-sm">
+            <ArrowRight className="w-4 h-4" />
+            العودة للوحة التحكم
+          </Link>
+
+          <FadeIn>
+            <div className="flex flex-col items-center text-center">
+              <div className="w-20 h-20 rounded-3xl bg-white/10 backdrop-blur-md flex items-center justify-center border border-white/20 shadow-[0_0_20px_rgba(255,255,255,0.1)] mb-6">
+                <FileText className="w-10 h-10 text-blue-300" />
+              </div>
+              <h1 className="text-4xl font-extrabold text-white font-arabic tracking-tight mb-4">
                 إدارة طلبات الاشتراك
               </h1>
-              <p className="text-blue-200">مراجعة وتفعيل اشتراكات الطلاب التي تمت عبر المحافظ الإلكترونية وإنستاباي.</p>
+              <p className="text-blue-200/80 font-medium text-lg max-w-2xl">
+                مراجعة وتفعيل اشتراكات الطلاب التي تمت عبر المحافظ الإلكترونية أو إنستاباي.
+              </p>
             </div>
-            
-            <div className="flex bg-slate-800/50 p-1 rounded-xl">
-              <button 
-                onClick={() => setFilter('pending')}
-                className={`px-6 py-2.5 rounded-lg font-bold text-sm transition-all ${filter === 'pending' ? 'bg-blue-600 text-white shadow-md' : 'text-gray-400 hover:text-white hover:bg-slate-700/50'}`}
-              >
-                قيد المراجعة
-                <span className="ml-2 bg-blue-500 text-white text-xs px-2 py-0.5 rounded-full">
-                  {requests.filter(r => r.status === 'pending').length}
-                </span>
-              </button>
-              <button 
-                onClick={() => setFilter('active')}
-                className={`px-6 py-2.5 rounded-lg font-bold text-sm transition-all ${filter === 'active' ? 'bg-blue-600 text-white shadow-md' : 'text-gray-400 hover:text-white hover:bg-slate-700/50'}`}
-              >
-                المفعلة
-              </button>
-              <button 
-                onClick={() => setFilter('rejected')}
-                className={`px-6 py-2.5 rounded-lg font-bold text-sm transition-all ${filter === 'rejected' ? 'bg-blue-600 text-white shadow-md' : 'text-gray-400 hover:text-white hover:bg-slate-700/50'}`}
-              >
-                المرفوضة
-              </button>
-            </div>
-          </div>
-        </FadeIn>
+          </FadeIn>
+        </div>
+      </div>
 
+      <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 -mt-12 relative z-20">
+        
         <FadeIn delay={100}>
           <div className="bg-white dark:bg-slate-800 rounded-3xl shadow-sm border border-gray-100 dark:border-slate-700 overflow-hidden">
-            {filteredRequests.length === 0 ? (
-              <div className="p-12 text-center text-gray-500 dark:text-gray-400">
-                <div className="w-20 h-20 mx-auto bg-gray-100 dark:bg-slate-700 rounded-full flex items-center justify-center mb-4">
-                  <Filter className="w-8 h-8" />
-                </div>
-                <p className="text-lg font-bold">لا توجد طلبات {filter === 'pending' ? 'جديدة قيد المراجعة' : 'بهذه الحالة'}.</p>
-              </div>
-            ) : (
-              <div className="overflow-x-auto">
-                <table className="w-full text-right">
-                  <thead>
-                    <tr className="bg-gray-50 dark:bg-slate-900 border-b border-gray-100 dark:border-slate-700 text-gray-500 dark:text-gray-400">
-                      <th className="px-6 py-4 font-bold text-sm">تاريخ الطلب</th>
-                      <th className="px-6 py-4 font-bold text-sm">الطالب</th>
-                      <th className="px-6 py-4 font-bold text-sm">الكورس</th>
-                      <th className="px-6 py-4 font-bold text-sm">طريقة الدفع</th>
-                      <th className="px-6 py-4 font-bold text-sm">رقم المحفظة</th>
-                      <th className="px-6 py-4 font-bold text-sm text-center">الإيصال</th>
-                      {filter === 'pending' && <th className="px-6 py-4 font-bold text-sm text-center">الإجراءات</th>}
-                    </tr>
-                  </thead>
-                  <tbody className="divide-y divide-gray-100 dark:divide-slate-700">
-                    {filteredRequests.map((req) => (
-                      <tr key={req.id} className="hover:bg-gray-50 dark:hover:bg-slate-700/20 transition-colors">
-                        <td className="px-6 py-4 text-sm text-gray-500 dark:text-gray-400">
-                          {new Date(req.date).toLocaleDateString('ar-EG')}
-                        </td>
-                        <td className="px-6 py-4 font-bold text-gray-900 dark:text-white">
-                          {req.studentName}
-                        </td>
-                        <td className="px-6 py-4 text-sm text-blue-600 dark:text-blue-400 font-bold">
-                          {req.courseTitle}
-                        </td>
-                        <td className="px-6 py-4">
-                          <span className={`inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-bold ${
-                            req.paymentMethod === 'instapay' ? 'bg-indigo-100 text-indigo-800 dark:bg-indigo-900/30 dark:text-indigo-400' : 'bg-orange-100 text-orange-800 dark:bg-orange-900/30 dark:text-orange-400'
-                          }`}>
-                            {req.paymentMethod === 'instapay' ? 'إنستاباي' : 'محفظة إلكترونية'}
-                          </span>
-                        </td>
-                        <td className="px-6 py-4 text-sm font-mono text-gray-500 dark:text-gray-400" dir="ltr">
-                          {req.walletNumber}
-                        </td>
-                        <td className="px-6 py-4 text-center">
-                          {req.receiptUrl ? (
-                            <button 
-                              onClick={() => setSelectedReceipt(req.receiptUrl)}
-                              className="inline-flex items-center justify-center p-2 bg-gray-100 text-gray-600 hover:bg-gray-200 dark:bg-slate-700 dark:text-gray-300 dark:hover:bg-slate-600 rounded-lg transition-colors"
-                              title="عرض الإيصال"
-                            >
-                              <Eye className="w-5 h-5" />
-                            </button>
-                          ) : (
-                            <span className="text-gray-400 text-xs">بدون إيصال</span>
-                          )}
-                        </td>
-                        {filter === 'pending' && (
-                          <td className="px-6 py-4 text-center">
-                            <div className="flex items-center justify-center gap-2">
-                              <button 
-                                onClick={() => handleAction(req.id, 'accept')}
-                                disabled={actionLoading}
-                                className="inline-flex items-center gap-1 px-3 py-1.5 bg-green-50 text-green-700 hover:bg-green-100 dark:bg-green-900/20 dark:text-green-400 dark:hover:bg-green-900/40 rounded-lg text-sm font-bold transition-colors disabled:opacity-50"
-                              >
-                                <CheckCircle className="w-4 h-4" />
-                                تفعيل
-                              </button>
-                              <button 
-                                onClick={() => handleAction(req.id, 'reject')}
-                                disabled={actionLoading}
-                                className="inline-flex items-center gap-1 px-3 py-1.5 bg-red-50 text-red-700 hover:bg-red-100 dark:bg-red-900/20 dark:text-red-400 dark:hover:bg-red-900/40 rounded-lg text-sm font-bold transition-colors disabled:opacity-50"
-                              >
-                                <XCircle className="w-4 h-4" />
-                                رفض
-                              </button>
-                            </div>
-                          </td>
-                        )}
-                      </tr>
-                    ))}
-                  </tbody>
-                </table>
-              </div>
-            )}
-          </div>
-        </FadeIn>
-
-        {/* Receipt Modal */}
-        {selectedReceipt && (
-          <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/80 backdrop-blur-sm">
-            <div className="relative max-w-2xl w-full max-h-[90vh] bg-white dark:bg-slate-800 rounded-2xl overflow-hidden shadow-2xl flex flex-col">
-              <div className="p-4 border-b border-gray-100 dark:border-slate-700 flex items-center justify-between">
-                <h3 className="font-bold text-gray-900 dark:text-white">إيصال التحويل المرفق</h3>
-                <button 
-                  onClick={() => setSelectedReceipt(null)}
-                  className="p-2 text-gray-500 hover:bg-gray-100 dark:hover:bg-slate-700 rounded-xl transition-colors"
+            
+            {/* Elegant Tabs */}
+            <div className="flex justify-center border-b border-gray-100 dark:border-slate-700 bg-gray-50/50 dark:bg-slate-800/50 p-4">
+              <div className="flex items-center gap-2 bg-gray-200/50 dark:bg-slate-900/50 p-1 rounded-2xl">
+                <button
+                  onClick={() => setFilter('pending')}
+                  className={`flex items-center gap-2 px-8 py-3 rounded-xl font-bold transition-all duration-300 ${filter === 'pending' ? 'bg-white dark:bg-slate-700 text-blue-600 dark:text-blue-400 shadow-sm transform scale-105' : 'text-gray-500 hover:text-gray-900 dark:hover:text-white'}`}
                 >
-                  <XCircle className="w-6 h-6" />
+                  قيد المراجعة
+                  {pendingCount > 0 && (
+                    <span className={`px-2 py-0.5 rounded-full text-xs ${filter === 'pending' ? 'bg-blue-100 text-blue-700 dark:bg-blue-900/40 dark:text-blue-300' : 'bg-gray-300 dark:bg-slate-600 text-gray-700 dark:text-gray-200'}`}>
+                      {pendingCount}
+                    </span>
+                  )}
+                </button>
+                <button
+                  onClick={() => setFilter('active')}
+                  className={`px-8 py-3 rounded-xl font-bold transition-all duration-300 ${filter === 'active' ? 'bg-white dark:bg-slate-700 text-green-600 dark:text-green-400 shadow-sm transform scale-105' : 'text-gray-500 hover:text-gray-900 dark:hover:text-white'}`}
+                >
+                  المفعلة
+                </button>
+                <button
+                  onClick={() => setFilter('rejected')}
+                  className={`px-8 py-3 rounded-xl font-bold transition-all duration-300 ${filter === 'rejected' ? 'bg-white dark:bg-slate-700 text-red-600 dark:text-red-400 shadow-sm transform scale-105' : 'text-gray-500 hover:text-gray-900 dark:hover:text-white'}`}
+                >
+                  المرفوضة
                 </button>
               </div>
-              <div className="p-4 flex-1 overflow-auto flex items-center justify-center bg-gray-50 dark:bg-slate-900">
-                <img src={selectedReceipt} alt="Receipt" className="max-w-full h-auto rounded-lg shadow-sm" />
-              </div>
             </div>
-          </div>
-        )}
 
+            {/* List */}
+            <div className="p-6">
+              {filteredRequests.length === 0 ? (
+                <div className="text-center py-20">
+                  <div className="w-20 h-20 rounded-full bg-gray-100 dark:bg-slate-700/50 flex items-center justify-center mx-auto mb-6">
+                    <CheckCircle className="w-10 h-10 text-gray-300 dark:text-gray-600" />
+                  </div>
+                  <h3 className="text-2xl font-bold text-gray-900 dark:text-white mb-2">لا توجد طلبات في هذه الفئة</h3>
+                  <p className="text-gray-500 dark:text-gray-400">جميع الطلبات تمت مراجعتها بنجاح.</p>
+                </div>
+              ) : (
+                <div className="grid gap-4">
+                  {filteredRequests.map((req, index) => (
+                    <FadeIn key={req.id} delay={index * 50}>
+                      <div className="flex flex-col lg:flex-row items-center justify-between p-5 rounded-2xl bg-gray-50 dark:bg-slate-900/50 border border-gray-100 dark:border-slate-700/50 hover:border-blue-200 dark:hover:border-slate-600 transition-all group">
+                        
+                        <div className="flex flex-col sm:flex-row items-center sm:items-start gap-6 w-full lg:w-auto text-center sm:text-right">
+                          <div className="w-16 h-16 rounded-2xl bg-blue-100 dark:bg-blue-900/30 flex items-center justify-center flex-shrink-0">
+                            <FileText className="w-8 h-8 text-blue-600 dark:text-blue-400" />
+                          </div>
+                          
+                          <div className="space-y-1">
+                            <h3 className="font-bold text-lg text-gray-900 dark:text-white">{req.studentName}</h3>
+                            <p className="text-gray-600 dark:text-gray-300 font-medium">كورس: <span className="text-blue-600 dark:text-blue-400">{req.courseTitle}</span></p>
+                            <div className="flex flex-wrap items-center justify-center sm:justify-start gap-3 text-sm text-gray-500 dark:text-gray-400 mt-2">
+                              <span className="bg-white dark:bg-slate-800 px-3 py-1 rounded-full border border-gray-200 dark:border-slate-700 shadow-sm">
+                                {req.paymentMethod === 'vodafone' ? 'فودافون كاش' : 'إنستاباي'}
+                              </span>
+                              <span className="bg-white dark:bg-slate-800 px-3 py-1 rounded-full border border-gray-200 dark:border-slate-700 shadow-sm" dir="ltr">
+                                {req.walletNumber}
+                              </span>
+                              <span className="bg-white dark:bg-slate-800 px-3 py-1 rounded-full border border-gray-200 dark:border-slate-700 shadow-sm">
+                                {new Date(req.date).toLocaleDateString('ar-EG')}
+                              </span>
+                            </div>
+                          </div>
+                        </div>
+
+                        <div className="flex items-center gap-3 mt-6 lg:mt-0 w-full lg:w-auto justify-center lg:justify-end border-t lg:border-t-0 border-gray-200 dark:border-slate-700 pt-4 lg:pt-0">
+                          {req.receiptUrl ? (
+                            <button
+                              onClick={() => setSelectedReceipt(getDirectImageUrl(req.receiptUrl))}
+                              className="flex items-center gap-2 px-5 py-2.5 bg-indigo-50 hover:bg-indigo-100 dark:bg-indigo-900/30 dark:hover:bg-indigo-900/50 text-indigo-600 dark:text-indigo-400 rounded-xl font-bold transition-colors"
+                            >
+                              <Eye className="w-5 h-5" />
+                              <span className="hidden sm:inline">عرض الإيصال</span>
+                            </button>
+                          ) : (
+                            <span className="text-gray-400 text-sm px-4">لا يوجد إيصال</span>
+                          )}
+
+                          {req.status === 'pending' && (
+                            <div className="flex items-center gap-2">
+                              <button
+                                onClick={() => handleAction(req.id, 'accept')}
+                                disabled={actionLoading}
+                                className="flex items-center gap-2 px-5 py-2.5 bg-green-600 hover:bg-green-700 text-white rounded-xl font-bold transition-colors shadow-md shadow-green-500/20 disabled:opacity-50"
+                              >
+                                <CheckCircle className="w-5 h-5" />
+                                <span>قبول</span>
+                              </button>
+                              <button
+                                onClick={() => handleAction(req.id, 'reject')}
+                                disabled={actionLoading}
+                                className="flex items-center gap-2 px-5 py-2.5 bg-red-50 hover:bg-red-100 dark:bg-red-900/20 dark:hover:bg-red-900/40 text-red-600 dark:text-red-400 rounded-xl font-bold transition-colors disabled:opacity-50"
+                              >
+                                <XCircle className="w-5 h-5" />
+                                <span className="hidden sm:inline">رفض</span>
+                              </button>
+                            </div>
+                          )}
+                          
+                          {req.status === 'active' && (
+                            <span className="flex items-center gap-2 px-5 py-2.5 bg-green-50 dark:bg-green-900/20 text-green-600 dark:text-green-400 font-bold rounded-xl border border-green-200 dark:border-green-800/50">
+                              <CheckCircle className="w-5 h-5" />
+                              تم التفعيل
+                            </span>
+                          )}
+                          {req.status === 'rejected' && (
+                            <span className="flex items-center gap-2 px-5 py-2.5 bg-red-50 dark:bg-red-900/20 text-red-600 dark:text-red-400 font-bold rounded-xl border border-red-200 dark:border-red-800/50">
+                              <XCircle className="w-5 h-5" />
+                              مرفوض
+                            </span>
+                          )}
+                        </div>
+                      </div>
+                    </FadeIn>
+                  ))}
+                </div>
+              )}
+            </div>
+
+          </div>
+        </FadeIn>
       </div>
+
+      {/* Receipt Modal */}
+      {selectedReceipt && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/80 backdrop-blur-sm" onClick={() => setSelectedReceipt(null)}>
+          <div className="relative max-w-3xl w-full" onClick={e => e.stopPropagation()}>
+            <button 
+              onClick={() => setSelectedReceipt(null)}
+              className="absolute -top-12 right-0 w-10 h-10 bg-white/10 hover:bg-white/20 text-white rounded-full flex items-center justify-center backdrop-blur-md transition-colors"
+            >
+              <X className="w-6 h-6" />
+            </button>
+            <img 
+              src={selectedReceipt} 
+              alt="صورة الإيصال" 
+              className="w-full h-auto max-h-[85vh] object-contain rounded-2xl shadow-2xl border border-white/10"
+            />
+          </div>
+        </div>
+      )}
+
     </div>
   );
 }

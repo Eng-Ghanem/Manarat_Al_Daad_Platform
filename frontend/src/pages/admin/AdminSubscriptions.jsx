@@ -2,7 +2,7 @@ import { useState, useEffect } from 'react';
 import { useTranslation } from 'react-i18next';
 import { 
   CheckCircle, XCircle, Search, Eye, Filter, Loader, AlertTriangle, 
-  ShieldCheck, FileText, X, ArrowRight 
+  ShieldCheck, FileText, X, ArrowRight, ZoomIn, ZoomOut, RotateCcw
 } from 'lucide-react';
 import { Link } from 'react-router-dom';
 import FadeIn from '../../components/FadeIn';
@@ -16,6 +16,7 @@ export default function AdminSubscriptions() {
   const [loading, setLoading] = useState(true);
   const [filter, setFilter] = useState('pending');
   const [selectedReceipt, setSelectedReceipt] = useState(null);
+  const [zoomLevel, setZoomLevel] = useState(1);
   const [actionLoading, setActionLoading] = useState(false);
 
   useEffect(() => {
@@ -266,19 +267,50 @@ export default function AdminSubscriptions() {
 
       {/* Receipt Modal */}
       {selectedReceipt && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/80 backdrop-blur-sm" onClick={() => setSelectedReceipt(null)}>
-          <div className="relative max-w-3xl w-full" onClick={e => e.stopPropagation()}>
-            <button 
-              onClick={() => setSelectedReceipt(null)}
-              className="absolute -top-12 right-0 w-10 h-10 bg-white/10 hover:bg-white/20 text-white rounded-full flex items-center justify-center backdrop-blur-md transition-colors"
-            >
-              <X className="w-6 h-6" />
-            </button>
-            <img 
-              src={selectedReceipt} 
-              alt="صورة الإيصال" 
-              className="w-full h-auto max-h-[85vh] object-contain rounded-2xl shadow-2xl border border-white/10"
-            />
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/80 backdrop-blur-sm" onClick={() => { setSelectedReceipt(null); setZoomLevel(1); }}>
+          <div className="relative max-w-4xl w-full h-[90vh] flex flex-col items-center justify-center" onClick={e => e.stopPropagation()}>
+            {/* Modal Controls */}
+            <div className="absolute top-4 right-4 flex items-center gap-3 z-50 bg-black/50 p-2 rounded-2xl backdrop-blur-md">
+              <button 
+                onClick={() => setZoomLevel(prev => Math.min(prev + 0.5, 4))}
+                className="w-10 h-10 bg-white/10 hover:bg-white/20 text-white rounded-xl flex items-center justify-center transition-colors"
+                title="تكبير"
+              >
+                <ZoomIn className="w-5 h-5" />
+              </button>
+              <button 
+                onClick={() => setZoomLevel(prev => Math.max(prev - 0.5, 0.5))}
+                className="w-10 h-10 bg-white/10 hover:bg-white/20 text-white rounded-xl flex items-center justify-center transition-colors"
+                title="تصغير"
+              >
+                <ZoomOut className="w-5 h-5" />
+              </button>
+              <button 
+                onClick={() => setZoomLevel(1)}
+                className="w-10 h-10 bg-white/10 hover:bg-white/20 text-white rounded-xl flex items-center justify-center transition-colors"
+                title="إعادة الضبط"
+              >
+                <RotateCcw className="w-5 h-5" />
+              </button>
+              <div className="w-px h-6 bg-white/20 mx-1"></div>
+              <button 
+                onClick={() => { setSelectedReceipt(null); setZoomLevel(1); }}
+                className="w-10 h-10 bg-red-500/20 hover:bg-red-500/40 text-red-100 rounded-xl flex items-center justify-center transition-colors"
+                title="إغلاق"
+              >
+                <X className="w-6 h-6" />
+              </button>
+            </div>
+
+            {/* Image Container with Scroll for Zoom */}
+            <div className="w-full h-full overflow-auto flex items-center justify-center rounded-2xl p-4">
+              <img 
+                src={selectedReceipt} 
+                alt="صورة الإيصال" 
+                className="max-w-full max-h-full object-contain transition-transform duration-300 origin-center"
+                style={{ transform: `scale(${zoomLevel})` }}
+              />
+            </div>
           </div>
         </div>
       )}

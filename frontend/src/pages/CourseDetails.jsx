@@ -320,7 +320,7 @@ export default function CourseDetails() {
                     if (embedPdfUrl.includes('drive.google.com')) {
                       const driveMatch = embedPdfUrl.match(/\/file\/d\/([a-zA-Z0-9_-]+)/);
                       if (driveMatch && driveMatch[1]) {
-                        embedPdfUrl = `https://drive.google.com/file/d/${driveMatch[1]}/preview`;
+                        embedPdfUrl = `https://drive.google.com/file/d/${driveMatch[1]}/preview?rm=minimal#toolbar=0`;
                       }
                     }
                     return (

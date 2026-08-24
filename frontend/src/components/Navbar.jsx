@@ -76,7 +76,7 @@ export default function Navbar() {
                         to={profile?.role === 'admin' ? "/admin-dashboard" : "/dashboard"}
                         className="block px-4 py-2 rounded-lg text-sm font-bold text-blue-600 hover:bg-blue-50 dark:hover:bg-slate-700 transition-colors ltr:text-left rtl:text-right"
                       >
-                        {t('nav_dashboard')}
+                        {profile?.role === 'admin' ? t('nav_dashboard') : 'الملف الشخصي'}
                       </Link>
                       <button 
                         onClick={logout}
@@ -165,7 +165,7 @@ export default function Navbar() {
                       to={profile?.role === 'admin' ? "/admin-dashboard" : "/dashboard"}
                       className="block w-full text-center px-4 py-3 rounded-xl bg-gradient-to-r from-blue-600 to-blue-800 text-white font-bold transition-all shadow-md active:scale-95"
                     >
-                      {t('nav_dashboard')}
+                      {profile?.role === 'admin' ? t('nav_dashboard') : 'الملف الشخصي'}
                     </Link>
                     <button 
                       onClick={logout}

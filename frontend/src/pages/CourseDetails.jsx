@@ -72,11 +72,24 @@ export default function CourseDetails() {
           .eq('course_id', id)
           .eq('user_id', user.id)
           .eq('status', 'active')
+          .order('created_at', { ascending: false })
           .limit(1);
           
         if (subData && subData.length > 0) {
-          setIsSubscribed(true);
-          setSubscription(subData[0]);
+          const sub = subData[0];
+          let isValid = true;
+          
+          if (courseData.access_duration_days) {
+            const createdDate = new Date(sub.created_at);
+            const expiryDate = new Date(createdDate.getTime() + courseData.access_duration_days * 24 * 60 * 60 * 1000);
+            const today = new Date();
+            if (today > expiryDate) {
+              isValid = false;
+            }
+          }
+          
+          setIsSubscribed(isValid);
+          setSubscription(sub);
         } else if (subError) {
           console.error('Subscription check error:', subError);
         }
@@ -347,12 +360,22 @@ export default function CourseDetails() {
                 </div>
 
                 {!isSubscribed ? (
-                  <Link 
-                    to={user ? `/checkout/${course.id}` : "/login"} 
-                    className="w-full flex items-center justify-center py-4 bg-gradient-to-r from-blue-600 to-blue-800 hover:from-blue-700 hover:to-blue-900 text-white rounded-2xl font-bold text-lg transition-all duration-300 shadow-[0_8px_20px_rgb(37,99,235,0.3)] hover:-translate-y-1 mb-4"
-                  >
-                    اشتراك الآن
-                  </Link>
+                  <>
+                    {subscription && (
+                      <div className="text-center mb-4 py-3 px-4 rounded-xl border bg-red-50 border-red-200 text-red-700 dark:bg-red-900/20 dark:border-red-800/50 dark:text-red-400">
+                        <p className="font-bold flex items-center justify-center gap-2">
+                          <Clock className="w-5 h-5" />
+                          انتهت صلاحية اشتراكك في هذا الكورس
+                        </p>
+                      </div>
+                    )}
+                    <Link 
+                      to={user ? `/checkout/${course.id}` : "/login"} 
+                      className="w-full flex items-center justify-center py-4 bg-gradient-to-r from-blue-600 to-blue-800 hover:from-blue-700 hover:to-blue-900 text-white rounded-2xl font-bold text-lg transition-all duration-300 shadow-[0_8px_20px_rgb(37,99,235,0.3)] hover:-translate-y-1 mb-4"
+                    >
+                      {subscription ? 'تجديد الاشتراك الآن' : 'اشتراك الآن'}
+                    </Link>
+                  </>
                 ) : (
                   <div className="mb-4">
                     {course.access_duration_days && subscription?.created_at ? (

@@ -185,7 +185,7 @@ export default function LessonForm() {
               </div>
 
               <div>
-                <label className="block text-sm font-bold text-gray-700 dark:text-gray-300 mb-2">رابط الفيديو (اختياري)</label>
+                <label className="block text-sm font-bold text-gray-700 dark:text-gray-300 mb-2">رابط الفيديو *</label>
                 <div className="relative">
                   <div className="absolute inset-y-0 right-0 pr-4 flex items-center pointer-events-none text-gray-400">
                     <LinkIcon className="w-5 h-5" />
@@ -193,6 +193,7 @@ export default function LessonForm() {
                   <input
                     type="url"
                     name="video_url"
+                    required
                     value={formData.video_url}
                     onChange={handleChange}
                     className="w-full pr-12 pl-4 py-3 rounded-xl bg-gray-50 dark:bg-slate-900/50 border border-gray-200 dark:border-slate-700 text-gray-900 dark:text-white focus:outline-none focus:border-blue-500 dark:focus:border-blue-500 transition-colors text-left"
@@ -204,7 +205,7 @@ export default function LessonForm() {
               </div>
 
               <div>
-                <label className="block text-sm font-bold text-gray-700 dark:text-gray-300 mb-2">رابط مذكرة الدرس (Google Drive Embed) - اختياري</label>
+                <label className="block text-sm font-bold text-gray-700 dark:text-gray-300 mb-2">رابط مذكرة الدرس (Google Drive Embed) *</label>
                 <div className="relative">
                   <div className="absolute inset-y-0 right-0 pr-4 flex items-center pointer-events-none text-gray-400">
                     <LinkIcon className="w-5 h-5" />
@@ -212,6 +213,7 @@ export default function LessonForm() {
                   <input
                     type="url"
                     name="pdf_url"
+                    required
                     value={formData.pdf_url}
                     onChange={handleChange}
                     className="w-full pr-12 pl-4 py-3 rounded-xl bg-gray-50 dark:bg-slate-900/50 border border-gray-200 dark:border-slate-700 text-gray-900 dark:text-white focus:outline-none focus:border-blue-500 dark:focus:border-blue-500 transition-colors text-left"

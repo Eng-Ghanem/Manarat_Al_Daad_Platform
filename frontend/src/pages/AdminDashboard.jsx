@@ -3,6 +3,7 @@ import { Link, useNavigate } from 'react-router-dom';
 import { useTranslation } from 'react-i18next';
 import { Users, BookOpen, Settings, AlertTriangle, ShieldCheck, Plus, Edit, Trash2, Video, FileText } from 'lucide-react';
 import FadeIn from '../components/FadeIn';
+import ConfirmModal from '../components/ConfirmModal';
 import { supabase } from '../lib/supabase';
 import { getDirectImageUrl } from '../utils/helpers';
 
@@ -12,6 +13,7 @@ export default function AdminDashboard() {
   const [courses, setCourses] = useState([]);
   const [stats, setStats] = useState({ students: 0, courses: 0 });
   const [loading, setLoading] = useState(true);
+  const [deleteModal, setDeleteModal] = useState({ isOpen: false, courseId: null });
 
   useEffect(() => {
     fetchDashboardData();
@@ -49,8 +51,13 @@ export default function AdminDashboard() {
     }
   };
 
-  const handleDeleteCourse = async (id) => {
-    if (!window.confirm('هل أنت متأكد من حذف هذا الكورس؟ لن يمكنك التراجع عن هذا الإجراء وسيتم حذف جميع دروسه أيضاً.')) return;
+  const handleDeleteClick = (id) => {
+    setDeleteModal({ isOpen: true, courseId: id });
+  };
+
+  const confirmDeleteCourse = async () => {
+    const id = deleteModal.courseId;
+    if (!id) return;
     
     try {
       const { error } = await supabase.from('courses').delete().eq('id', id);
@@ -60,6 +67,8 @@ export default function AdminDashboard() {
     } catch (error) {
       console.error('Error deleting course:', error);
       alert('حدث خطأ أثناء الحذف.');
+    } finally {
+      setDeleteModal({ isOpen: false, courseId: null });
     }
   };
 
@@ -197,7 +206,7 @@ export default function AdminDashboard() {
                             <Link to={`/admin-dashboard/courses/${course.id}/edit`} title="تعديل بيانات الكورس" className="p-2 bg-blue-50 dark:bg-blue-900/20 text-blue-600 dark:text-blue-400 rounded-lg hover:bg-blue-100 dark:hover:bg-blue-900/40 transition-colors">
                               <Edit className="w-5 h-5" />
                             </Link>
-                            <button onClick={() => handleDeleteCourse(course.id)} title="حذف الكورس" className="p-2 bg-red-50 dark:bg-red-900/20 text-red-600 dark:text-red-400 rounded-lg hover:bg-red-100 dark:hover:bg-red-900/40 transition-colors">
+                            <button onClick={() => handleDeleteClick(course.id)} title="حذف الكورس" className="p-2 bg-red-50 dark:bg-red-900/20 text-red-600 dark:text-red-400 rounded-lg hover:bg-red-100 dark:hover:bg-red-900/40 transition-colors">
                               <Trash2 className="w-5 h-5" />
                             </button>
                           </div>
@@ -212,6 +221,17 @@ export default function AdminDashboard() {
         </FadeIn>
 
       </div>
+
+      <ConfirmModal
+        isOpen={deleteModal.isOpen}
+        onClose={() => setDeleteModal({ isOpen: false, courseId: null })}
+        onConfirm={confirmDeleteCourse}
+        title="حذف الكورس"
+        message="هل أنت متأكد من حذف هذا الكورس؟ لن يمكنك التراجع عن هذا الإجراء وسيتم حذف جميع دروسه أيضاً."
+        confirmText="نعم، احذف"
+        cancelText="تراجع"
+        isDanger={true}
+      />
     </div>
   );
 }

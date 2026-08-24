@@ -315,12 +315,23 @@ export default function CourseDetails() {
               )}
               {showPdf && activeLesson && (activeLesson.is_free_preview || isSubscribed) && activeLesson.pdf_url && (
                 <div className="mt-8 relative">
-                  <iframe 
-                    src={activeLesson.pdf_url} 
-                    className="w-full h-[70vh] rounded-xl shadow-lg border border-gray-700"
-                    title={`ملف الشرح - ${activeLesson.title}`}
-                    allowFullScreen
-                  />
+                  {(() => {
+                    let embedPdfUrl = activeLesson.pdf_url;
+                    if (embedPdfUrl.includes('drive.google.com')) {
+                      const driveMatch = embedPdfUrl.match(/\/file\/d\/([a-zA-Z0-9_-]+)/);
+                      if (driveMatch && driveMatch[1]) {
+                        embedPdfUrl = `https://drive.google.com/file/d/${driveMatch[1]}/preview`;
+                      }
+                    }
+                    return (
+                      <iframe 
+                        src={embedPdfUrl} 
+                        className="w-full h-[70vh] rounded-xl shadow-lg border border-gray-700"
+                        title={`ملف الشرح - ${activeLesson.title}`}
+                        allowFullScreen
+                      />
+                    );
+                  })()}
                 </div>
               )}
             </FadeIn>

@@ -25,11 +25,7 @@ export default function AuthLayout() {
       <Toaster position="top-center" reverseOrder={false} />
 
       {/* Auth Navbar Actions */}
-      <div className="absolute top-0 left-0 right-0 p-4 sm:p-6 flex justify-between items-center z-20">
-        <Link to="/" className="flex items-center gap-2 px-4 py-2 rounded-full bg-white/50 dark:bg-slate-800/50 hover:bg-white dark:hover:bg-slate-700 text-gray-700 dark:text-gray-200 transition-colors shadow-sm backdrop-blur-md text-sm font-bold">
-          <ArrowRight size={18} className="rtl:rotate-180" />
-          {t('home') || 'الرئيسية'}
-        </Link>
+      <div className="absolute top-0 left-0 right-0 p-4 sm:p-6 flex justify-end items-center z-20">
         <div className="flex items-center gap-3">
           <button
             onClick={toggleTheme}

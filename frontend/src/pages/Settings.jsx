@@ -19,13 +19,9 @@ export default function Settings() {
   const [error, setError] = useState('');
 
   useEffect(() => {
-    if (!user) {
-      navigate('/login');
-    } else {
-      setFullName(profile?.full_name || '');
-      setEmail(user?.email || '');
-    }
-  }, [user, profile, navigate]);
+    if (user) setEmail(user.email || '');
+    if (profile) setFullName(profile.full_name || '');
+  }, [user, profile]);
 
   const handleUpdate = async (e) => {
     e.preventDefault();

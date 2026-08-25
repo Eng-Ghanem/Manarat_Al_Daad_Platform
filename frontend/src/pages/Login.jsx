@@ -22,36 +22,23 @@ export default function Login() {
     setLoading(true);
     
     try {
-      const { data: authData, error } = await login(identifier, password);
+      const cleanIdentifier = identifier.trim();
+      const { data: authData, error } = await login(cleanIdentifier, password);
       if (error) throw error;
       
       if (authData?.user) {
-        let userRole = 'student';
         const adminEmail = import.meta.env.VITE_ADMIN_EMAIL;
-        
-        // Use user email if available, otherwise check if they are already admin in profiles
         const userEmail = authData.user.email;
+        let isAdmin = false;
 
-        // If email matches admin email, ensure they go to admin dashboard
         if (adminEmail && userEmail && userEmail.toLowerCase() === adminEmail.toLowerCase()) {
-           userRole = 'admin';
-           // Update database to ensure profile reflects admin role so AdminRoute doesn't redirect them
-           await updateProfile(authData.user.id, { role: 'admin' });
-        } else {
-          // Otherwise fetch role from profile
-          const { data: profile } = await supabase
-            .from('profiles')
-            .select('role')
-            .eq('id', authData.user.id)
-            .single();
-            
-          if (profile?.role) {
-            userRole = profile.role;
-          }
+           isAdmin = true;
+           // We don't await updateProfile here to avoid blocking the UI, AuthContext or backend will handle it
+           updateProfile(authData.user.id, { role: 'admin' }).catch(console.error);
         }
 
         toast.success(`أهلاً بك مجدداً في منارة الضاد!`);
-        if (userRole === 'admin') {
+        if (isAdmin) {
           navigate('/admin-dashboard');
         } else {
           navigate('/');
@@ -84,6 +71,11 @@ export default function Login() {
       
       if (errorMessage.includes('Invalid login credentials')) {
         errorMessage = 'البريد الإلكتروني أو كلمة المرور غير صحيحة.';
+      } else if (errorMessage.toLowerCase().includes('email not confirmed')) {
+        toast.error('حسابك غير مفعل بعد. يرجى إدخال رمز التفعيل المرسل إلى بريدك الإلكتروني.');
+        navigate(`/verify-otp?email=${encodeURIComponent(identifier.trim())}`);
+        setLoading(false);
+        return;
       } else if (errorMessage.includes('Failed to fetch') || errorMessage.includes('Network Error')) {
         errorMessage = 'تعذر الاتصال بالخادم. يرجى التحقق من اتصالك بالإنترنت.';
       }
@@ -105,12 +97,21 @@ export default function Login() {
   };
 
   return (
-    <motion.div 
-      variants={containerVariants}
-      initial="hidden"
-      animate="visible"
-      className="max-w-md w-full mx-auto"
-    >
+    <div className="relative w-full min-h-[85vh] flex items-center justify-center p-4 py-16 overflow-hidden">
+      {/* Decorative Background Orbs */}
+      <div className="absolute top-[-10%] right-[-5%] w-[500px] h-[500px] rounded-full bg-blue-600/20 blur-[120px] pointer-events-none mix-blend-multiply dark:mix-blend-screen animate-pulse" />
+      <div className="absolute bottom-[-10%] left-[-5%] w-[600px] h-[600px] rounded-full bg-gold-500/20 blur-[150px] pointer-events-none mix-blend-multiply dark:mix-blend-screen" />
+      <div className="absolute top-[40%] left-[20%] w-[300px] h-[300px] rounded-full bg-purple-500/10 blur-[100px] pointer-events-none mix-blend-multiply dark:mix-blend-screen" />
+      
+      {/* Background Pattern */}
+      <div className="absolute inset-0 bg-arabic-pattern opacity-[0.03] pointer-events-none"></div>
+
+      <motion.div 
+        variants={containerVariants}
+        initial="hidden"
+        animate="visible"
+        className="max-w-md w-full mx-auto relative z-10"
+      >
       <motion.div variants={itemVariants} className="text-center mb-10">
         <h1 className="text-4xl font-extrabold text-gray-900 dark:text-white font-arabic tracking-tight mb-3 drop-shadow-sm">
           {t('login_title')}
@@ -197,6 +198,7 @@ export default function Login() {
           </Link>
         </div>
       </motion.div>
-    </motion.div>
+      </motion.div>
+    </div>
   );
 }

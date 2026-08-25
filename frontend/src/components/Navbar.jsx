@@ -1,7 +1,7 @@
 import { useTranslation } from 'react-i18next';
 import { useTheme } from '../contexts/ThemeContext';
 import { Sun, Moon, Globe, Menu, X } from 'lucide-react';
-import { Link, useLocation } from 'react-router-dom';
+import { Link, useLocation, useNavigate } from 'react-router-dom';
 import { useEffect, useState } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { useAuth } from '../context/AuthContext';
@@ -12,6 +12,12 @@ export default function Navbar() {
   const { user, profile, logout } = useAuth();
   const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false);
   const location = useLocation();
+  const navigate = useNavigate();
+
+  const handleLogout = () => {
+    logout();
+    navigate('/welcome');
+  };
 
   const toggleLanguage = () => {
     const newLang = i18n.language === 'ar' ? 'en' : 'ar';
@@ -38,7 +44,7 @@ export default function Navbar() {
         <div className="flex justify-between items-center h-20">
           {/* Logo */}
           <div className="flex-shrink-0 flex items-center">
-            <Link to="/" className="text-3xl font-extrabold text-blue-700 dark:text-blue-400 font-arabic tracking-tight">
+            <Link to="/" className="text-2xl sm:text-3xl font-extrabold text-blue-700 dark:text-blue-400 font-arabic tracking-tight">
               {t('logo_title')}
             </Link>
           </div>
@@ -80,7 +86,7 @@ export default function Navbar() {
                         {profile?.role === 'admin' ? t('nav_dashboard') : 'الملف الشخصي'}
                       </Link>
                       <button 
-                        onClick={logout}
+                        onClick={handleLogout}
                         className="w-full block px-4 py-2 rounded-lg text-sm font-bold text-red-600 hover:bg-red-50 dark:hover:bg-red-900/30 transition-colors ltr:text-left rtl:text-right"
                       >
                         تسجيل الخروج
@@ -169,7 +175,7 @@ export default function Navbar() {
                       {profile?.role === 'admin' ? t('nav_dashboard') : 'الملف الشخصي'}
                     </Link>
                     <button 
-                      onClick={logout}
+                      onClick={handleLogout}
                       className="block w-full text-center px-4 py-3 rounded-xl bg-red-100 dark:bg-red-900/30 text-red-600 dark:text-red-400 font-bold transition-all shadow-sm active:scale-95"
                     >
                       تسجيل الخروج

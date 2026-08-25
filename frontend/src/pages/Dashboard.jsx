@@ -5,6 +5,7 @@ import FadeIn from '../components/FadeIn';
 import { useAuth } from '../context/AuthContext';
 import { useEffect, useState } from 'react';
 import { supabase } from '../lib/supabase';
+import toast from 'react-hot-toast';
 
 export default function Dashboard() {
   const { t } = useTranslation();
@@ -97,7 +98,7 @@ export default function Dashboard() {
                 <span className="hidden sm:inline">{t('dash_settings')}</span>
               </Link>
               <button 
-                onClick={logout}
+                onClick={handleLogout}
                 className="flex-1 md:flex-none flex items-center justify-center gap-2 px-6 py-3 bg-red-50 dark:bg-red-900/20 hover:bg-red-100 dark:hover:bg-red-900/40 text-red-600 dark:text-red-400 rounded-xl font-bold transition-colors"
               >
                 <LogOut className="w-5 h-5" />

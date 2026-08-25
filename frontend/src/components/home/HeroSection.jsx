@@ -31,16 +31,16 @@ export default function HeroSection() {
                 </span>
                 <span>{t('platform_badge')}</span>
               </div>
-              <h1 className="text-3xl sm:text-4xl lg:text-5xl lg:leading-[1.3] font-bold text-gray-900 dark:text-white leading-snug font-arabic">
+              <h1 className="text-2xl sm:text-3xl md:text-4xl lg:text-5xl lg:leading-[1.3] font-bold text-gray-900 dark:text-white leading-snug font-arabic">
                 {t('home_hero_title')}
               </h1>
             </FadeIn>
             
             <FadeIn delay={200}>
-              <div className="flex flex-col sm:flex-row items-center justify-center lg:justify-start gap-4 pt-6">
+              <div className="flex flex-col sm:flex-row items-center justify-center lg:justify-start gap-4 pt-6 w-full">
                 <Link 
                   to="/classes" 
-                  className="group relative flex items-center justify-center w-full sm:w-auto px-8 py-4 bg-gradient-to-r from-blue-600 to-blue-800 hover:from-blue-700 hover:to-blue-900 text-white rounded-2xl font-bold text-lg transition-all duration-300 shadow-[0_8px_30px_rgb(37,99,235,0.2)] hover:shadow-[0_8px_30px_rgb(37,99,235,0.4)] hover:-translate-y-1 overflow-hidden border border-blue-500/20"
+                  className="group relative flex items-center justify-center w-[90%] sm:w-auto px-8 py-4 bg-gradient-to-r from-blue-600 to-blue-800 hover:from-blue-700 hover:to-blue-900 text-white rounded-2xl font-bold text-lg transition-all duration-300 shadow-[0_8px_30px_rgb(37,99,235,0.2)] hover:shadow-[0_8px_30px_rgb(37,99,235,0.4)] hover:-translate-y-1 overflow-hidden border border-blue-500/20"
                 >
                   <div className="absolute inset-0 bg-white/20 group-hover:translate-x-full transition-transform duration-500 -skew-x-12 -translate-x-full"></div>
                   <span className="relative z-10 flex items-center gap-3">
@@ -56,7 +56,7 @@ export default function HeroSection() {
                       contactSection.scrollIntoView({ behavior: 'smooth' });
                     }
                   }}
-                  className="group flex items-center justify-center w-full sm:w-auto px-8 py-4 bg-transparent border-2 border-blue-600 dark:border-blue-500 text-blue-700 dark:text-blue-400 hover:bg-blue-50 dark:hover:bg-blue-900/30 rounded-2xl font-bold text-lg transition-all duration-300 shadow-sm hover:shadow-lg hover:-translate-y-1 cursor-pointer"
+                  className="group flex items-center justify-center w-[90%] sm:w-auto px-8 py-4 bg-transparent border-2 border-blue-600 dark:border-blue-500 text-blue-700 dark:text-blue-400 hover:bg-blue-50 dark:hover:bg-blue-900/30 rounded-2xl font-bold text-lg transition-all duration-300 shadow-sm hover:shadow-lg hover:-translate-y-1 cursor-pointer"
                 >
                   {t('btn_contact_us')}
                 </button>
@@ -76,17 +76,9 @@ export default function HeroSection() {
                   <img 
                     src="/teacher.jpeg" 
                     alt={t('hero_subtitle')}
-                    className="w-full h-auto object-cover rounded-3xl shadow-2xl border-[6px] border-white dark:border-slate-800 bg-white dark:bg-slate-800 aspect-[3/4] dark:hidden"
+                    className="w-full h-auto object-cover rounded-3xl shadow-2xl border-[6px] border-white dark:border-slate-800 bg-white dark:bg-slate-800 aspect-[3/4]"
                     onError={(e) => {
                       e.target.src = 'https://via.placeholder.com/600x800.png?text=Teacher+Image';
-                    }}
-                  />
-                  <img 
-                    src="/teacher_dark.png" 
-                    alt={t('hero_subtitle')}
-                    className="w-full h-auto object-cover rounded-3xl shadow-2xl border-[6px] border-white dark:border-slate-800 bg-white dark:bg-slate-800 aspect-[3/4] hidden dark:block"
-                    onError={(e) => {
-                      e.target.src = '/teacher.jpeg'; // fallback to light image
                     }}
                   />
                   {/* Floating Badge */}

@@ -1,6 +1,7 @@
 import { Suspense, lazy, useEffect } from 'react';
 import { BrowserRouter as Router, Routes, Route, Navigate } from 'react-router-dom';
 import { Loader } from 'lucide-react';
+import { Toaster } from 'react-hot-toast';
 
 import AuthLayout from './components/layouts/AuthLayout';
 import MainLayout from './components/layouts/MainLayout';
@@ -46,8 +47,9 @@ function App() {
 
   return (
     <AuthProvider>
+      <Toaster position="top-center" reverseOrder={false} />
       <Router>
-        <div className="min-h-screen bg-gray-50 dark:bg-slate-900 text-gray-900 dark:text-white transition-colors duration-300 overflow-x-hidden flex flex-col">
+        <div className="min-h-[100dvh] bg-gray-50 dark:bg-slate-900 text-gray-900 dark:text-white transition-colors duration-300 overflow-x-hidden w-full flex flex-col">
           <Suspense fallback={
             <div className="min-h-screen flex flex-col items-center justify-center bg-gray-50 dark:bg-slate-900">
               <Loader className="w-12 h-12 text-blue-600 animate-spin mb-4" />
@@ -55,33 +57,33 @@ function App() {
             </div>
           }>
             <Routes>
-              {/* Auth Routes */}
-              <Route element={<AuthLayout />}>
+              {/* Main Platform Routes */}
+              <Route element={<MainLayout />}>
+                {/* Auth Routes */}
                 <Route path="/welcome" element={<Welcome />} />
                 <Route path="/login" element={<Login />} />
                 <Route path="/register" element={<Register />} />
                 <Route path="/verify-otp" element={<VerifyOTP />} />
                 <Route path="/forgot-password" element={<ForgotPassword />} />
                 <Route path="/reset-password" element={<ResetPassword />} />
-              </Route>
 
-              {/* Main Platform Routes (All Protected) */}
-              <Route element={<ProtectedRoute><MainLayout /></ProtectedRoute>}>
-                {/* Public Platform Routes (Now Protected) */}
+                {/* Public Platform Routes */}
                 <Route path="/" element={<Home />} />
-                <Route path="/classes" element={<Grades />} />
-                <Route path="/courses/category/:categoryId" element={<CategoryCourses />} />
-                <Route path="/courses" element={<FoundationCourses />} />
-                <Route path="/course/:id" element={<CourseDetails />} />
-                <Route path="/checkout/:courseId" element={<Checkout />} />
                 <Route path="/terms" element={<Terms />} />
                 <Route path="/privacy" element={<Privacy />} />
+                <Route path="/classes" element={<Grades />} />
+                <Route path="/courses" element={<FoundationCourses />} />
+
+                {/* Protected Platform Routes */}
+                <Route path="/courses/category/:categoryId" element={<ProtectedRoute><CategoryCourses /></ProtectedRoute>} />
+                <Route path="/course/:id" element={<ProtectedRoute><CourseDetails /></ProtectedRoute>} />
+                <Route path="/checkout/:courseId" element={<ProtectedRoute><Checkout /></ProtectedRoute>} />
 
                 {/* Protected Student Routes */}
-                <Route path="/dashboard" element={<Dashboard />} />
-                <Route path="/settings" element={<Settings />} />
-                <Route path="/certificates" element={<Certificates />} />
-                <Route path="/live-sessions" element={<StudentLiveSessions />} />
+                <Route path="/dashboard" element={<ProtectedRoute><Dashboard /></ProtectedRoute>} />
+                <Route path="/settings" element={<ProtectedRoute><Settings /></ProtectedRoute>} />
+                <Route path="/certificates" element={<ProtectedRoute><Certificates /></ProtectedRoute>} />
+                <Route path="/live-sessions" element={<ProtectedRoute><StudentLiveSessions /></ProtectedRoute>} />
 
                 {/* Protected Admin Routes */}
                 <Route path="/admin-dashboard" element={<AdminRoute><AdminDashboard /></AdminRoute>} />

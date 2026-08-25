@@ -124,12 +124,21 @@ export default function Register() {
   };
 
   return (
-    <motion.div 
-      variants={containerVariants}
-      initial="hidden"
-      animate="visible"
-      className="max-w-md w-full mx-auto"
-    >
+    <div className="relative w-full min-h-[85vh] flex items-center justify-center p-4 py-16 overflow-hidden">
+      {/* Decorative Background Orbs */}
+      <div className="absolute top-[-10%] right-[-5%] w-[500px] h-[500px] rounded-full bg-blue-600/20 blur-[120px] pointer-events-none mix-blend-multiply dark:mix-blend-screen animate-pulse" />
+      <div className="absolute bottom-[-10%] left-[-5%] w-[600px] h-[600px] rounded-full bg-gold-500/20 blur-[150px] pointer-events-none mix-blend-multiply dark:mix-blend-screen" />
+      <div className="absolute top-[40%] left-[20%] w-[300px] h-[300px] rounded-full bg-purple-500/10 blur-[100px] pointer-events-none mix-blend-multiply dark:mix-blend-screen" />
+      
+      {/* Background Pattern */}
+      <div className="absolute inset-0 bg-arabic-pattern opacity-[0.03] pointer-events-none"></div>
+
+      <motion.div 
+        variants={containerVariants}
+        initial="hidden"
+        animate="visible"
+        className="max-w-md w-full mx-auto relative z-10"
+      >
       <motion.div variants={itemVariants} className="text-center mb-10">
         <h1 className="text-4xl font-extrabold text-gray-900 dark:text-white font-arabic tracking-tight mb-3 drop-shadow-sm">
           {t('register_title')}
@@ -342,6 +351,7 @@ export default function Register() {
           </Link>
         </div>
       </motion.div>
-    </motion.div>
+      </motion.div>
+    </div>
   );
 }

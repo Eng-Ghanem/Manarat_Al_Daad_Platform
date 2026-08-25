@@ -97,6 +97,9 @@ export const AuthProvider = ({ children }) => {
   };
 
   const logout = async () => {
+    // Optimistic UI update for instant feedback
+    setUser(null);
+    setProfile(null);
     return supabase.auth.signOut();
   };
 

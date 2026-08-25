@@ -12,6 +12,11 @@ export default function Dashboard() {
   const { user, profile, logout } = useAuth();
   const navigate = useNavigate();
   
+  const handleLogout = () => {
+    logout();
+    navigate('/welcome');
+  };
+  
   const [activeCourses, setActiveCourses] = useState([]);
   const [completedCertificates, setCompletedCertificates] = useState(0);
   const [loading, setLoading] = useState(true);

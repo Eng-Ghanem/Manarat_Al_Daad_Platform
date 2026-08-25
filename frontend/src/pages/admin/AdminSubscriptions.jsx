@@ -1,11 +1,12 @@
 import { useState, useEffect } from 'react';
 import { useTranslation } from 'react-i18next';
 import { 
-  CheckCircle, XCircle, Search, Eye, Filter, Loader, AlertTriangle, 
-  ShieldCheck, FileText, X, ArrowRight, ZoomIn, ZoomOut, RotateCcw
+  CheckCircle, Search, Eye, Filter, Loader, AlertTriangle, 
+  ShieldCheck, FileText, X, ArrowRight, ZoomIn, ZoomOut, RotateCcw, Trash2
 } from 'lucide-react';
 import { Link } from 'react-router-dom';
 import FadeIn from '../../components/FadeIn';
+import ConfirmModal from '../../components/ConfirmModal';
 import { supabase } from '../../lib/supabase';
 import { getDirectImageUrl } from '../../utils/helpers';
 
@@ -67,30 +68,52 @@ export default function AdminSubscriptions() {
     }
   };
 
-  const handleAction = async (id, action) => {
-    if (action === 'reject') {
-      if (!window.confirm('هل أنت متأكد من رفض هذا الطلب؟')) return;
-    }
-    
-    setActionLoading(true);
+  const [deleteConfig, setDeleteConfig] = useState({ isOpen: false, requestId: null });
+
+  const handleDeleteRequest = (id) => {
+    setDeleteConfig({ isOpen: true, requestId: id });
+  };
+
+  const confirmDelete = async () => {
+    const id = deleteConfig.requestId;
+    setDeleteConfig({ isOpen: false, requestId: null });
+
+    const previousRequests = [...requests];
+    setRequests(requests.filter(req => req.id !== id));
+
     try {
-      const newStatus = action === 'accept' ? 'active' : 'rejected';
-      
+      const { error } = await supabase
+        .from('subscriptions')
+        .delete()
+        .eq('id', id);
+
+      if (error) throw error;
+    } catch (err) {
+      console.error('Error deleting subscription:', err);
+      alert('حدث خطأ أثناء الحذف.');
+      setRequests(previousRequests);
+    }
+  };
+
+  const handleStatusChange = async (id, newStatus) => {
+    // Optimistic UI Update: Change instantly, sync in background
+    const previousRequests = [...requests];
+    setRequests(requests.map(req => 
+      req.id === id ? { ...req, status: newStatus } : req
+    ));
+
+    try {
       const { error } = await supabase
         .from('subscriptions')
         .update({ status: newStatus })
         .eq('id', id);
 
       if (error) throw error;
-
-      setRequests(requests.map(req => 
-        req.id === id ? { ...req, status: newStatus } : req
-      ));
     } catch (err) {
-      console.error(`Error updating subscription ${action}:`, err);
+      console.error('Error updating subscription:', err);
       alert('حدث خطأ أثناء تحديث حالة الطلب.');
-    } finally {
-      setActionLoading(false);
+      // Revert if it fails
+      setRequests(previousRequests);
     }
   };
 
@@ -169,94 +192,82 @@ export default function AdminSubscriptions() {
               </div>
             </div>
 
-            {/* List */}
-            <div className="p-6">
-              {filteredRequests.length === 0 ? (
-                <div className="text-center py-20">
-                  <div className="w-20 h-20 rounded-full bg-gray-100 dark:bg-slate-700/50 flex items-center justify-center mx-auto mb-6">
+            {/* Table */}
+            <div className="overflow-x-auto">
+              <table className="w-full text-right border-collapse">
+                <thead>
+                  <tr className="bg-gray-100 dark:bg-slate-700/50 text-gray-700 dark:text-gray-300">
+                    <th className="py-4 px-6 font-bold font-arabic rounded-tr-2xl">اسم الطالب</th>
+                    <th className="py-4 px-6 font-bold font-arabic">الكورس</th>
+                    <th className="py-4 px-6 font-bold font-arabic">وسيلة الدفع</th>
+                    <th className="py-4 px-6 font-bold font-arabic">الرقم/المحفظة</th>
+                    <th className="py-4 px-6 font-bold font-arabic">تاريخ الدفع</th>
+                    <th className="py-4 px-6 font-bold font-arabic text-center">الإيصال</th>
+                    <th className="py-4 px-6 font-bold font-arabic rounded-tl-2xl text-center">تحديث الحالة</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {filteredRequests.map((req, index) => (
+                    <tr key={req.id} className="border-b border-gray-100 dark:border-slate-700/50 hover:bg-gray-50/80 dark:hover:bg-slate-800/80 transition-colors">
+                      <td className="py-4 px-6 font-bold text-gray-900 dark:text-white whitespace-nowrap">{req.studentName}</td>
+                      <td className="py-4 px-6 text-blue-600 dark:text-blue-400 font-medium whitespace-nowrap">{req.courseTitle}</td>
+                      <td className="py-4 px-6">
+                        <span className="bg-white dark:bg-slate-800 border border-gray-200 dark:border-slate-600 px-3 py-1 rounded-lg text-sm font-bold shadow-sm whitespace-nowrap inline-block">
+                          {req.paymentMethod === 'vodafone' ? 'فودافون كاش' : 'إنستاباي'}
+                        </span>
+                      </td>
+                      <td className="py-4 px-6 text-gray-600 dark:text-gray-300 font-mono whitespace-nowrap" dir="ltr">{req.walletNumber}</td>
+                      <td className="py-4 px-6 text-gray-500 dark:text-gray-400 text-sm whitespace-nowrap">
+                        {new Date(req.date).toLocaleDateString('ar-EG')}
+                      </td>
+                      <td className="py-4 px-6">
+                        {req.receiptUrl ? (
+                          <button
+                            onClick={() => setSelectedReceipt(getDirectImageUrl(req.receiptUrl))}
+                            className="mx-auto flex items-center justify-center w-10 h-10 bg-indigo-50 hover:bg-indigo-100 dark:bg-indigo-900/30 dark:hover:bg-indigo-900/50 text-indigo-600 dark:text-indigo-400 rounded-xl transition-colors shadow-sm"
+                            title="عرض الإيصال"
+                          >
+                            <Eye className="w-5 h-5" />
+                          </button>
+                        ) : (
+                          <span className="text-gray-400 text-xs block text-center">لا يوجد</span>
+                        )}
+                      </td>
+                      <td className="py-4 px-6">
+                        <div className="flex justify-center items-center gap-2">
+                          <select
+                            value={req.status}
+                            onChange={(e) => handleStatusChange(req.id, e.target.value)}
+                            className={`px-4 py-2 rounded-xl font-bold text-sm transition-all outline-none cursor-pointer text-center appearance-none shadow-md min-w-[120px] ${
+                              req.status === 'active' ? 'bg-green-500 text-white hover:bg-green-600' :
+                              req.status === 'rejected' ? 'bg-red-500 text-white hover:bg-red-600' :
+                              'bg-blue-500 text-white hover:bg-blue-600'
+                            }`}
+                          >
+                            <option value="pending" className="bg-white dark:bg-slate-800 text-blue-600 dark:text-blue-400 font-bold">قيد المراجعة ⏱️</option>
+                            <option value="active" className="bg-white dark:bg-slate-800 text-green-600 dark:text-green-400 font-bold">مفعل (نشط) ✅</option>
+                            <option value="rejected" className="bg-white dark:bg-slate-800 text-red-600 dark:text-red-400 font-bold">مرفوض ❌</option>
+                          </select>
+                          <button
+                            onClick={() => handleDeleteRequest(req.id)}
+                            className="p-2 bg-red-50 dark:bg-red-900/20 text-red-600 hover:bg-red-100 dark:hover:bg-red-900/40 rounded-xl transition-colors shadow-sm"
+                            title="حذف الطلب نهائياً"
+                          >
+                            <Trash2 className="w-5 h-5" />
+                          </button>
+                        </div>
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+              {filteredRequests.length === 0 && (
+                <div className="text-center py-20 bg-gray-50/50 dark:bg-slate-900/30">
+                  <div className="w-20 h-20 rounded-full bg-gray-100 dark:bg-slate-700/50 flex items-center justify-center mx-auto mb-6 shadow-inner">
                     <CheckCircle className="w-10 h-10 text-gray-300 dark:text-gray-600" />
                   </div>
-                  <h3 className="text-2xl font-bold text-gray-900 dark:text-white mb-2">لا توجد طلبات في هذه الفئة</h3>
-                  <p className="text-gray-500 dark:text-gray-400">جميع الطلبات تمت مراجعتها بنجاح.</p>
-                </div>
-              ) : (
-                <div className="grid gap-4">
-                  {filteredRequests.map((req, index) => (
-                    <FadeIn key={req.id} delay={index * 50}>
-                      <div className="flex flex-col lg:flex-row items-center justify-between p-5 rounded-2xl bg-gray-50 dark:bg-slate-900/50 border border-gray-100 dark:border-slate-700/50 hover:border-blue-200 dark:hover:border-slate-600 transition-all group">
-                        
-                        <div className="flex flex-col sm:flex-row items-center sm:items-start gap-6 w-full lg:w-auto text-center sm:text-right">
-                          <div className="w-16 h-16 rounded-2xl bg-blue-100 dark:bg-blue-900/30 flex items-center justify-center flex-shrink-0">
-                            <FileText className="w-8 h-8 text-blue-600 dark:text-blue-400" />
-                          </div>
-                          
-                          <div className="space-y-1">
-                            <h3 className="font-bold text-lg text-gray-900 dark:text-white">{req.studentName}</h3>
-                            <p className="text-gray-600 dark:text-gray-300 font-medium">كورس: <span className="text-blue-600 dark:text-blue-400">{req.courseTitle}</span></p>
-                            <div className="flex flex-wrap items-center justify-center sm:justify-start gap-3 text-sm text-gray-500 dark:text-gray-400 mt-2">
-                              <span className="bg-white dark:bg-slate-800 px-3 py-1 rounded-full border border-gray-200 dark:border-slate-700 shadow-sm">
-                                {req.paymentMethod === 'vodafone' ? 'فودافون كاش' : 'إنستاباي'}
-                              </span>
-                              <span className="bg-white dark:bg-slate-800 px-3 py-1 rounded-full border border-gray-200 dark:border-slate-700 shadow-sm" dir="ltr">
-                                {req.walletNumber}
-                              </span>
-                              <span className="bg-white dark:bg-slate-800 px-3 py-1 rounded-full border border-gray-200 dark:border-slate-700 shadow-sm">
-                                {new Date(req.date).toLocaleDateString('ar-EG')}
-                              </span>
-                            </div>
-                          </div>
-                        </div>
-
-                        <div className="flex items-center gap-3 mt-6 lg:mt-0 w-full lg:w-auto justify-center lg:justify-end border-t lg:border-t-0 border-gray-200 dark:border-slate-700 pt-4 lg:pt-0">
-                          {req.receiptUrl ? (
-                            <button
-                              onClick={() => setSelectedReceipt(getDirectImageUrl(req.receiptUrl))}
-                              className="flex items-center gap-2 px-5 py-2.5 bg-indigo-50 hover:bg-indigo-100 dark:bg-indigo-900/30 dark:hover:bg-indigo-900/50 text-indigo-600 dark:text-indigo-400 rounded-xl font-bold transition-colors"
-                            >
-                              <Eye className="w-5 h-5" />
-                              <span className="hidden sm:inline">عرض الإيصال</span>
-                            </button>
-                          ) : (
-                            <span className="text-gray-400 text-sm px-4">لا يوجد إيصال</span>
-                          )}
-
-                          {req.status === 'pending' && (
-                            <div className="flex items-center gap-2">
-                              <button
-                                onClick={() => handleAction(req.id, 'accept')}
-                                disabled={actionLoading}
-                                className="flex items-center gap-2 px-5 py-2.5 bg-green-600 hover:bg-green-700 text-white rounded-xl font-bold transition-colors shadow-md shadow-green-500/20 disabled:opacity-50"
-                              >
-                                <CheckCircle className="w-5 h-5" />
-                                <span>قبول</span>
-                              </button>
-                              <button
-                                onClick={() => handleAction(req.id, 'reject')}
-                                disabled={actionLoading}
-                                className="flex items-center gap-2 px-5 py-2.5 bg-red-50 hover:bg-red-100 dark:bg-red-900/20 dark:hover:bg-red-900/40 text-red-600 dark:text-red-400 rounded-xl font-bold transition-colors disabled:opacity-50"
-                              >
-                                <XCircle className="w-5 h-5" />
-                                <span className="hidden sm:inline">رفض</span>
-                              </button>
-                            </div>
-                          )}
-                          
-                          {req.status === 'active' && (
-                            <span className="flex items-center gap-2 px-5 py-2.5 bg-green-50 dark:bg-green-900/20 text-green-600 dark:text-green-400 font-bold rounded-xl border border-green-200 dark:border-green-800/50">
-                              <CheckCircle className="w-5 h-5" />
-                              تم التفعيل
-                            </span>
-                          )}
-                          {req.status === 'rejected' && (
-                            <span className="flex items-center gap-2 px-5 py-2.5 bg-red-50 dark:bg-red-900/20 text-red-600 dark:text-red-400 font-bold rounded-xl border border-red-200 dark:border-red-800/50">
-                              <XCircle className="w-5 h-5" />
-                              مرفوض
-                            </span>
-                          )}
-                        </div>
-                      </div>
-                    </FadeIn>
-                  ))}
+                  <h3 className="text-2xl font-bold text-gray-900 dark:text-white mb-2 font-arabic">لا توجد طلبات في هذه الفئة</h3>
+                  <p className="text-gray-500 dark:text-gray-400">جميع الطلبات تمت مراجعتها أو القائمة فارغة حالياً.</p>
                 </div>
               )}
             </div>
@@ -314,6 +325,17 @@ export default function AdminSubscriptions() {
           </div>
         </div>
       )}
+
+      <ConfirmModal 
+        isOpen={deleteConfig.isOpen}
+        onClose={() => setDeleteConfig({ isOpen: false, requestId: null })}
+        onConfirm={confirmDelete}
+        title="حذف الطلب"
+        message="هل أنت متأكد من حذف هذا الطلب نهائياً من قاعدة البيانات؟ لا يمكن التراجع عن هذا الإجراء."
+        confirmText="نعم، احذف الطلب"
+        cancelText="إلغاء"
+        isDanger={true}
+      />
 
     </div>
   );

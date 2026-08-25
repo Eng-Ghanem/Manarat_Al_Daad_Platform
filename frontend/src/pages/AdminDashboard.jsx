@@ -66,6 +66,8 @@ export default function AdminDashboard() {
     const id = deleteModal.courseId;
     if (!id) return;
     
+    setDeleteModal({ isOpen: false, courseId: null });
+    
     try {
       const { error } = await supabase.from('courses').delete().eq('id', id);
       if (error) throw error;
@@ -74,8 +76,6 @@ export default function AdminDashboard() {
     } catch (error) {
       console.error('Error deleting course:', error);
       alert('حدث خطأ أثناء الحذف.');
-    } finally {
-      setDeleteModal({ isOpen: false, courseId: null });
     }
   };
 

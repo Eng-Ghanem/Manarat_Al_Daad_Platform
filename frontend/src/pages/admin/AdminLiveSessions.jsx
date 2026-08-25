@@ -142,19 +142,20 @@ export default function AdminLiveSessions() {
   };
 
   const confirmDelete = async () => {
+    const sessionId = deleteModal.id;
+    setDeleteModal({ isOpen: false, id: null });
+    
     try {
       const { error } = await supabase
         .from('online_sessions')
         .delete()
-        .eq('id', deleteModal.id);
+        .eq('id', sessionId);
       
       if (error) throw error;
-      setSessions(sessions.filter(s => s.id !== deleteModal.id));
+      setSessions(sessions.filter(s => s.id !== sessionId));
     } catch (err) {
       console.error('Error deleting session:', err);
       alert('حدث خطأ أثناء الحذف.');
-    } finally {
-      setDeleteModal({ isOpen: false, id: null });
     }
   };
 

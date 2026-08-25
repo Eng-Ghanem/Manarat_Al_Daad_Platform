@@ -127,25 +127,25 @@ export default function CourseDetails() {
 
     if (!hasAccess) {
       return (
-        <div className="w-full aspect-video bg-gradient-to-br from-slate-900 to-slate-800 rounded-3xl border border-slate-700 shadow-2xl overflow-hidden relative flex flex-col items-center justify-center p-8 text-center group">
+        <div className="w-full min-h-[350px] md:aspect-video bg-gradient-to-br from-slate-900 to-slate-800 rounded-3xl border border-slate-700 shadow-2xl overflow-hidden relative flex flex-col items-center justify-center py-12 px-6 text-center group">
           <div className="absolute top-0 right-0 w-64 h-64 bg-blue-500/10 blur-[80px] rounded-full pointer-events-none"></div>
           <div className="absolute bottom-0 left-0 w-64 h-64 bg-purple-500/10 blur-[80px] rounded-full pointer-events-none"></div>
           
-          <div className="relative z-10 flex flex-col items-center">
-            <div className="w-24 h-24 mb-6 rounded-full bg-slate-800/80 border-4 border-slate-700 flex items-center justify-center shadow-lg group-hover:scale-105 transition-transform duration-500">
-              <Lock className="w-10 h-10 text-gray-400 group-hover:text-blue-400 transition-colors" />
+          <div className="relative z-10 flex flex-col items-center w-full">
+            <div className="w-20 h-20 md:w-24 md:h-24 mb-4 md:mb-6 rounded-full bg-slate-800/80 border-4 border-slate-700 flex items-center justify-center shadow-lg group-hover:scale-105 transition-transform duration-500 shrink-0">
+              <Lock className="w-8 h-8 md:w-10 md:h-10 text-gray-400 group-hover:text-blue-400 transition-colors" />
             </div>
-            <h3 className="text-3xl font-extrabold text-white mb-3 font-arabic">محتوى مقفول</h3>
-            <p className="text-lg text-gray-400 max-w-md mb-8">
+            <h3 className="text-2xl md:text-3xl font-extrabold text-white mb-2 md:mb-3 font-arabic">محتوى مقفول</h3>
+            <p className="text-sm md:text-lg text-gray-400 max-w-md mb-6 md:mb-8 leading-relaxed">
               هذا المحتوى متاح للمشتركين فقط. يرجى الاشتراك في الكورس لمشاهدة جميع الدروس وتنزيل المرفقات.
             </p>
             <Link 
               to={`/checkout/${course?.id}`}
-              className="px-8 py-4 bg-gradient-to-r from-blue-600 to-blue-800 hover:from-blue-500 hover:to-blue-700 text-white rounded-2xl font-bold text-lg shadow-[0_0_30px_rgba(37,99,235,0.3)] hover:shadow-[0_0_40px_rgba(37,99,235,0.5)] transform hover:-translate-y-1 transition-all duration-300 flex items-center gap-2"
+              className="w-full sm:w-auto px-6 md:px-8 py-3 md:py-4 bg-gradient-to-r from-blue-600 to-blue-800 hover:from-blue-500 hover:to-blue-700 text-white rounded-2xl font-bold text-base md:text-lg shadow-[0_0_30px_rgba(37,99,235,0.3)] hover:shadow-[0_0_40px_rgba(37,99,235,0.5)] transform hover:-translate-y-1 transition-all duration-300 flex items-center justify-center gap-2"
             >
               اشترك في الكورس الآن
-              <div className="w-8 h-8 rounded-full bg-white/20 flex items-center justify-center">
-                <ChevronDown className="w-5 h-5 rotate-90 rtl:-rotate-90" />
+              <div className="w-6 h-6 md:w-8 md:h-8 rounded-full bg-white/20 flex items-center justify-center">
+                <ChevronDown className="w-4 h-4 md:w-5 md:h-5 rotate-90 rtl:-rotate-90" />
               </div>
             </Link>
           </div>
@@ -155,10 +155,10 @@ export default function CourseDetails() {
 
     if (!activeLesson.video_url) {
       return (
-        <div className="w-full aspect-video bg-slate-900 rounded-2xl border border-slate-700 shadow-2xl overflow-hidden relative flex flex-col items-center justify-center p-6 text-center">
-          <PlayCircle className="w-16 h-16 text-gray-500 mb-4" />
-          <h3 className="text-xl font-bold text-white mb-2">{activeLesson.title}</h3>
-          <p className="text-gray-400">لا يوجد فيديو متاح لهذا الدرس.</p>
+        <div className="w-full min-h-[250px] md:aspect-video bg-slate-900 rounded-2xl border border-slate-700 shadow-2xl overflow-hidden relative flex flex-col items-center justify-center p-6 text-center">
+          <PlayCircle className="w-12 h-12 md:w-16 md:h-16 text-gray-500 mb-4" />
+          <h3 className="text-lg md:text-xl font-bold text-white mb-2">{activeLesson.title}</h3>
+          <p className="text-sm md:text-base text-gray-400">لا يوجد فيديو متاح لهذا الدرس.</p>
         </div>
       );
     }

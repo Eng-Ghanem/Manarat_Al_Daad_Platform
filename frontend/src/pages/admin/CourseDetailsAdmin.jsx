@@ -5,6 +5,7 @@ import { BookOpen, Video, Plus, Edit, Trash2, ArrowRight, Loader, PlayCircle } f
 import FadeIn from '../../components/FadeIn';
 import { getDirectImageUrl } from '../../utils/helpers';
 import BackButton from '../../components/BackButton';
+import ConfirmModal from '../../components/ConfirmModal';
 
 export default function CourseDetailsAdmin() {
   const { id } = useParams();
@@ -16,6 +17,8 @@ export default function CourseDetailsAdmin() {
   useEffect(() => {
     fetchCourseDetails();
   }, [id]);
+
+  const [deleteConfig, setDeleteConfig] = useState({ isOpen: false, lessonId: null });
 
   const fetchCourseDetails = async () => {
     try {
@@ -48,7 +51,12 @@ export default function CourseDetailsAdmin() {
   };
 
   const handleDeleteLesson = async (lessonId) => {
-    if (!window.confirm('هل أنت متأكد من حذف هذا الدرس؟ لن يمكنك التراجع عن هذا الإجراء.')) return;
+    setDeleteConfig({ isOpen: true, lessonId });
+  };
+
+  const confirmDeleteLesson = async () => {
+    const lessonId = deleteConfig.lessonId;
+    setDeleteConfig({ isOpen: false, lessonId: null });
     
     try {
       const { error } = await supabase.from('lessons').delete().eq('id', lessonId);
@@ -207,6 +215,17 @@ export default function CourseDetailsAdmin() {
         </FadeIn>
 
       </div>
+      
+      <ConfirmModal 
+        isOpen={deleteConfig.isOpen}
+        onClose={() => setDeleteConfig({ isOpen: false, lessonId: null })}
+        onConfirm={confirmDeleteLesson}
+        title="حذف الدرس"
+        message="هل أنت متأكد من حذف هذا الدرس؟ لن يمكنك التراجع عن هذا الإجراء وسيتم مسح بيانات الدرس بالكامل."
+        confirmText="نعم، احذف الدرس"
+        cancelText="إلغاء"
+        isDanger={true}
+      />
     </div>
   );
 }

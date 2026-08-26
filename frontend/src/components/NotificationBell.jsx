@@ -8,12 +8,9 @@ export default function NotificationBell() {
   const { profile } = useAuth();
   const [pendingCount, setPendingCount] = useState(0);
 
-  // Only render for admins
-  if (profile?.role !== 'admin') {
-    return null;
-  }
-
   useEffect(() => {
+    if (profile?.role !== 'admin') return;
+
     // 1. Fetch initial count of pending subscriptions
     const fetchPendingCount = async () => {
       try {
@@ -45,6 +42,11 @@ export default function NotificationBell() {
       supabase.removeChannel(subscription);
     };
   }, []);
+
+  // Only render for admins
+  if (profile?.role !== 'admin') {
+    return null;
+  }
 
   return (
     <Link 

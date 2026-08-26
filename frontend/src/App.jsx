@@ -29,6 +29,7 @@ const CourseDetailsAdmin = lazy(() => import('./pages/admin/CourseDetailsAdmin')
 const LessonForm = lazy(() => import('./pages/admin/LessonForm'));
 const AdminSubscriptions = lazy(() => import('./pages/admin/AdminSubscriptions'));
 const AdminLiveSessions = lazy(() => import('./pages/admin/AdminLiveSessions'));
+const AdminStudents = lazy(() => import('./pages/admin/AdminStudents'));
 const Settings = lazy(() => import('./pages/Settings'));
 const Certificates = lazy(() => import('./pages/Certificates'));
 const StudentLiveSessions = lazy(() => import('./pages/StudentLiveSessions'));
@@ -38,6 +39,8 @@ const Privacy = lazy(() => import('./pages/Privacy'));
 const Checkout = lazy(() => import('./pages/Checkout'));
 
 import ErrorBoundary from './components/ErrorBoundary';
+
+import CompleteProfileModal from './components/auth/CompleteProfileModal';
 
 function App() {
   const { i18n } = useTranslation();
@@ -50,6 +53,7 @@ function App() {
   return (
     <ErrorBoundary>
       <AuthProvider>
+        <CompleteProfileModal />
         <Toaster position="top-center" reverseOrder={false} />
         <Router>
           <div className="min-h-[100dvh] bg-gray-50 dark:bg-slate-900 text-gray-900 dark:text-white transition-colors duration-300 overflow-x-hidden w-full flex flex-col">
@@ -92,6 +96,7 @@ function App() {
                   <Route path="/admin-dashboard" element={<AdminRoute><AdminDashboard /></AdminRoute>} />
                   <Route path="/admin-dashboard/subscriptions" element={<AdminRoute><AdminSubscriptions /></AdminRoute>} />
                   <Route path="/admin-dashboard/live-sessions" element={<AdminRoute><AdminLiveSessions /></AdminRoute>} />
+                  <Route path="/admin-dashboard/students" element={<AdminRoute><AdminStudents /></AdminRoute>} />
                   {/* Redirect old /admin to /admin-dashboard */}
                   <Route path="/admin" element={<Navigate to="/admin-dashboard" replace />} />
                   

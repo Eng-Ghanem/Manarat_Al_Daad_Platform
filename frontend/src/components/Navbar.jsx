@@ -82,9 +82,26 @@ export default function Navbar() {
                       <div className="h-px bg-gray-100 dark:bg-slate-700 my-1"></div>
                       <Link 
                         to={profile?.role === 'admin' ? "/admin-dashboard" : "/dashboard"}
+                        onClick={(e) => {
+                          const targetPath = profile?.role === 'admin' ? "/admin-dashboard" : "/dashboard";
+                          if (window.location.pathname === targetPath) {
+                            window.scrollTo({ top: 0, behavior: 'smooth' });
+                          }
+                        }}
                         className="block px-4 py-2 rounded-lg text-sm font-bold text-blue-600 hover:bg-blue-50 dark:hover:bg-slate-700 transition-colors ltr:text-left rtl:text-right"
                       >
                         {profile?.role === 'admin' ? t('nav_dashboard') : 'الملف الشخصي'}
+                      </Link>
+                      <Link 
+                        to="/settings"
+                        onClick={(e) => {
+                          if (window.location.pathname === "/settings") {
+                            window.scrollTo({ top: 0, behavior: 'smooth' });
+                          }
+                        }}
+                        className="block px-4 py-2 rounded-lg text-sm font-bold text-gray-700 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-slate-700 transition-colors ltr:text-left rtl:text-right"
+                      >
+                        إعدادات الحساب
                       </Link>
                       <button 
                         onClick={handleLogout}
@@ -173,9 +190,28 @@ export default function Navbar() {
                     </div>
                     <Link 
                       to={profile?.role === 'admin' ? "/admin-dashboard" : "/dashboard"}
+                      onClick={(e) => {
+                        setIsMobileMenuOpen(false);
+                        const targetPath = profile?.role === 'admin' ? "/admin-dashboard" : "/dashboard";
+                        if (window.location.pathname === targetPath) {
+                          window.scrollTo({ top: 0, behavior: 'smooth' });
+                        }
+                      }}
                       className="block w-full text-center px-4 py-3 rounded-xl bg-gradient-to-r from-blue-600 to-blue-800 text-white font-bold transition-all shadow-md active:scale-95"
                     >
                       {profile?.role === 'admin' ? t('nav_dashboard') : 'الملف الشخصي'}
+                    </Link>
+                    <Link 
+                      to="/settings"
+                      onClick={(e) => {
+                        setIsMobileMenuOpen(false);
+                        if (window.location.pathname === "/settings") {
+                          window.scrollTo({ top: 0, behavior: 'smooth' });
+                        }
+                      }}
+                      className="block w-full text-center px-4 py-3 rounded-xl bg-gray-100 dark:bg-slate-800 text-gray-800 dark:text-gray-200 font-bold transition-all shadow-sm active:scale-95"
+                    >
+                      إعدادات الحساب
                     </Link>
                     <button 
                       onClick={handleLogout}

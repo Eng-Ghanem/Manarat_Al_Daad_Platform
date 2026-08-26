@@ -1,6 +1,12 @@
 import React, { createContext, useContext, useEffect, useState } from 'react';
 import { supabase } from '../lib/supabase';
 
+const convertArabicNumerals = (str) => {
+  if (!str) return str;
+  const arabicNumbers = ['٠', '١', '٢', '٣', '٤', '٥', '٦', '٧', '٨', '٩'];
+  return str.replace(/[٠-٩]/g, (d) => arabicNumbers.indexOf(d));
+};
+
 const AuthContext = createContext({});
 
 export const AuthProvider = ({ children }) => {
@@ -56,26 +62,28 @@ export const AuthProvider = ({ children }) => {
 
   const login = async (identifier, password) => {
     let emailToUse = identifier;
+    let cleanId = convertArabicNumerals(identifier).trim();
 
     // Check if identifier is not an email (e.g. phone number)
-    if (!identifier.includes('@')) {
+    if (!cleanId.includes('@')) {
       try {
-        const response = await fetch('http://localhost:5000/api/auth/lookup-email', {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ phone: identifier })
-        });
-        const result = await response.json();
-        
-        if (result.success && result.data.email) {
-          emailToUse = result.data.email;
-        } else {
-          return { error: { message: result.error || 'لم يتم العثور على حساب بهذا الرقم' } };
+        const { data, error } = await supabase
+          .from('profiles')
+          .select('email')
+          .eq('phone_number', cleanId)
+          .single();
+
+        if (error || !data || !data.email) {
+          return { error: { message: 'لم يتم العثور على حساب بهذا الرقم' } };
         }
+        
+        emailToUse = data.email;
       } catch (err) {
         console.error('Error looking up email:', err);
-        return { error: { message: 'تعذر الاتصال بالخادم للتحقق من رقم الهاتف' } };
+        return { error: { message: 'حدث خطأ أثناء التحقق من رقم الهاتف' } };
       }
+    } else {
+      emailToUse = cleanId.toLowerCase(); // Ensure emails are lowercased
     }
 
     return supabase.auth.signInWithPassword({ email: emailToUse, password });
@@ -133,12 +141,22 @@ export const AuthProvider = ({ children }) => {
     return supabase.auth.updateUser({ password: newPassword });
   };
 
+  const loginWithGoogle = async () => {
+    return supabase.auth.signInWithOAuth({
+      provider: 'google',
+      options: {
+        redirectTo: window.location.origin,
+      },
+    });
+  };
+
   return (
     <AuthContext.Provider value={{ 
       user, 
       profile, 
       loading, 
       login, 
+      loginWithGoogle,
       register, 
       logout, 
       updateProfile,

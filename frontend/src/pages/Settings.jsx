@@ -13,6 +13,7 @@ export default function Settings() {
 
   const [fullName, setFullName] = useState('');
   const [email, setEmail] = useState('');
+  const [phoneNumber, setPhoneNumber] = useState('');
   const [gradeLevel, setGradeLevel] = useState('');
   const [password, setPassword] = useState('');
   const [loading, setLoading] = useState(false);
@@ -23,6 +24,7 @@ export default function Settings() {
     if (user) setEmail(user.email || '');
     if (profile) {
       setFullName(profile.full_name || '');
+      setPhoneNumber(profile.phone_number || '');
       setGradeLevel(profile.grade_level || '');
     }
   }, [user, profile]);
@@ -34,10 +36,11 @@ export default function Settings() {
     setError('');
 
     try {
-      // 1. Update Profile (Name & Grade)
+      // 1. Update Profile (Name, Phone, & Grade)
       const profileUpdates = {};
       if (fullName !== profile?.full_name) profileUpdates.full_name = fullName;
-      if (gradeLevel !== profile?.grade_level) profileUpdates.grade_level = gradeLevel;
+      if (phoneNumber !== profile?.phone_number) profileUpdates.phone_number = phoneNumber;
+      if (gradeLevel !== profile?.grade_level && profile?.role !== 'admin') profileUpdates.grade_level = gradeLevel;
 
       if (Object.keys(profileUpdates).length > 0) {
         const { error: profileError } = await updateProfile(user.id, profileUpdates);
@@ -74,7 +77,7 @@ export default function Settings() {
       <div className="max-w-3xl mx-auto px-4 sm:px-6 lg:px-8">
         
         <div className="mb-6 flex items-center gap-4">
-          <Link to="/dashboard" className="w-10 h-10 flex items-center justify-center rounded-full bg-white dark:bg-slate-800 text-gray-500 hover:text-blue-600 shadow-sm transition-colors border border-gray-100 dark:border-slate-700">
+          <Link to={profile?.role === 'admin' ? "/admin-dashboard" : "/dashboard"} className="w-10 h-10 flex items-center justify-center rounded-full bg-white dark:bg-slate-800 text-gray-500 hover:text-blue-600 shadow-sm transition-colors border border-gray-100 dark:border-slate-700">
             <ArrowRight className="w-5 h-5" />
           </Link>
           <h1 className="text-3xl font-extrabold text-gray-900 dark:text-white font-arabic tracking-tight">
@@ -140,12 +143,29 @@ export default function Settings() {
                     required
                     value={email}
                     onChange={(e) => setEmail(e.target.value)}
-                    className="block w-full pr-12 pl-4 py-3 bg-gray-50 dark:bg-slate-900/50 border border-gray-200 dark:border-slate-700 rounded-xl focus:ring-2 focus:ring-blue-500 focus:border-blue-500 transition-colors text-gray-900 dark:text-white placeholder-gray-400"
+                    className="block w-full pr-12 pl-4 py-3 bg-gray-50 dark:bg-slate-900/50 border border-gray-200 dark:border-slate-700 rounded-xl focus:ring-2 focus:ring-blue-500 focus:border-blue-500 transition-colors text-gray-900 dark:text-white placeholder-gray-400 text-left direction-ltr"
                     placeholder="example@email.com"
                   />
                 </div>
               </div>
 
+              <div>
+                <label className="block text-sm font-bold text-gray-700 dark:text-gray-300 mb-2">رقم الهاتف</label>
+                <div className="relative">
+                  <div className="absolute inset-y-0 right-0 pr-4 flex items-center pointer-events-none text-gray-400">
+                    <span className="font-bold text-sm">📞</span>
+                  </div>
+                  <input
+                    type="tel"
+                    value={phoneNumber}
+                    onChange={(e) => setPhoneNumber(e.target.value)}
+                    className="block w-full pr-12 pl-4 py-3 bg-gray-50 dark:bg-slate-900/50 border border-gray-200 dark:border-slate-700 rounded-xl focus:ring-2 focus:ring-blue-500 focus:border-blue-500 transition-colors text-gray-900 dark:text-white placeholder-gray-400 text-left direction-ltr"
+                    placeholder="01xxxxxxxxx"
+                  />
+                </div>
+              </div>
+
+              {profile?.role !== 'admin' && (
               <div>
                 <label className="block text-sm font-bold text-gray-700 dark:text-gray-300 mb-2">الصف الدراسي</label>
                 <div className="relative">
@@ -179,6 +199,7 @@ export default function Settings() {
                   </select>
                 </div>
               </div>
+              )}
 
               <div>
                 <label className="block text-sm font-bold text-gray-700 dark:text-gray-300 mb-2">كلمة المرور الجديدة</label>

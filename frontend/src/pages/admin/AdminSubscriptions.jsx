@@ -10,6 +10,8 @@ import ConfirmModal from '../../components/ConfirmModal';
 import { supabase } from '../../lib/supabase';
 import { getDirectImageUrl } from '../../utils/helpers';
 
+const apiUrl = import.meta.env.VITE_API_URL || 'http://localhost:5000';
+
 export default function AdminSubscriptions() {
   const { t } = useTranslation();
   
@@ -82,12 +84,15 @@ export default function AdminSubscriptions() {
     setRequests(requests.filter(req => req.id !== id));
 
     try {
-      const { error } = await supabase
-        .from('subscriptions')
-        .delete()
-        .eq('id', id);
+      const { data: { session } } = await supabase.auth.getSession();
+      const res = await fetch(`${apiUrl}/api/admin/subscriptions/${id}`, {
+        method: 'DELETE',
+        headers: {
+          'Authorization': `Bearer ${session?.access_token}`
+        }
+      });
 
-      if (error) throw error;
+      if (!res.ok) throw new Error('Failed to delete');
     } catch (err) {
       console.error('Error deleting subscription:', err);
       alert('حدث خطأ أثناء الحذف.');
@@ -103,12 +108,17 @@ export default function AdminSubscriptions() {
     ));
 
     try {
-      const { error } = await supabase
-        .from('subscriptions')
-        .update({ status: newStatus })
-        .eq('id', id);
+      const { data: { session } } = await supabase.auth.getSession();
+      const res = await fetch(`${apiUrl}/api/admin/subscriptions/${id}`, {
+        method: 'PUT',
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${session?.access_token}`
+        },
+        body: JSON.stringify({ status: newStatus })
+      });
 
-      if (error) throw error;
+      if (!res.ok) throw new Error('Failed to update status');
     } catch (err) {
       console.error('Error updating subscription:', err);
       alert('حدث خطأ أثناء تحديث حالة الطلب.');

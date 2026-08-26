@@ -93,7 +93,6 @@ export default function ForgotPassword() {
           </div>
 
           <motion.button
-            whileHover={{ scale: 1.01 }}
             whileTap={{ scale: 0.98 }}
             type="submit"
             disabled={loading}

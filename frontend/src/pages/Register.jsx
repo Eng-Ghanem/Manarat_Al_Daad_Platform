@@ -124,11 +124,11 @@ export default function Register() {
   };
 
   return (
-    <div className="relative w-full min-h-[85vh] flex items-center justify-center p-4 py-16 overflow-hidden">
+    <div className="relative w-full min-h-[85vh] flex items-center justify-center p-4 py-10 sm:py-16 overflow-hidden">
       {/* Decorative Background Orbs */}
-      <div className="absolute top-[-10%] right-[-5%] w-[500px] h-[500px] rounded-full bg-blue-600/20 blur-[120px] pointer-events-none mix-blend-multiply dark:mix-blend-screen animate-pulse" />
-      <div className="absolute bottom-[-10%] left-[-5%] w-[600px] h-[600px] rounded-full bg-gold-500/20 blur-[150px] pointer-events-none mix-blend-multiply dark:mix-blend-screen" />
-      <div className="absolute top-[40%] left-[20%] w-[300px] h-[300px] rounded-full bg-purple-500/10 blur-[100px] pointer-events-none mix-blend-multiply dark:mix-blend-screen" />
+      <div className="absolute top-[-10%] right-[-5%] w-[300px] sm:w-[500px] h-[300px] sm:h-[500px] rounded-full bg-blue-600/20 blur-[100px] sm:blur-[120px] pointer-events-none mix-blend-multiply dark:mix-blend-screen animate-pulse" />
+      <div className="absolute bottom-[-10%] left-[-5%] w-[400px] sm:w-[600px] h-[400px] sm:h-[600px] rounded-full bg-gold-500/20 blur-[120px] sm:blur-[150px] pointer-events-none mix-blend-multiply dark:mix-blend-screen" />
+      <div className="absolute top-[40%] left-[20%] w-[200px] sm:w-[300px] h-[200px] sm:h-[300px] rounded-full bg-purple-500/10 blur-[80px] sm:blur-[100px] pointer-events-none mix-blend-multiply dark:mix-blend-screen" />
       
       {/* Background Pattern */}
       <div className="absolute inset-0 bg-arabic-pattern opacity-[0.03] pointer-events-none"></div>
@@ -139,17 +139,17 @@ export default function Register() {
         animate="visible"
         className="max-w-md w-full mx-auto relative z-10"
       >
-      <motion.div variants={itemVariants} className="text-center mb-10">
-        <h1 className="text-4xl font-extrabold text-gray-900 dark:text-white font-arabic tracking-tight mb-3 drop-shadow-sm">
+      <motion.div variants={itemVariants} className="text-center mb-8 sm:mb-10 px-2">
+        <h1 className="text-3xl sm:text-4xl font-extrabold text-gray-900 dark:text-white font-arabic tracking-tight mb-3 drop-shadow-sm">
           {t('register_title')}
         </h1>
-        <p className="text-gray-600 dark:text-gray-300 font-medium">
+        <p className="text-sm sm:text-base text-gray-600 dark:text-gray-300 font-medium">
           {t('register_subtitle')}
         </p>
       </motion.div>
 
-      <motion.div variants={itemVariants} className="bg-white/70 dark:bg-slate-800/70 backdrop-blur-2xl p-8 rounded-[2rem] shadow-2xl shadow-blue-900/5 border border-white/50 dark:border-slate-700/50">
-        <form onSubmit={handleRegister} className="space-y-5">
+      <motion.div variants={itemVariants} className="bg-white/70 dark:bg-slate-800/70 backdrop-blur-2xl p-6 sm:p-8 rounded-[2rem] shadow-2xl shadow-blue-900/5 border border-white/50 dark:border-slate-700/50">
+        <form onSubmit={handleRegister} className="space-y-4 sm:space-y-5">
           
           <div>
             <label className="block text-sm font-bold text-gray-700 dark:text-gray-300 mb-2 px-1">{t('fullname_label')}</label>
@@ -332,7 +332,6 @@ export default function Register() {
           </div>
 
           <motion.button
-            whileHover={{ scale: 1.01 }}
             whileTap={{ scale: 0.98 }}
             type="submit"
             disabled={loading}
@@ -356,7 +355,6 @@ export default function Register() {
           </div>
 
           <motion.button
-            whileHover={{ scale: 1.01 }}
             whileTap={{ scale: 0.98 }}
             type="button"
             onClick={() => loginWithGoogle()}

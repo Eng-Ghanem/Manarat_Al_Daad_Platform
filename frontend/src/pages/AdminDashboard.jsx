@@ -75,7 +75,7 @@ export default function AdminDashboard() {
       setStats(prev => ({ ...prev, courses: prev.courses - 1 }));
     } catch (error) {
       console.error('Error deleting course:', error);
-      alert('حدث خطأ أثناء الحذف.');
+      alert(t('admin_error_delete_course'));
     }
   };
 
@@ -112,11 +112,11 @@ export default function AdminDashboard() {
                 </div>
                 <div>
                   <h1 className="text-4xl md:text-5xl font-extrabold text-white tracking-tight mb-3 drop-shadow-md">
-                    لوحة تحكم الإدارة
+                    {t('admin_dashboard_title')}
                   </h1>
                   <p className="text-blue-100/80 font-medium text-lg flex items-center gap-2">
                     <span className="w-2 h-2 rounded-full bg-green-400 animate-pulse"></span>
-                    أهلاً بك. مركز التحكم الشامل بالمنصة.
+                    {t('admin_dashboard_subtitle')}
                   </p>
                 </div>
               </div>
@@ -127,14 +127,14 @@ export default function AdminDashboard() {
                   className={`flex items-center gap-2.5 px-6 py-3 rounded-xl font-bold transition-all duration-300 ${activeTab === 'overview' ? 'bg-gradient-to-r from-blue-600 to-indigo-600 text-white shadow-lg shadow-blue-900/50 scale-100' : 'text-blue-200/70 hover:text-white hover:bg-white/10'}`}
                 >
                   <LayoutDashboard className="w-5 h-5" />
-                  نظرة عامة
+                  {t('admin_tab_overview')}
                 </button>
                 <button
                   onClick={() => setActiveTab('courses')}
                   className={`flex items-center gap-2.5 px-6 py-3 rounded-xl font-bold transition-all duration-300 ${activeTab === 'courses' ? 'bg-gradient-to-r from-blue-600 to-indigo-600 text-white shadow-lg shadow-blue-900/50 scale-100' : 'text-blue-200/70 hover:text-white hover:bg-white/10'}`}
                 >
                   <BookOpen className="w-5 h-5" />
-                  إدارة الكورسات
+                  {t('admin_tab_courses')}
                 </button>
               </div>
             </div>
@@ -160,11 +160,11 @@ export default function AdminDashboard() {
                     </div>
                   </div>
                   <div className="relative z-10">
-                    <h3 className="text-gray-500 dark:text-slate-400 font-bold mb-2">إجمالي الطلاب</h3>
+                    <h3 className="text-gray-500 dark:text-slate-400 font-bold mb-2">{t('admin_total_students')}</h3>
                     <div className="flex items-end justify-between">
                       <p className="text-5xl font-black text-gray-900 dark:text-white tracking-tight">{stats.students}</p>
-                      <span className="text-blue-600 dark:text-blue-400 text-sm font-bold flex items-center gap-1.5 opacity-0 -translate-x-4 group-hover:opacity-100 group-hover:translate-x-0 transition-all duration-300">
-                        إدارة الطلاب <ChevronLeft className="w-4 h-4" />
+                      <span className="text-blue-600 dark:text-blue-400 text-sm font-bold flex items-center gap-1.5 opacity-0 rtl:-translate-x-4 ltr:translate-x-4 group-hover:opacity-100 group-hover:translate-x-0 transition-all duration-300">
+                        {t('admin_manage_students')} <ChevronLeft className="w-4 h-4 rtl:rotate-0 ltr:rotate-180" />
                       </span>
                     </div>
                   </div>
@@ -181,11 +181,11 @@ export default function AdminDashboard() {
                     </div>
                   </div>
                   <div className="relative z-10">
-                    <h3 className="text-gray-500 dark:text-slate-400 font-bold mb-2">الكورسات المنشورة</h3>
+                    <h3 className="text-gray-500 dark:text-slate-400 font-bold mb-2">{t('admin_published_courses')}</h3>
                     <div className="flex items-end justify-between">
                       <p className="text-5xl font-black text-gray-900 dark:text-white tracking-tight">{stats.courses}</p>
-                      <span className="text-emerald-600 dark:text-emerald-400 text-sm font-bold flex items-center gap-1.5 opacity-0 -translate-x-4 group-hover:opacity-100 group-hover:translate-x-0 transition-all duration-300">
-                        عرض الكورسات <ChevronLeft className="w-4 h-4" />
+                      <span className="text-emerald-600 dark:text-emerald-400 text-sm font-bold flex items-center gap-1.5 opacity-0 rtl:-translate-x-4 ltr:translate-x-4 group-hover:opacity-100 group-hover:translate-x-0 transition-all duration-300">
+                        {t('admin_view_courses')} <ChevronLeft className="w-4 h-4 rtl:rotate-0 ltr:rotate-180" />
                       </span>
                     </div>
                   </div>
@@ -203,16 +203,16 @@ export default function AdminDashboard() {
                     {stats.pendingSubscriptions > 0 && (
                       <div className="bg-white/95 text-rose-600 px-4 py-1.5 rounded-full text-xs font-bold shadow-xl flex items-center gap-1.5">
                         <span className="w-2 h-2 rounded-full bg-rose-500 animate-ping"></span>
-                        قيد الانتظار
+                        {t('admin_status_pending')}
                       </div>
                     )}
                   </div>
                   <div className="relative z-10">
-                    <h3 className="text-orange-100 font-bold mb-2">طلبات الاشتراك</h3>
+                    <h3 className="text-orange-100 font-bold mb-2">{t('admin_pending_subs')}</h3>
                     <div className="flex items-end justify-between">
                       <p className="text-5xl font-black text-white tracking-tight">{stats.pendingSubscriptions}</p>
                       <span className="text-white text-sm font-bold flex items-center gap-1.5 opacity-90 group-hover:opacity-100 group-hover:-translate-x-1 transition-all duration-300">
-                        مراجعة الطلبات <ChevronLeft className="w-4 h-4" />
+                        {t('admin_review_requests')} <ChevronLeft className="w-4 h-4 rtl:rotate-0 ltr:rotate-180" />
                       </span>
                     </div>
                   </div>
@@ -229,7 +229,7 @@ export default function AdminDashboard() {
                   <div className="w-10 h-10 rounded-xl bg-gray-100 dark:bg-slate-800 flex items-center justify-center text-gray-500 dark:text-gray-400">
                     <LayoutDashboard className="w-5 h-5" />
                   </div>
-                  <h2 className="text-2xl font-bold text-gray-900 dark:text-white">إجراءات سريعة</h2>
+                  <h2 className="text-2xl font-bold text-gray-900 dark:text-white">{t('admin_quick_actions')}</h2>
                 </div>
 
                 <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-5">
@@ -238,8 +238,8 @@ export default function AdminDashboard() {
                       <Plus className="w-8 h-8" />
                     </div>
                     <div>
-                      <h4 className="font-bold text-lg text-gray-900 dark:text-white group-hover:text-blue-600 dark:group-hover:text-blue-400 transition-colors mb-1">إضافة كورس</h4>
-                      <p className="text-sm text-gray-500 dark:text-gray-400">محتوى تعليمي جديد</p>
+                      <h4 className="font-bold text-lg text-gray-900 dark:text-white group-hover:text-blue-600 dark:group-hover:text-blue-400 transition-colors mb-1">{t('admin_add_course')}</h4>
+                      <p className="text-sm text-gray-500 dark:text-gray-400">{t('admin_new_course_content')}</p>
                     </div>
                   </Link>
 
@@ -248,8 +248,8 @@ export default function AdminDashboard() {
                       <CheckCircle className="w-8 h-8" />
                     </div>
                     <div>
-                      <h4 className="font-bold text-lg text-gray-900 dark:text-white group-hover:text-orange-600 dark:group-hover:text-orange-400 transition-colors mb-1">الاشتراكات</h4>
-                      <p className="text-sm text-gray-500 dark:text-gray-400">تفعيل حسابات الطلاب</p>
+                      <h4 className="font-bold text-lg text-gray-900 dark:text-white group-hover:text-orange-600 dark:group-hover:text-orange-400 transition-colors mb-1">{t('admin_subscriptions')}</h4>
+                      <p className="text-sm text-gray-500 dark:text-gray-400">{t('admin_activate_accounts')}</p>
                     </div>
                   </Link>
 
@@ -258,8 +258,8 @@ export default function AdminDashboard() {
                       <Users className="w-8 h-8" />
                     </div>
                     <div>
-                      <h4 className="font-bold text-lg text-gray-900 dark:text-white group-hover:text-emerald-600 dark:group-hover:text-emerald-400 transition-colors mb-1">إدارة الطلاب</h4>
-                      <p className="text-sm text-gray-500 dark:text-gray-400">سجل وحسابات الطلاب</p>
+                      <h4 className="font-bold text-lg text-gray-900 dark:text-white group-hover:text-emerald-600 dark:group-hover:text-emerald-400 transition-colors mb-1">{t('admin_manage_students')}</h4>
+                      <p className="text-sm text-gray-500 dark:text-gray-400">{t('admin_students_records')}</p>
                     </div>
                   </Link>
 
@@ -268,8 +268,8 @@ export default function AdminDashboard() {
                       <Video className="w-8 h-8" />
                     </div>
                     <div>
-                      <h4 className="font-bold text-lg text-gray-900 dark:text-white group-hover:text-purple-600 dark:group-hover:text-purple-400 transition-colors mb-1">حصص Zoom</h4>
-                      <p className="text-sm text-gray-500 dark:text-gray-400">إدارة البث المباشر</p>
+                      <h4 className="font-bold text-lg text-gray-900 dark:text-white group-hover:text-purple-600 dark:group-hover:text-purple-400 transition-colors mb-1">{t('admin_zoom_sessions')}</h4>
+                      <p className="text-sm text-gray-500 dark:text-gray-400">{t('admin_manage_live')}</p>
                     </div>
                   </Link>
                 </div>
@@ -288,8 +288,8 @@ export default function AdminDashboard() {
                     <BookOpen className="w-7 h-7" />
                   </div>
                   <div>
-                    <h2 className="text-2xl font-black text-gray-900 dark:text-white">إدارة الكورسات</h2>
-                    <p className="text-gray-500 dark:text-gray-400 text-sm mt-1 font-medium">تصفح وتعديل المحتوى التعليمي للمنصة.</p>
+                    <h2 className="text-2xl font-black text-gray-900 dark:text-white">{t('admin_tab_courses')}</h2>
+                    <p className="text-gray-500 dark:text-gray-400 text-sm mt-1 font-medium">{t('admin_browse_courses_desc')}</p>
                   </div>
                 </div>
                 
@@ -301,7 +301,7 @@ export default function AdminDashboard() {
                     <input
                       type="text"
                       className="block w-full pr-12 py-3.5 bg-gray-50 dark:bg-slate-900/50 border border-gray-200 dark:border-slate-700 rounded-xl focus:ring-2 focus:ring-blue-500 focus:border-blue-500 transition-colors text-gray-900 dark:text-white font-medium shadow-inner"
-                      placeholder="ابحث عن كورس..."
+                      placeholder={t('admin_search_course_placeholder')}
                       value={searchQuery}
                       onChange={(e) => setSearchQuery(e.target.value)}
                     />
@@ -312,7 +312,7 @@ export default function AdminDashboard() {
                     className="w-full sm:w-auto bg-gradient-to-r from-blue-600 to-indigo-600 hover:from-blue-700 hover:to-indigo-700 text-white px-8 py-3.5 rounded-xl font-bold flex items-center justify-center gap-2 transition-all shadow-lg shadow-blue-500/30 hover:shadow-blue-500/50 hover:-translate-y-0.5"
                   >
                     <Plus className="w-5 h-5" />
-                    إضافة كورس
+                    {t('admin_add_course')}
                   </Link>
                 </div>
               </div>
@@ -322,8 +322,8 @@ export default function AdminDashboard() {
                   <div className="w-24 h-24 bg-gray-50 dark:bg-slate-800 rounded-full flex items-center justify-center mx-auto mb-6">
                     <BookOpen className="w-10 h-10 text-gray-300 dark:text-slate-600" />
                   </div>
-                  <h3 className="text-2xl font-bold text-gray-900 dark:text-white mb-2">لا توجد كورسات</h3>
-                  <p className="text-gray-500 dark:text-gray-400">جرب البحث بكلمة أخرى أو قم بإنشاء كورس جديد.</p>
+                  <h3 className="text-2xl font-bold text-gray-900 dark:text-white mb-2">{t('admin_no_courses')}</h3>
+                  <p className="text-gray-500 dark:text-gray-400">{t('admin_no_courses_desc')}</p>
                 </div>
               ) : (
                 <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-6 lg:gap-8">
@@ -348,7 +348,7 @@ export default function AdminDashboard() {
                         <div className="absolute top-4 right-4">
                           <span className={`px-3 py-1.5 rounded-full text-xs font-bold flex items-center gap-1.5 backdrop-blur-md shadow-lg ${course.is_published ? 'bg-white/90 text-green-700 dark:bg-slate-900/90 dark:text-green-400' : 'bg-white/90 text-gray-700 dark:bg-slate-900/90 dark:text-gray-300'}`}>
                             <span className={`w-2 h-2 rounded-full ${course.is_published ? 'bg-green-500' : 'bg-gray-400'}`}></span>
-                            {course.is_published ? 'منشور' : 'مسودة'}
+                            {course.is_published ? t('admin_status_published') : t('admin_status_draft')}
                           </span>
                         </div>
                       </div>
@@ -357,7 +357,7 @@ export default function AdminDashboard() {
                       <div className="p-6 flex flex-col flex-grow">
                         <div className="mb-3">
                           <span className="text-xs font-bold text-blue-600 dark:text-blue-400 bg-blue-50 dark:bg-blue-900/30 px-3 py-1.5 rounded-lg border border-blue-100 dark:border-blue-800/50 shadow-sm">
-                            {course.category || 'غير مصنف'}
+                            {course.category || t('admin_uncategorized')}
                           </span>
                         </div>
                         <h3 className="text-xl font-bold text-gray-900 dark:text-white mb-2 line-clamp-2 leading-snug group-hover:text-blue-600 dark:group-hover:text-blue-400 transition-colors">
@@ -366,7 +366,7 @@ export default function AdminDashboard() {
                         
                         <div className="mt-auto pt-6 flex items-center justify-between">
                           <span className="font-black text-2xl text-gray-900 dark:text-white">
-                            {course.price > 0 ? `${course.price} ج.م` : <span className="text-emerald-500 bg-emerald-50 dark:bg-emerald-900/20 px-3 py-1 rounded-lg text-lg">مجاناً</span>}
+                            {course.price > 0 ? `${course.price} ${t('admin_currency')}` : <span className="text-emerald-500 bg-emerald-50 dark:bg-emerald-900/20 px-3 py-1 rounded-lg text-lg">{t('admin_free')}</span>}
                           </span>
                         </div>
                       </div>
@@ -375,22 +375,22 @@ export default function AdminDashboard() {
                       <div className="px-6 pb-6 pt-0 flex gap-2">
                         <Link 
                           to={`/admin-dashboard/courses/${course.id}`} 
-                          title="إدارة المحتوى" 
+                          title={t('admin_manage_content')} 
                           className="flex-1 flex items-center justify-center gap-2 py-3 bg-indigo-50 dark:bg-indigo-900/20 text-indigo-700 dark:text-indigo-400 rounded-xl hover:bg-indigo-600 hover:text-white dark:hover:bg-indigo-500 transition-all font-bold text-sm shadow-sm"
                         >
                           <Video className="w-4 h-4" />
-                          المحتوى
+                          {t('admin_manage_content')}
                         </Link>
                         <Link 
                           to={`/admin-dashboard/courses/${course.id}/edit`} 
-                          title="تعديل" 
+                          title={t('admin_edit')} 
                           className="w-12 flex items-center justify-center py-3 bg-blue-50 dark:bg-blue-900/20 text-blue-700 dark:text-blue-400 rounded-xl hover:bg-blue-600 hover:text-white dark:hover:bg-blue-500 transition-all shadow-sm"
                         >
                           <Edit className="w-4 h-4" />
                         </Link>
                         <button 
                           onClick={() => handleDeleteClick(course.id)} 
-                          title="حذف" 
+                          title={t('admin_delete')} 
                           className="w-12 flex items-center justify-center py-3 bg-red-50 dark:bg-red-900/20 text-red-700 dark:text-red-400 rounded-xl hover:bg-red-600 hover:text-white dark:hover:bg-red-500 transition-all shadow-sm"
                         >
                           <Trash2 className="w-4 h-4" />
@@ -411,10 +411,10 @@ export default function AdminDashboard() {
         isOpen={deleteModal.isOpen}
         onClose={() => setDeleteModal({ isOpen: false, courseId: null })}
         onConfirm={confirmDeleteCourse}
-        title="حذف الكورس نهائياً"
-        message="هل أنت متأكد من رغبتك في حذف هذا الكورس؟ لن يمكنك التراجع عن هذا الإجراء وسيتم حذف جميع الدروس والمرفقات المرتبطة به بشكل نهائي."
-        confirmText="نعم، احذف الكورس"
-        cancelText="تراجع"
+        title={t('admin_delete_course_title')}
+        message={t('admin_delete_course_msg')}
+        confirmText={t('admin_confirm_delete')}
+        cancelText={t('admin_cancel')}
         isDanger={true}
       />
     </div>

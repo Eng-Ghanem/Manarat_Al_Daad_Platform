@@ -2,10 +2,12 @@ import { useState, useEffect, useRef } from 'react';
 import { useNavigate, useParams } from 'react-router-dom';
 import { supabase } from '../../lib/supabase';
 import { BookOpen, Image as ImageIcon, Tag, DollarSign, Clock, Save, ArrowRight, Loader, UploadCloud } from 'lucide-react';
+import { useTranslation } from 'react-i18next';
 import FadeIn from '../../components/FadeIn';
 import BackButton from '../../components/BackButton';
 
 export default function CourseForm() {
+  const { t } = useTranslation();
   const navigate = useNavigate();
   const { id } = useParams();
   const isEditing = Boolean(id);
@@ -87,7 +89,7 @@ export default function CourseForm() {
       }
     } catch (err) {
       console.error('Error fetching course:', err);
-      setError('حدث خطأ أثناء جلب بيانات الكورس.');
+      setError(t('admin_error_fetch_course'));
     } finally {
       setFetching(false);
     }
@@ -133,7 +135,7 @@ export default function CourseForm() {
       .upload(filePath, imageFile);
 
     if (uploadError) {
-      throw new Error('فشل رفع الصورة. تأكد من أنك قمت بإنشاء (Bucket) باسم course-images في Supabase.');
+      throw new Error(t('admin_upload_failed'));
     }
 
     const { data: { publicUrl } } = supabase.storage
@@ -198,7 +200,7 @@ export default function CourseForm() {
       navigate(`/admin-dashboard/courses/${newCourseId}`);
     } catch (err) {
       console.error('Error saving course:', err);
-      setError(err.message || 'حدث خطأ أثناء حفظ الكورس. تأكد من أن حسابك يمتلك صلاحيات الإدارة الكاملة.');
+      setError(err.message || t('admin_save_error'));
     } finally {
       setLoading(false);
     }
@@ -212,7 +214,7 @@ export default function CourseForm() {
     <div className="min-h-screen bg-gray-50 dark:bg-slate-900 py-12">
       <div className="max-w-4xl mx-auto px-4 sm:px-6 lg:px-8">
         <div className="mb-6">
-          <BackButton to={isEditing ? `/admin-dashboard/courses/${id}` : '/admin-dashboard'} text="العودة" />
+          <BackButton to={isEditing ? `/admin-dashboard/courses/${id}` : '/admin-dashboard'} text={t('admin_back')} />
         </div>
 
         <FadeIn>
@@ -223,10 +225,10 @@ export default function CourseForm() {
               </div>
               <div>
                 <h1 className="text-2xl font-bold font-arabic text-gray-900 dark:text-white">
-                  {isEditing ? 'تعديل بيانات الكورس' : 'إضافة كورس جديد'}
+                  {isEditing ? t('admin_edit_course') : t('admin_add_new_course')}
                 </h1>
                 <p className="text-gray-500 dark:text-gray-400">
-                  {isEditing ? 'قم بتحديث بيانات الكورس والصورة الخاصة به.' : 'قم بملء البيانات الأساسية للكورس وصورته الرئيسية.'}
+                  {isEditing ? t('admin_edit_course_desc') : t('admin_add_course_desc')}
                 </p>
               </div>
             </div>
@@ -241,7 +243,7 @@ export default function CourseForm() {
               
               <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
                 <div className="md:col-span-2">
-                  <label className="block text-sm font-bold text-gray-700 dark:text-gray-300 mb-2">عنوان الكورس *</label>
+                  <label className="block text-sm font-bold text-gray-700 dark:text-gray-300 mb-2">{t('admin_course_title')}</label>
                   <div className="relative">
                     <div className="absolute inset-y-0 right-0 pr-4 flex items-center pointer-events-none text-gray-400">
                       <BookOpen className="w-5 h-5" />
@@ -253,71 +255,71 @@ export default function CourseForm() {
                       value={formData.title}
                       onChange={handleChange}
                       className="block w-full pr-12 pl-4 py-3 bg-gray-50 dark:bg-slate-900/50 border border-gray-200 dark:border-slate-700 rounded-xl focus:ring-2 focus:ring-blue-500 focus:border-blue-500 transition-colors dark:text-white"
-                      placeholder="مثال: كورس النحو الشامل للثانوية العامة"
+                      placeholder={t('admin_course_title_ph')}
                     />
                   </div>
                 </div>
 
                 <div className="md:col-span-2">
-                  <label className="block text-sm font-bold text-gray-700 dark:text-gray-300 mb-2">وصف مختصر</label>
+                  <label className="block text-sm font-bold text-gray-700 dark:text-gray-300 mb-2">{t('admin_course_desc')}</label>
                   <textarea
                     name="description"
                     rows="3"
                     value={formData.description}
                     onChange={handleChange}
                     className="block w-full px-4 py-3 bg-gray-50 dark:bg-slate-900/50 border border-gray-200 dark:border-slate-700 rounded-xl focus:ring-2 focus:ring-blue-500 focus:border-blue-500 transition-colors dark:text-white resize-none"
-                    placeholder="اكتب وصفاً جذاباً لمحتوى الكورس..."
+                    placeholder={t('admin_course_desc_ph')}
                   ></textarea>
                 </div>
 
                 <div className="md:col-span-2 space-y-4">
                   <label className="block text-sm font-bold text-gray-700 dark:text-gray-300 mb-2">
-                    نوع الكورس
+                    {t('admin_course_type')}
                   </label>
                   
                   <div className="flex gap-4">
-                    <button type="button" onClick={() => setCourseType('foundation')} className={`flex-1 py-3 px-4 rounded-xl font-bold transition-all ${courseType === 'foundation' ? 'bg-blue-600 text-white shadow-md border-transparent' : 'bg-white text-gray-600 dark:bg-slate-800 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-slate-700 border border-gray-200 dark:border-slate-700'}`}>كورسات تأسيسية</button>
-                    <button type="button" onClick={() => setCourseType('grades')} className={`flex-1 py-3 px-4 rounded-xl font-bold transition-all ${courseType === 'grades' ? 'bg-blue-600 text-white shadow-md border-transparent' : 'bg-white text-gray-600 dark:bg-slate-800 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-slate-700 border border-gray-200 dark:border-slate-700'}`}>الصفوف الدراسية</button>
+                    <button type="button" onClick={() => setCourseType('foundation')} className={`flex-1 py-3 px-4 rounded-xl font-bold transition-all ${courseType === 'foundation' ? 'bg-blue-600 text-white shadow-md border-transparent' : 'bg-white text-gray-600 dark:bg-slate-800 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-slate-700 border border-gray-200 dark:border-slate-700'}`}>{t('admin_foundation_courses')}</button>
+                    <button type="button" onClick={() => setCourseType('grades')} className={`flex-1 py-3 px-4 rounded-xl font-bold transition-all ${courseType === 'grades' ? 'bg-blue-600 text-white shadow-md border-transparent' : 'bg-white text-gray-600 dark:bg-slate-800 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-slate-700 border border-gray-200 dark:border-slate-700'}`}>{t('admin_school_grades')}</button>
                   </div>
 
                   {courseType === 'grades' && (
                     <div className="grid grid-cols-1 md:grid-cols-3 gap-4 mt-4 p-5 bg-gray-50 dark:bg-slate-900/50 rounded-xl border border-gray-200 dark:border-slate-700">
                       <div>
-                        <label className="block text-xs font-bold text-gray-500 dark:text-gray-400 mb-2">المرحلة الدراسية</label>
+                        <label className="block text-xs font-bold text-gray-500 dark:text-gray-400 mb-2">{t('admin_school_stage')}</label>
                         <select value={stage} onChange={(e) => { setStage(e.target.value); setGrade('1'); }} className="block w-full px-4 py-2.5 bg-white dark:bg-slate-800 border border-gray-200 dark:border-slate-700 rounded-lg focus:ring-2 focus:ring-blue-500 dark:text-white">
-                          <option value="primary">الابتدائية</option>
-                          <option value="prep">الإعدادية</option>
-                          <option value="sec">الثانوية</option>
+                          <option value="primary">{t('admin_primary')}</option>
+                          <option value="prep">{t('admin_prep')}</option>
+                          <option value="sec">{t('admin_sec')}</option>
                         </select>
                       </div>
                       <div>
-                        <label className="block text-xs font-bold text-gray-500 dark:text-gray-400 mb-2">الصف الدراسي</label>
+                        <label className="block text-xs font-bold text-gray-500 dark:text-gray-400 mb-2">{t('admin_grade')}</label>
                         <select value={grade} onChange={(e) => setGrade(e.target.value)} className="block w-full px-4 py-2.5 bg-white dark:bg-slate-800 border border-gray-200 dark:border-slate-700 rounded-lg focus:ring-2 focus:ring-blue-500 dark:text-white">
                           {stage === 'primary' && (
                             <>
-                              <option value="1">الصف الأول</option>
-                              <option value="2">الصف الثاني</option>
-                              <option value="3">الصف الثالث</option>
-                              <option value="4">الصف الرابع</option>
-                              <option value="5">الصف الخامس</option>
-                              <option value="6">الصف السادس</option>
+                              <option value="1">{t('admin_grade_1')}</option>
+                              <option value="2">{t('admin_grade_2')}</option>
+                              <option value="3">{t('admin_grade_3')}</option>
+                              <option value="4">{t('admin_grade_4')}</option>
+                              <option value="5">{t('admin_grade_5')}</option>
+                              <option value="6">{t('admin_grade_6')}</option>
                             </>
                           )}
                           {(stage === 'prep' || stage === 'sec') && (
                             <>
-                              <option value="1">الصف الأول</option>
-                              <option value="2">الصف الثاني</option>
-                              <option value="3">الصف الثالث</option>
+                              <option value="1">{t('admin_grade_1')}</option>
+                              <option value="2">{t('admin_grade_2')}</option>
+                              <option value="3">{t('admin_grade_3')}</option>
                             </>
                           )}
                         </select>
                       </div>
                       {!(stage === 'sec' && grade === '3') && (
                         <div>
-                          <label className="block text-xs font-bold text-gray-500 dark:text-gray-400 mb-2">الترم (الفصل الدراسي)</label>
+                          <label className="block text-xs font-bold text-gray-500 dark:text-gray-400 mb-2">{t('admin_term')}</label>
                           <select value={term} onChange={(e) => setTerm(e.target.value)} className="block w-full px-4 py-2.5 bg-white dark:bg-slate-800 border border-gray-200 dark:border-slate-700 rounded-lg focus:ring-2 focus:ring-blue-500 dark:text-white">
-                            <option value="1">الترم الأول</option>
-                            <option value="2">الترم الثاني</option>
+                            <option value="1">{t('admin_term_1')}</option>
+                            <option value="2">{t('admin_term_2')}</option>
                           </select>
                         </div>
                       )}
@@ -327,7 +329,7 @@ export default function CourseForm() {
 
                 <div>
                   <label className="block text-sm font-bold text-gray-700 dark:text-gray-300 mb-2">
-                    السعر الأساسي (ج.م)
+                    {t('admin_base_price')}
                   </label>
                   <div className="relative">
                     <div className="absolute inset-y-0 right-0 pr-4 flex items-center pointer-events-none text-gray-400">
@@ -341,14 +343,14 @@ export default function CourseForm() {
                       value={formData.price}
                       onChange={handleChange}
                       className="block w-full pr-12 pl-4 py-3 bg-gray-50 dark:bg-slate-900/50 border border-gray-200 dark:border-slate-700 rounded-xl focus:ring-2 focus:ring-blue-500 focus:border-blue-500 transition-colors dark:text-white"
-                      placeholder="0 للكورسات المجانية"
+                      placeholder={t('admin_base_price_ph')}
                     />
                   </div>
                 </div>
 
                 <div>
                   <label className="block text-sm font-bold text-gray-700 dark:text-gray-300 mb-2">
-                    السعر بعد الخصم (اختياري)
+                    {t('admin_discount_price')}
                   </label>
                   <div className="relative">
                     <div className="absolute inset-y-0 right-0 pr-4 flex items-center pointer-events-none text-green-500">
@@ -361,14 +363,14 @@ export default function CourseForm() {
                       value={formData.discounted_price}
                       onChange={handleChange}
                       className="block w-full pr-12 pl-4 py-3 bg-gray-50 dark:bg-slate-900/50 border border-gray-200 dark:border-slate-700 rounded-xl focus:ring-2 focus:ring-blue-500 focus:border-blue-500 transition-colors dark:text-white"
-                      placeholder="اتركه فارغاً إذا لم يوجد خصم"
+                      placeholder={t('admin_discount_price_ph')}
                     />
                   </div>
                 </div>
 
                 <div>
                   <label className="block text-sm font-bold text-gray-700 dark:text-gray-300 mb-2">
-                    مدة صلاحية الكورس للطالب (بالأيام)
+                    {t('admin_duration_days')}
                   </label>
                   <div className="relative">
                     <div className="absolute inset-y-0 right-0 pr-4 flex items-center pointer-events-none text-gray-400">
@@ -381,14 +383,14 @@ export default function CourseForm() {
                       value={formData.access_duration_days}
                       onChange={handleChange}
                       className="block w-full pr-12 pl-4 py-3 bg-gray-50 dark:bg-slate-900/50 border border-gray-200 dark:border-slate-700 rounded-xl focus:ring-2 focus:ring-blue-500 focus:border-blue-500 transition-colors dark:text-white"
-                      placeholder="اتركه فارغاً ليكون متاحاً مدى الحياة"
+                      placeholder={t('admin_duration_days_ph')}
                     />
                   </div>
                 </div>
 
                 <div className="md:col-span-2">
                   <label className="block text-sm font-bold text-gray-700 dark:text-gray-300 mb-2">
-                    صورة الغلاف (اختر صورة أو قم بلصقها)
+                    {t('admin_cover_image')}
                   </label>
                   <div 
                     className="border-2 border-dashed border-gray-300 dark:border-slate-600 rounded-xl p-6 text-center hover:bg-gray-50 dark:hover:bg-slate-800 transition-colors cursor-pointer relative"
@@ -407,7 +409,7 @@ export default function CourseForm() {
                       <div className="relative w-full h-48 rounded-lg overflow-hidden">
                         <img src={imagePreview} alt="Preview" className="w-full h-full object-contain" />
                         <div className="absolute inset-0 bg-black/40 flex items-center justify-center opacity-0 hover:opacity-100 transition-opacity">
-                          <span className="text-white font-bold flex items-center gap-2"><UploadCloud /> تغيير الصورة</span>
+                          <span className="text-white font-bold flex items-center gap-2"><UploadCloud /> {t('admin_change_image')}</span>
                         </div>
                       </div>
                     ) : (
@@ -415,8 +417,8 @@ export default function CourseForm() {
                         <div className="w-16 h-16 rounded-full bg-blue-50 dark:bg-blue-900/30 text-blue-500 flex items-center justify-center mb-4">
                           <ImageIcon className="w-8 h-8" />
                         </div>
-                        <p className="text-gray-900 dark:text-white font-bold mb-1">اضغط هنا لاختيار صورة</p>
-                        <p className="text-gray-500 text-sm">أو قم بنسخ أي صورة ولصقها هنا (Ctrl+V)</p>
+                        <p className="text-gray-900 dark:text-white font-bold mb-1">{t('admin_click_to_select_image')}</p>
+                        <p className="text-gray-500 text-sm">{t('admin_or_paste_image')}</p>
                       </div>
                     )}
                   </div>
@@ -428,9 +430,9 @@ export default function CourseForm() {
                 >
                   <div>
                     <h4 className={`font-bold text-lg mb-1 transition-colors ${formData.is_published ? 'text-blue-700 dark:text-blue-400' : 'text-gray-700 dark:text-gray-300'}`}>
-                      نشر الكورس للطلاب
+                      {t('admin_publish_course')}
                     </h4>
-                    <p className="text-sm text-gray-500 dark:text-gray-400">عند تفعيل هذا الخيار، سيظهر الكورس في المنصة فوراً ليراه الجميع.</p>
+                    <p className="text-sm text-gray-500 dark:text-gray-400">{t('admin_publish_course_desc')}</p>
                   </div>
                   <div className={`relative w-14 h-8 rounded-full transition-colors duration-300 flex items-center px-1 flex-shrink-0 ${formData.is_published ? 'bg-blue-600' : 'bg-gray-300 dark:bg-slate-600'}`}>
                     <div className={`w-6 h-6 bg-white rounded-full shadow-md transition-transform duration-300 ${formData.is_published ? 'rtl:-translate-x-6 ltr:translate-x-6' : 'translate-x-0'}`}></div>
@@ -445,7 +447,7 @@ export default function CourseForm() {
                   className="w-full flex items-center justify-center gap-2 py-4 px-4 bg-gradient-to-r from-blue-600 to-blue-800 hover:from-blue-700 hover:to-blue-900 text-white rounded-xl font-bold text-lg transition-all shadow-lg shadow-blue-500/30 hover:shadow-blue-500/50 hover:-translate-y-0.5 disabled:opacity-70 disabled:cursor-not-allowed"
                 >
                   {loading ? <Loader className="w-5 h-5 animate-spin" /> : <Save className="w-6 h-6" />}
-                  {isEditing ? 'حفظ التعديلات' : 'حفظ الكورس والانتقال لإضافة الدروس'}
+                  {isEditing ? t('admin_save_changes') : t('admin_save_and_next')}
                 </button>
               </div>
 

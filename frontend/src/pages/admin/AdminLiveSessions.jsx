@@ -15,6 +15,9 @@ export default function AdminLiveSessions() {
   const [sessions, setSessions] = useState([]);
   const [loading, setLoading] = useState(true);
   const [activeTab, setActiveTab] = useState('all'); // all, primary, prep, sec
+  const [filterGrade, setFilterGrade] = useState('all');
+  const [filterStatus, setFilterStatus] = useState('all');
+  const [filterMonth, setFilterMonth] = useState('all');
   
   // Modal state
   const [isModalOpen, setIsModalOpen] = useState(false);
@@ -45,6 +48,11 @@ export default function AdminLiveSessions() {
   useEffect(() => {
     fetchData();
   }, []);
+
+  // Reset grade filter when tab changes
+  useEffect(() => {
+    setFilterGrade('all');
+  }, [activeTab]);
 
   const fetchData = async () => {
     setLoading(true);
@@ -146,6 +154,10 @@ export default function AdminLiveSessions() {
     const sessionId = deleteModal.id;
     setDeleteModal({ isOpen: false, id: null });
     
+    // Optimistic UI update for instant feedback
+    const previousSessions = [...sessions];
+    setSessions(sessions.filter(s => s.id !== sessionId));
+    
     try {
       const { error } = await supabase
         .from('online_sessions')
@@ -153,9 +165,10 @@ export default function AdminLiveSessions() {
         .eq('id', sessionId);
       
       if (error) throw error;
-      setSessions(sessions.filter(s => s.id !== sessionId));
     } catch (err) {
       console.error('Error deleting session:', err);
+      // Revert on error
+      setSessions(previousSessions);
       alert('حدث خطأ أثناء الحذف.');
     }
   };
@@ -180,11 +193,40 @@ export default function AdminLiveSessions() {
     }
   };
 
-  // Filter sessions based on active tab
+  // Extract unique months for the filter dropdown (Format: YYYY-MM)
+  const uniqueMonths = [...new Set(sessions.map(s => {
+    if (!s.start_time) return null;
+    const date = new Date(s.start_time);
+    return `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, '0')}`;
+  }).filter(Boolean))].sort().reverse();
+
+  // Filter sessions based on active tab, grade, status, and month
   const filteredSessions = sessions.filter(s => {
-    if (activeTab === 'all') return true;
-    if (!s.grade_level) return false;
-    return s.grade_level.startsWith(activeTab);
+    // 1. Stage (Tab) Filter
+    if (activeTab !== 'all') {
+      if (!s.grade_level || !s.grade_level.startsWith(activeTab)) return false;
+    }
+    
+    // 2. Specific Grade Filter
+    if (filterGrade !== 'all') {
+      if (s.grade_level !== filterGrade) return false;
+    }
+
+    // 3. Status Filter
+    if (filterStatus !== 'all') {
+      const sStatus = s.status || 'scheduled';
+      if (sStatus !== filterStatus) return false;
+    }
+
+    // 4. Month Filter
+    if (filterMonth !== 'all') {
+      if (!s.start_time) return false;
+      const date = new Date(s.start_time);
+      const sMonth = `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, '0')}`;
+      if (sMonth !== filterMonth) return false;
+    }
+
+    return true;
   });
 
   // Calculate statistics for the active tab
@@ -193,6 +235,14 @@ export default function AdminLiveSessions() {
     completed: filteredSessions.filter(s => s.status === 'completed').length,
     canceled: filteredSessions.filter(s => s.status === 'canceled').length,
     postponed: filteredSessions.filter(s => s.status === 'postponed').length
+  };
+
+  // Function to check if status can be changed
+  const canChangeStatus = (endTime) => {
+    if (!endTime) return true;
+    const end = new Date(endTime);
+    end.setMinutes(end.getMinutes() + 30);
+    return new Date() <= end;
   };
 
   if (loading) {
@@ -288,6 +338,78 @@ export default function AdminLiveSessions() {
               </button>
             </div>
 
+            {/* Advanced Filters */}
+            <div className="flex flex-col sm:flex-row gap-4 mb-6 bg-gray-50 dark:bg-slate-900/30 p-4 rounded-xl border border-gray-100 dark:border-slate-800">
+              {activeTab !== 'all' && (
+                <div className="flex-1">
+                  <label className="block text-xs font-bold text-gray-500 dark:text-gray-400 mb-1 flex items-center gap-1"><Filter className="w-3 h-3" /> تصفية حسب الصف:</label>
+                  <select
+                    value={filterGrade}
+                    onChange={(e) => setFilterGrade(e.target.value)}
+                    className="w-full px-4 py-2 rounded-lg bg-white dark:bg-slate-800 border border-gray-200 dark:border-slate-700 text-sm font-bold focus:ring-2 focus:ring-blue-500 text-gray-700 dark:text-gray-300"
+                  >
+                    <option value="all">جميع صفوف المرحلة</option>
+                    {activeTab === 'primary' && (
+                      <>
+                        <option value="primary_1">{t('grade_primary_1')}</option>
+                        <option value="primary_2">{t('grade_primary_2')}</option>
+                        <option value="primary_3">{t('grade_primary_3')}</option>
+                        <option value="primary_4">{t('grade_primary_4')}</option>
+                        <option value="primary_5">{t('grade_primary_5')}</option>
+                        <option value="primary_6">{t('grade_primary_6')}</option>
+                      </>
+                    )}
+                    {activeTab === 'prep' && (
+                      <>
+                        <option value="prep_1">{t('grade_prep_1')}</option>
+                        <option value="prep_2">{t('grade_prep_2')}</option>
+                        <option value="prep_3">{t('grade_prep_3')}</option>
+                      </>
+                    )}
+                    {activeTab === 'sec' && (
+                      <>
+                        <option value="sec_1">{t('grade_sec_1')}</option>
+                        <option value="sec_2">{t('grade_sec_2')}</option>
+                        <option value="sec_3">{t('grade_sec_3')}</option>
+                      </>
+                    )}
+                  </select>
+                </div>
+              )}
+              
+              <div className="flex-1">
+                <label className="block text-xs font-bold text-gray-500 dark:text-gray-400 mb-1 flex items-center gap-1"><Filter className="w-3 h-3" /> تصفية حسب الحالة:</label>
+                <select
+                  value={filterStatus}
+                  onChange={(e) => setFilterStatus(e.target.value)}
+                  className="w-full px-4 py-2 rounded-lg bg-white dark:bg-slate-800 border border-gray-200 dark:border-slate-700 text-sm font-bold focus:ring-2 focus:ring-blue-500 text-gray-700 dark:text-gray-300"
+                >
+                  <option value="all">جميع الحالات</option>
+                  <option value="scheduled">{t('admin_status_scheduled')}</option>
+                  <option value="completed">{t('admin_status_completed')}</option>
+                  <option value="postponed">{t('admin_status_postponed')}</option>
+                  <option value="canceled">{t('admin_status_canceled')}</option>
+                </select>
+              </div>
+
+              <div className="flex-1">
+                <label className="block text-xs font-bold text-gray-500 dark:text-gray-400 mb-1 flex items-center gap-1"><Calendar className="w-3 h-3" /> تصفية حسب الشهر:</label>
+                <select
+                  value={filterMonth}
+                  onChange={(e) => setFilterMonth(e.target.value)}
+                  className="w-full px-4 py-2 rounded-lg bg-white dark:bg-slate-800 border border-gray-200 dark:border-slate-700 text-sm font-bold focus:ring-2 focus:ring-blue-500 text-gray-700 dark:text-gray-300"
+                >
+                  <option value="all">جميع الشهور</option>
+                  {uniqueMonths.map(m => {
+                    const [year, month] = m.split('-');
+                    const date = new Date(year, month - 1);
+                    const monthName = date.toLocaleDateString(t('locale') || 'ar-EG', { month: 'long', year: 'numeric' });
+                    return <option key={m} value={m}>{monthName}</option>;
+                  })}
+                </select>
+              </div>
+            </div>
+
             {/* Statistics */}
             <div className="grid grid-cols-2 md:grid-cols-4 gap-4 mb-8">
               <div className="bg-blue-50 dark:bg-blue-900/20 rounded-xl p-4 border border-blue-100 dark:border-blue-900/50">
@@ -374,18 +496,20 @@ export default function AdminLiveSessions() {
                       </div>
 
                       {/* Status controls */}
-                      <div className="flex flex-col sm:flex-row items-center sm:justify-end gap-2 w-full mt-4 bg-white dark:bg-slate-900 p-3 sm:p-0 rounded-xl sm:bg-transparent border border-gray-100 sm:border-none dark:border-slate-700 shadow-sm sm:shadow-none">
-                        <span className="text-sm text-gray-500 dark:text-gray-400 font-bold self-start sm:self-auto">تغيير الحالة:</span>
-                        <select
-                          value={session.status || 'scheduled'}
-                          onChange={(e) => updateSessionStatus(session.id, e.target.value)}
-                          className="w-full sm:w-auto text-sm font-bold px-3 py-2 sm:py-1.5 rounded-lg bg-gray-50 dark:bg-slate-800 text-gray-700 dark:text-gray-300 border border-gray-200 dark:border-slate-600 focus:ring-2 focus:ring-blue-500 cursor-pointer"
-                        >
-                          {statusOptions.map(opt => (
-                            <option key={opt.value} value={opt.value}>{opt.label}</option>
-                          ))}
-                        </select>
-                      </div>
+                      {canChangeStatus(session.end_time) && (
+                        <div className="flex flex-col sm:flex-row items-center sm:justify-end gap-2 w-full mt-4 bg-white dark:bg-slate-900 p-3 sm:p-0 rounded-xl sm:bg-transparent border border-gray-100 sm:border-none dark:border-slate-700 shadow-sm sm:shadow-none">
+                          <span className="text-sm text-gray-500 dark:text-gray-400 font-bold self-start sm:self-auto">تغيير الحالة:</span>
+                          <select
+                            value={session.status || 'scheduled'}
+                            onChange={(e) => updateSessionStatus(session.id, e.target.value)}
+                            className="w-full sm:w-auto text-sm font-bold px-3 py-2 sm:py-1.5 rounded-lg bg-gray-50 dark:bg-slate-800 text-gray-700 dark:text-gray-300 border border-gray-200 dark:border-slate-600 focus:ring-2 focus:ring-blue-500 cursor-pointer"
+                          >
+                            {statusOptions.map(opt => (
+                              <option key={opt.value} value={opt.value}>{opt.label}</option>
+                            ))}
+                          </select>
+                        </div>
+                      )}
 
                     </div>
                   </div>

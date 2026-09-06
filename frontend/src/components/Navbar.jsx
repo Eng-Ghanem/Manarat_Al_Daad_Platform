@@ -39,6 +39,14 @@ export default function Navbar() {
     { to: '/live-sessions', label: 'حصص الأونلاين' }
   ];
 
+  if (user) {
+    if (profile?.role === 'admin') {
+      navLinks.push({ to: '/admin-dashboard/chat', label: 'المحادثات' });
+    } else {
+      navLinks.push({ to: '/chat', label: 'الرسائل' });
+    }
+  }
+
   return (
     <nav className="sticky top-0 z-50 w-full backdrop-blur-md bg-white/70 dark:bg-slate-900/70 border-b border-gray-200 dark:border-slate-800 transition-colors duration-300">
       <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">

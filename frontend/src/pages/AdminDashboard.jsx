@@ -4,7 +4,7 @@ import { useTranslation } from 'react-i18next';
 import { 
   Users, BookOpen, Settings, AlertTriangle, ShieldCheck, 
   Plus, Edit, Trash2, Video, FileText, Search, LayoutDashboard, 
-  ArrowLeft, CheckCircle, ChevronLeft, Calendar
+  ArrowLeft, CheckCircle, ChevronLeft, Calendar, ClipboardList
 } from 'lucide-react';
 import FadeIn from '../components/FadeIn';
 import ConfirmModal from '../components/ConfirmModal';
@@ -270,6 +270,16 @@ export default function AdminDashboard() {
                     <div>
                       <h4 className="font-bold text-lg text-gray-900 dark:text-white group-hover:text-purple-600 dark:group-hover:text-purple-400 transition-colors mb-1">{t('admin_zoom_sessions')}</h4>
                       <p className="text-sm text-gray-500 dark:text-gray-400">{t('admin_manage_live')}</p>
+                    </div>
+                  </Link>
+
+                  <Link to="/admin-dashboard/quizzes" className="flex flex-col items-center justify-center gap-4 p-8 rounded-2xl bg-gray-50 dark:bg-slate-900/50 border border-gray-100 dark:border-slate-800 hover:border-pink-500 hover:bg-pink-50 dark:hover:bg-pink-900/20 transition-all duration-300 group cursor-pointer shadow-sm hover:shadow-md text-center">
+                    <div className="w-16 h-16 rounded-2xl bg-white dark:bg-slate-800 shadow-sm border border-gray-100 dark:border-slate-700 text-pink-600 dark:text-pink-400 flex items-center justify-center group-hover:scale-110 group-hover:rotate-3 transition-all duration-300">
+                      <ClipboardList className="w-8 h-8" />
+                    </div>
+                    <div>
+                      <h4 className="font-bold text-lg text-gray-900 dark:text-white group-hover:text-pink-600 dark:group-hover:text-pink-400 transition-colors mb-1">إدارة الامتحانات</h4>
+                      <p className="text-sm text-gray-500 dark:text-gray-400">إضافة وتقييم الامتحانات</p>
                     </div>
                   </Link>
                 </div>

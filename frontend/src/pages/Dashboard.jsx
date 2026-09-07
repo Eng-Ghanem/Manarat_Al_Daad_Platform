@@ -1,5 +1,5 @@
 import { useTranslation } from 'react-i18next';
-import { BookOpen, Award, Settings, User, LogOut, PlayCircle, Clock, Loader } from 'lucide-react';
+import { BookOpen, Award, Settings, User, LogOut, PlayCircle, Clock, Loader, ClipboardList } from 'lucide-react';
 import { Link, useNavigate } from 'react-router-dom';
 import FadeIn from '../components/FadeIn';
 import { useAuth } from '../context/AuthContext';
@@ -114,7 +114,7 @@ export default function Dashboard() {
         </FadeIn>
 
         {/* Stats Grid */}
-        <div className="grid grid-cols-1 sm:grid-cols-2 gap-6 mb-8">
+        <div className="grid grid-cols-1 sm:grid-cols-3 gap-6 mb-8">
           <FadeIn>
             <div className="bg-white dark:bg-slate-800 rounded-2xl p-6 shadow-sm border border-gray-100 dark:border-slate-700/50 flex items-center gap-4">
               <div className="w-14 h-14 rounded-2xl bg-blue-50 dark:bg-blue-900/30 flex items-center justify-center text-blue-600 dark:text-blue-400">
@@ -141,6 +141,23 @@ export default function Dashboard() {
               </div>
               <div className="text-blue-600 dark:text-blue-400 text-sm font-bold bg-blue-50 dark:bg-blue-900/30 px-3 py-1.5 rounded-lg opacity-0 group-hover:opacity-100 transition-opacity">
                 عرض الشهادات
+              </div>
+            </Link>
+          </FadeIn>
+
+          <FadeIn>
+            <Link to="/quizzes" className="block bg-white dark:bg-slate-800 rounded-2xl p-6 shadow-sm border border-gray-100 dark:border-slate-700/50 flex items-center justify-between hover:shadow-md hover:border-pink-200 dark:hover:border-pink-800 transition-all cursor-pointer group">
+              <div className="flex items-center gap-4">
+                <div className="w-14 h-14 rounded-2xl bg-pink-50 dark:bg-pink-900/30 flex items-center justify-center text-pink-600 dark:text-pink-400 group-hover:scale-110 transition-transform">
+                  <ClipboardList className="w-7 h-7" />
+                </div>
+                <div>
+                  <p className="text-gray-500 dark:text-gray-400 text-sm font-bold mb-1">الامتحانات المتاحة</p>
+                  <p className="text-2xl font-extrabold text-gray-900 dark:text-white">امتحاناتي</p>
+                </div>
+              </div>
+              <div className="text-pink-600 dark:text-pink-400 text-sm font-bold bg-pink-50 dark:bg-pink-900/30 px-3 py-1.5 rounded-lg opacity-0 group-hover:opacity-100 transition-opacity">
+                دخول
               </div>
             </Link>
           </FadeIn>

@@ -42,8 +42,10 @@ export default function Navbar() {
   if (user) {
     if (profile?.role === 'admin') {
       navLinks.push({ to: '/admin-dashboard/chat', label: 'المحادثات' });
+      navLinks.push({ to: '/admin-dashboard/quizzes', label: 'الامتحانات' });
     } else {
       navLinks.push({ to: '/chat', label: 'الرسائل' });
+      navLinks.push({ to: '/quizzes', label: 'الامتحانات' });
     }
   }
 
@@ -59,9 +61,9 @@ export default function Navbar() {
           </div>
 
           {/* Links - Desktop */}
-          <div className="hidden md:flex items-center gap-8">
+          <div className="hidden lg:flex items-center gap-4 xl:gap-8">
             {navLinks.map((link) => (
-              <Link key={link.to} to={link.to} className="relative group text-gray-700 dark:text-gray-200 hover:text-blue-600 dark:hover:text-blue-400 font-semibold transition-colors text-lg py-1">
+              <Link key={link.to} to={link.to} className="relative group text-gray-700 dark:text-gray-200 hover:text-blue-600 dark:hover:text-blue-400 font-semibold transition-colors text-sm xl:text-base py-1 whitespace-nowrap">
                 {link.label}
                 <span className="absolute bottom-0 left-1/2 -translate-x-1/2 w-0 h-0.5 bg-blue-600 dark:bg-blue-400 transition-all duration-300 group-hover:w-full rounded-full"></span>
               </Link>
@@ -84,7 +86,7 @@ export default function Navbar() {
                 <div className="p-2 space-y-1">
                   {user ? (
                     <>
-                      <div className="px-4 py-2 text-sm font-bold text-gray-500 dark:text-gray-400 truncate">
+                      <div className="px-4 py-2 text-sm font-bold text-gray-500 dark:text-gray-400 truncate text-right rtl:text-right ltr:text-left">
                         {profile?.full_name || user.email}
                       </div>
                       <div className="h-px bg-gray-100 dark:bg-slate-700 my-1"></div>
@@ -96,7 +98,7 @@ export default function Navbar() {
                             window.scrollTo({ top: 0, behavior: 'smooth' });
                           }
                         }}
-                        className="block px-4 py-2 rounded-lg text-sm font-bold text-blue-600 hover:bg-blue-50 dark:hover:bg-slate-700 transition-colors ltr:text-left rtl:text-right"
+                        className="block w-full text-right px-4 py-2 rounded-lg text-sm font-bold text-blue-600 hover:bg-blue-50 dark:hover:bg-slate-700 transition-colors ltr:text-left rtl:text-right"
                       >
                         {profile?.role === 'admin' ? t('nav_dashboard') : 'الملف الشخصي'}
                       </Link>
@@ -107,13 +109,13 @@ export default function Navbar() {
                             window.scrollTo({ top: 0, behavior: 'smooth' });
                           }
                         }}
-                        className="block px-4 py-2 rounded-lg text-sm font-bold text-gray-700 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-slate-700 transition-colors ltr:text-left rtl:text-right"
+                        className="block w-full text-right px-4 py-2 rounded-lg text-sm font-bold text-gray-700 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-slate-700 transition-colors ltr:text-left rtl:text-right"
                       >
                         إعدادات الحساب
                       </Link>
                       <button 
                         onClick={handleLogout}
-                        className="w-full block px-4 py-2 rounded-lg text-sm font-bold text-red-600 hover:bg-red-50 dark:hover:bg-red-900/30 transition-colors ltr:text-left rtl:text-right"
+                        className="w-full block text-right px-4 py-2 rounded-lg text-sm font-bold text-red-600 hover:bg-red-50 dark:hover:bg-red-900/30 transition-colors ltr:text-left rtl:text-right"
                       >
                         تسجيل الخروج
                       </button>
@@ -159,7 +161,7 @@ export default function Navbar() {
             {/* Mobile Menu Button */}
             <button
               onClick={() => setIsMobileMenuOpen(!isMobileMenuOpen)}
-              className="md:hidden w-10 h-10 flex items-center justify-center rounded-xl bg-blue-50 dark:bg-blue-900/30 text-blue-600 dark:text-blue-400 transition-colors shadow-sm border border-blue-100 dark:border-blue-800/50"
+              className="lg:hidden w-10 h-10 flex items-center justify-center rounded-xl bg-blue-50 dark:bg-blue-900/30 text-blue-600 dark:text-blue-400 transition-colors shadow-sm border border-blue-100 dark:border-blue-800/50"
               aria-label="Toggle Mobile Menu"
             >
               {isMobileMenuOpen ? <X size={24} /> : <Menu size={24} />}
@@ -176,7 +178,7 @@ export default function Navbar() {
             animate={{ opacity: 1, y: 0, scale: 1 }}
             exit={{ opacity: 0, y: -20, scale: 0.95 }}
             transition={{ duration: 0.2, ease: 'easeOut' }}
-            className="md:hidden absolute top-[85px] left-4 w-72 rounded-3xl border border-gray-200 dark:border-slate-800 bg-white/95 dark:bg-slate-900/95 backdrop-blur-xl overflow-hidden shadow-2xl z-50"
+            className="lg:hidden absolute top-[85px] left-4 w-72 rounded-3xl border border-gray-200 dark:border-slate-800 bg-white/95 dark:bg-slate-900/95 backdrop-blur-xl overflow-hidden shadow-2xl z-50"
           >
             <div className="px-4 pt-2 pb-6 space-y-2 flex flex-col shadow-inner">
               {navLinks.map((link) => (

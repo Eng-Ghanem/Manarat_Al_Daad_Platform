@@ -39,6 +39,12 @@ const NotFound = lazy(() => import('./pages/NotFound'));
 const Terms = lazy(() => import('./pages/Terms'));
 const Privacy = lazy(() => import('./pages/Privacy'));
 const Checkout = lazy(() => import('./pages/Checkout'));
+const AdminQuizzes = lazy(() => import('./pages/admin/AdminQuizzes'));
+const QuizForm = lazy(() => import('./pages/admin/QuizForm'));
+const QuizSubmissions = lazy(() => import('./pages/admin/QuizSubmissions'));
+const StudentQuizzes = lazy(() => import('./pages/StudentQuizzes'));
+const TakeQuiz = lazy(() => import('./pages/TakeQuiz'));
+const QuizResult = lazy(() => import('./pages/QuizResult'));
 
 import ErrorBoundary from './components/ErrorBoundary';
 
@@ -94,6 +100,9 @@ function App() {
                   <Route path="/certificates" element={<ProtectedRoute><Certificates /></ProtectedRoute>} />
                   <Route path="/live-sessions" element={<ProtectedRoute><StudentLiveSessions /></ProtectedRoute>} />
                   <Route path="/chat" element={<ProtectedRoute><StudentChat /></ProtectedRoute>} />
+                  <Route path="/quizzes" element={<ProtectedRoute><StudentQuizzes /></ProtectedRoute>} />
+                  <Route path="/quizzes/:id" element={<ProtectedRoute><TakeQuiz /></ProtectedRoute>} />
+                  <Route path="/quizzes/:id/result" element={<ProtectedRoute><QuizResult /></ProtectedRoute>} />
 
                   {/* Protected Admin Routes */}
                   <Route path="/admin-dashboard" element={<AdminRoute><AdminDashboard /></AdminRoute>} />
@@ -101,6 +110,10 @@ function App() {
                   <Route path="/admin-dashboard/live-sessions" element={<AdminRoute><AdminLiveSessions /></AdminRoute>} />
                   <Route path="/admin-dashboard/students" element={<AdminRoute><AdminStudents /></AdminRoute>} />
                   <Route path="/admin-dashboard/chat" element={<AdminRoute><AdminChat /></AdminRoute>} />
+                  <Route path="/admin-dashboard/quizzes" element={<AdminRoute><AdminQuizzes /></AdminRoute>} />
+                  <Route path="/admin-dashboard/quizzes/new" element={<AdminRoute><QuizForm /></AdminRoute>} />
+                  <Route path="/admin-dashboard/quizzes/:id/edit" element={<AdminRoute><QuizForm /></AdminRoute>} />
+                  <Route path="/admin-dashboard/quizzes/:id/submissions" element={<AdminRoute><QuizSubmissions /></AdminRoute>} />
                   {/* Redirect old /admin to /admin-dashboard */}
                   <Route path="/admin" element={<Navigate to="/admin-dashboard" replace />} />
                   

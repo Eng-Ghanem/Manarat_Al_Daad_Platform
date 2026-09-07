@@ -3,14 +3,14 @@ import { useTranslation } from 'react-i18next';
 import { supabase } from '../../lib/supabase';
 import { chatService } from '../../lib/chatService';
 import { useAuth } from '../../context/AuthContext';
-import { Send, Users, User as UserIcon, Search, Check, CheckCheck, Loader, MessageSquare, FileText, Image as ImageIcon, Play, Pause, MoreVertical, Pencil, Trash2, X, Ban } from 'lucide-react';
+import { Send, Users, User as UserIcon, Search, Check, CheckCheck, Loader, MessageSquare, FileText, Image as ImageIcon, Play, Pause, MoreVertical, Pencil, Trash2, X, Ban, ArrowRight } from 'lucide-react';
 import FadeIn from '../../components/FadeIn';
 import ChatInput from '../../components/ChatInput';
 
 export default function AdminChat() {
   const { t } = useTranslation();
   const { user, profile } = useAuth();
-  
+
   const [students, setStudents] = useState([]);
   const [searchQuery, setSearchQuery] = useState('');
   const [sidebarTab, setSidebarTab] = useState('general'); // 'general' | 'private'
@@ -57,7 +57,7 @@ export default function AdminChat() {
               // If we are currently in this chat, don't show unread
               const isCurrentActiveGeneral = activeChat?.type === 'general' && activeChat?.id === newMsg.grade_level;
               const isCurrentActivePrivate = activeChat?.type === 'private' && activeChat?.id === newMsg.sender_id;
-              
+
               if (!isCurrentActiveGeneral && !isCurrentActivePrivate) {
                 const key = newMsg.receiver_id ? newMsg.sender_id : newMsg.grade_level;
                 return { ...prev, [key]: (prev[key] || 0) + 1 };
@@ -86,13 +86,13 @@ export default function AdminChat() {
         const event = payload.eventType;
         const newMsg = payload.new;
         const oldMsg = payload.old;
-        
+
         if (event === 'INSERT') {
           const isForGeneral = activeChat.type === 'general' && newMsg.grade_level === activeChat.id && !newMsg.receiver_id;
-          const isForPrivate = activeChat.type === 'private' && 
-            ((newMsg.sender_id === activeChat.id && newMsg.receiver_id === user.id) || 
-             (newMsg.sender_id === user.id && newMsg.receiver_id === activeChat.id));
-             
+          const isForPrivate = activeChat.type === 'private' &&
+            ((newMsg.sender_id === activeChat.id && newMsg.receiver_id === user.id) ||
+              (newMsg.sender_id === user.id && newMsg.receiver_id === activeChat.id));
+
           if (isForGeneral || isForPrivate) {
             supabase.from('profiles').select('full_name, role').eq('id', newMsg.sender_id).single()
               .then(({ data }) => {
@@ -125,7 +125,7 @@ export default function AdminChat() {
         .select('*')
         .neq('role', 'admin')
         .order('full_name');
-        
+
       if (error) throw error;
       setStudents(data || []);
     } catch (err) {
@@ -140,9 +140,9 @@ export default function AdminChat() {
         .select('sender_id, grade_level, receiver_id')
         .eq('is_read', false)
         .neq('sender_id', user.id);
-        
+
       if (error) throw error;
-      
+
       const counts = {};
       data.forEach(msg => {
         if (msg.receiver_id === user.id) {
@@ -176,7 +176,7 @@ export default function AdminChat() {
         adminId: user.id
       });
       setMessages(data || []);
-      
+
       // Mark as read
       const unreadIds = data.filter(m => m.sender_id !== user.id && !m.is_read).map(m => m.id);
       if (unreadIds.length > 0) {
@@ -242,8 +242,8 @@ export default function AdminChat() {
     }
   };
 
-  const filteredStudents = students.filter(s => 
-    s.full_name?.toLowerCase().includes(searchQuery.toLowerCase()) || 
+  const filteredStudents = students.filter(s =>
+    s.full_name?.toLowerCase().includes(searchQuery.toLowerCase()) ||
     s.phone?.includes(searchQuery)
   );
 
@@ -275,13 +275,14 @@ export default function AdminChat() {
   };
 
   return (
-    <div className="flex h-[calc(100vh-80px)] bg-gray-50 dark:bg-slate-900 rounded-3xl overflow-hidden border border-gray-200 dark:border-slate-800 shadow-xl">
-      
+    <>
+      <div className="flex h-[calc(100vh-80px)] bg-gray-50 dark:bg-slate-900 rounded-3xl overflow-hidden border border-gray-200 dark:border-slate-800 shadow-xl relative z-10">
+
       {/* Sidebar */}
-      <div className="w-80 bg-white dark:bg-slate-800 flex flex-col border-l border-gray-200 dark:border-slate-700 shrink-0">
-        <div className="p-4 border-b border-gray-200 dark:border-slate-700">
+      <div className={`w-full lg:w-80 bg-white dark:bg-slate-800 flex flex-col border-l border-gray-200 dark:border-slate-700 shrink-0 transition-transform ${activeChat ? 'hidden lg:flex' : 'flex'}`}>
+        <div className="p-4 border-b border-gray-100 dark:border-slate-700 bg-white/50 dark:bg-slate-800/50 backdrop-blur-md">
           <h2 className="text-xl font-bold font-arabic text-gray-900 dark:text-white mb-4">المحادثات</h2>
-          
+
           {/* Tabs */}
           <div className="flex bg-gray-100 dark:bg-slate-900 rounded-xl p-1 mb-4 relative">
             <button
@@ -317,7 +318,7 @@ export default function AdminChat() {
             </div>
           )}
         </div>
-        
+
         <div className="flex-1 overflow-y-auto p-2 space-y-4">
           {sidebarTab === 'general' && (
             <div className="space-y-6">
@@ -426,11 +427,17 @@ export default function AdminChat() {
       </div>
 
       {/* Main Chat Area */}
-      <div className="flex-1 flex flex-col bg-[#f0f2f5] dark:bg-slate-900 relative">
+      <div className={`flex-1 w-full flex-col bg-[#eef0f3] dark:bg-slate-900 relative ${!activeChat ? 'hidden lg:flex' : 'flex'}`}>
         {activeChat ? (
           <>
             {/* Chat Header */}
-            <div className="h-16 px-6 bg-white dark:bg-slate-800 border-b border-gray-200 dark:border-slate-700 flex items-center gap-4 z-10 shadow-sm shrink-0">
+            <div className="h-16 px-4 sm:px-6 bg-white dark:bg-slate-800 border-b border-gray-200 dark:border-slate-700 flex items-center gap-3 sm:gap-4 z-10 shadow-sm shrink-0">
+              <button 
+                onClick={() => setActiveChat(null)}
+                className="lg:hidden p-2 -mr-2 rounded-full text-gray-500 hover:bg-gray-100 dark:hover:bg-slate-700"
+              >
+                <ArrowRight className="w-5 h-5" />
+              </button>
               {activeChat.type === 'general' ? (
                 <div className="w-10 h-10 rounded-full bg-blue-100 dark:bg-blue-900/50 flex items-center justify-center text-blue-600 dark:text-blue-400">
                   <Users className="w-5 h-5" />
@@ -465,11 +472,10 @@ export default function AdminChat() {
                   const colorIdx = getSenderColorIndex(msg.sender_id);
                   const senderName = getSenderName(msg);
                   const senderInitial = senderName.charAt(0);
-                  
+
                   return (
-                    <FadeIn key={msg.id} delay={index * 10} className={`flex items-end gap-2 ${
-                      isMe ? 'justify-end' : 'justify-start'
-                    } ${activeMessageOptions === msg.id ? 'relative z-50' : 'relative z-10'}`}>
+                    <FadeIn key={msg.id} delay={index * 10} className={`flex items-end gap-2 ${isMe ? 'justify-end' : 'justify-start'
+                      } ${activeMessageOptions === msg.id ? 'relative z-50' : 'relative z-10'}`}>
 
                       {/* Avatar for others (WhatsApp style - bottom aligned) */}
                       {!isMe && (
@@ -484,49 +490,33 @@ export default function AdminChat() {
                         </div>
                       )}
 
-                      <div className={`max-w-[68%] flex flex-col ${
-                        isMe ? 'items-end' : 'items-start'
-                      }`}>
-                        <div className={`rounded-2xl px-3 py-2 shadow-sm relative group transition-all ${
-                          activeMessageOptions === msg.id ? 'z-50' : 'z-10'
-                        } ${
-                          isMe 
-                            ? 'bg-blue-600 text-white rounded-br-sm' 
-                            : 'bg-white dark:bg-slate-800 text-gray-900 dark:text-white rounded-bl-sm border border-gray-100 dark:border-slate-700'
+                      <div className={`max-w-[68%] flex flex-col ${isMe ? 'items-end' : 'items-start'
                         }`}>
+                        <div className={`rounded-2xl px-3 py-2 shadow-sm relative group transition-all ${activeMessageOptions === msg.id ? 'z-50' : 'z-10'
+                          } ${isMe
+                            ? 'bg-gradient-to-l from-purple-600 to-indigo-600 text-white rounded-tl-none shadow-md'
+                            : 'bg-white dark:bg-slate-800 text-gray-900 dark:text-white rounded-tr-none border border-gray-200 dark:border-slate-700'
+                          }`}>
 
-                          {/* Sender Name - professional badge style */}
+                          {/* Sender Name - Clean WhatsApp Style */}
                           {isFirstInGroup && (() => {
-                            const nameBgColors = [
-                              'rgba(244,63,94,0.18)','rgba(139,92,246,0.18)','rgba(251,191,36,0.18)','rgba(16,185,129,0.18)',
-                              'rgba(14,165,233,0.18)','rgba(236,72,153,0.18)','rgba(99,102,241,0.18)','rgba(20,184,166,0.18)',
-                              'rgba(249,115,22,0.18)','rgba(6,182,212,0.18)','rgba(132,204,22,0.18)','rgba(217,70,239,0.18)',
-                            ];
-                            const nameFgColors = [
-                              '#fb7185','#a78bfa','#fbbf24','#34d399',
-                              '#38bdf8','#f472b6','#818cf8','#2dd4bf',
-                              '#fb923c','#22d3ee','#a3e635','#e879f9',
+                            const nameColorClasses = [
+                              'text-rose-600 dark:text-rose-400', 'text-violet-600 dark:text-violet-400',
+                              'text-amber-600 dark:text-amber-400', 'text-emerald-600 dark:text-emerald-400',
+                              'text-sky-600 dark:text-sky-400', 'text-pink-600 dark:text-pink-400',
+                              'text-indigo-600 dark:text-indigo-400', 'text-teal-600 dark:text-teal-400',
+                              'text-orange-600 dark:text-orange-400', 'text-cyan-600 dark:text-cyan-400',
+                              'text-lime-600 dark:text-lime-400', 'text-fuchsia-600 dark:text-fuchsia-400',
                             ];
                             return (
-                              <div className={`flex items-center gap-2 mb-2 pb-2 ${
-                                isMe 
-                                  ? 'border-b border-blue-400/30' 
-                                  : 'border-b border-gray-200 dark:border-slate-600/70'
-                              }`}>
-                                <span
-                                  className="text-[12px] font-extrabold tracking-wide font-arabic px-2.5 py-0.5 rounded-full"
-                                  style={isMe ? {
-                                    background: 'rgba(255,255,255,0.15)',
-                                    color: '#bfdbfe',
-                                  } : {
-                                    background: nameBgColors[colorIdx],
-                                    color: nameFgColors[colorIdx],
-                                  }}
-                                >
+                              <div className="flex items-center gap-1.5 mb-1.5">
+                                <span className={`text-[13px] font-extrabold tracking-wide font-arabic ${
+                                  isMe ? 'text-purple-200' : nameColorClasses[colorIdx]
+                                }`}>
                                   {senderName}
                                 </span>
                                 {isMe && (
-                                  <span className="text-[10px] text-blue-300/70">• أنت</span>
+                                  <span className="text-[10px] text-purple-200/80 bg-black/10 px-1.5 rounded-full shadow-sm">• الإدارة</span>
                                 )}
                               </div>
                             );
@@ -535,7 +525,7 @@ export default function AdminChat() {
                           {msg.is_deleted ? (
                             <div className={`flex items-center gap-2 text-sm italic py-1 ${isMe ? 'text-blue-200' : 'text-gray-400 dark:text-gray-500'}`}>
                               <Ban className="w-3.5 h-3.5" />
-                              <span>تم حذف هذه الرسالة</span>
+                              <span>{msg.deleted_by && msg.deleted_by !== msg.sender_id ? 'تم حذف هذه الرسالة بواسطة الإدارة' : 'تم حذف هذه الرسالة'}</span>
                             </div>
                           ) : (
                             <>
@@ -619,11 +609,11 @@ export default function AdminChat() {
                               >
                                 <MoreVertical className="w-3.5 h-3.5" />
                               </button>
-                              
+
                               {activeMessageOptions === msg.id && (
                                 <div className={`absolute mt-1 w-36 bg-white dark:bg-slate-800 rounded-xl shadow-2xl border border-gray-200 dark:border-slate-700 z-50 overflow-hidden ${isMe ? 'left-0' : 'right-0'}`}>
-                                  {/* Edit - only for text messages */}
-                                  {!msg.media_url && (
+                                  {/* Edit - allowed only for MY text messages or media WITH text (except audio) */}
+                                  {isMe && msg.media_type !== 'audio' && (msg.content || !msg.media_url) && (
                                     <button
                                       onClick={() => handleEditClick(msg)}
                                       className="w-full flex items-center gap-2.5 px-4 py-2.5 text-sm text-gray-700 dark:text-gray-300 hover:bg-blue-50 dark:hover:bg-blue-900/20 hover:text-blue-600 dark:hover:text-blue-400 transition-colors"
@@ -654,10 +644,10 @@ export default function AdminChat() {
                   );
                 })
               )}
-              
+
               {/* Click outside to close options */}
               {activeMessageOptions && (
-                <div 
+                <div
                   className="absolute inset-0 z-40"
                   onClick={() => setActiveMessageOptions(null)}
                 />
@@ -674,6 +664,7 @@ export default function AdminChat() {
             <h2 className="text-2xl font-bold text-gray-500">اختر محادثة للبدء</h2>
           </div>
         )}
+      </div>
       </div>
 
       {/* Fullscreen Image Modal */}
@@ -696,13 +687,13 @@ export default function AdminChat() {
             <h3 className="text-xl font-bold text-gray-900 dark:text-white mb-2 font-arabic">حذف الرسالة</h3>
             <p className="text-gray-500 dark:text-gray-400 mb-6">هل أنت متأكد من حذف هذه الرسالة نهائياً؟ لا يمكن التراجع عن هذا الإجراء.</p>
             <div className="flex gap-3">
-              <button 
+              <button
                 onClick={() => setMessageToDelete(null)}
                 className="flex-1 px-4 py-2.5 rounded-xl text-gray-700 dark:text-gray-300 bg-gray-100 dark:bg-slate-700 hover:bg-gray-200 dark:hover:bg-slate-600 font-bold transition-colors"
               >
                 إلغاء
               </button>
-              <button 
+              <button
                 onClick={confirmDelete}
                 className="flex-1 px-4 py-2.5 rounded-xl text-white bg-red-600 hover:bg-red-700 font-bold transition-colors"
               >
@@ -712,6 +703,6 @@ export default function AdminChat() {
           </FadeIn>
         </div>
       )}
-    </div>
+    </>
   );
 }

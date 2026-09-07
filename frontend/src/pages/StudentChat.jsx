@@ -3,7 +3,7 @@ import { useTranslation } from 'react-i18next';
 import { supabase } from '../lib/supabase';
 import { chatService } from '../lib/chatService';
 import { useAuth } from '../context/AuthContext';
-import { Send, Users, ShieldAlert, Shield, MessageSquare, Image as ImageIcon, X, Loader, FileText, Check, CheckCheck, MoreVertical, Pencil, Trash2, Ban } from 'lucide-react';
+import { Send, Users, ShieldAlert, Shield, MessageSquare, Image as ImageIcon, X, Loader, FileText, Check, CheckCheck, MoreVertical, Pencil, Trash2, Ban, ArrowRight } from 'lucide-react';
 import FadeIn from '../components/FadeIn';
 import ChatInput from '../components/ChatInput';
 
@@ -269,16 +269,19 @@ export default function StudentChat() {
   }
 
   return (
-    <div className="min-h-screen pt-24 pb-12 px-4 sm:px-6 lg:px-8 bg-gray-50 dark:bg-slate-900">
-      <div className="max-w-6xl mx-auto h-[calc(100vh-140px)] flex flex-col md:flex-row bg-white dark:bg-slate-900 rounded-3xl overflow-hidden shadow-2xl border border-gray-200 dark:border-slate-700">
+    <>
+      <div className="flex h-[calc(100vh-80px)] mt-20 max-w-7xl mx-auto rounded-3xl overflow-hidden shadow-2xl border border-gray-200 dark:border-slate-700 font-arabic relative z-10">
         
         {/* Sidebar */}
-        <div className="w-full md:w-80 bg-gray-50 dark:bg-slate-800/50 flex flex-col border-l border-gray-200 dark:border-slate-700 shrink-0">
-          <div className="p-6 border-b border-gray-200 dark:border-slate-700">
-            <h2 className="text-2xl font-bold font-arabic text-gray-900 dark:text-white">الرسائل</h2>
+        <div className={`w-full md:w-80 bg-white dark:bg-slate-900 border-l border-gray-200 dark:border-slate-800 flex flex-col shrink-0 transition-transform ${activeChat ? 'hidden md:flex' : 'flex'}`}>
+          <div className="p-6 border-b border-gray-100 dark:border-slate-800 bg-white/50 dark:bg-slate-900/50 backdrop-blur-md">
+            <h2 className="text-2xl font-bold font-arabic text-gray-900 dark:text-white flex items-center gap-2">
+              <MessageSquare className="w-6 h-6 text-blue-600 dark:text-blue-500" />
+              الرسائل
+            </h2>
           </div>
-          
-          <div className="flex-1 overflow-y-auto p-4 space-y-4">
+
+          <div className="flex-1 overflow-y-auto p-4 space-y-3">
             <button
               onClick={() => handleSelectChat('general')}
               className={`w-full flex items-center justify-between gap-4 px-4 py-4 rounded-2xl transition-all relative ${activeChat?.type === 'general' ? 'bg-blue-600 shadow-lg shadow-blue-600/30 text-white scale-[1.02]' : 'bg-white dark:bg-slate-800 hover:bg-gray-100 dark:hover:bg-slate-700 text-gray-700 dark:text-gray-200 shadow-sm border border-gray-100 dark:border-slate-700'}`}
@@ -294,14 +297,14 @@ export default function StudentChat() {
                   </span>
                 </div>
               </div>
-              {unreadCounts.general > 0 && (
+              {Object.keys(unreadCounts).some(key => ['g1','g2','g3','g4','g5','g6','g7','g8','g9','g10','g11','g12'].includes(key)) && (
                 <span className="absolute left-4 w-3 h-3 bg-red-500 rounded-full animate-pulse shadow-[0_0_10px_rgba(239,68,68,0.6)]"></span>
               )}
             </button>
 
             <button
               onClick={() => handleSelectChat('private')}
-              className={`w-full flex items-center justify-between gap-4 px-4 py-4 rounded-2xl transition-all relative ${activeChat?.type === 'private' ? 'bg-blue-600 shadow-lg shadow-blue-600/30 text-white scale-[1.02]' : 'bg-white dark:bg-slate-800 hover:bg-gray-100 dark:hover:bg-slate-700 text-gray-700 dark:text-gray-200 shadow-sm border border-gray-100 dark:border-slate-700'}`}
+              className={`w-full flex items-center justify-between gap-4 px-4 py-4 rounded-2xl transition-all relative ${activeChat?.type === 'private' ? 'bg-purple-600 shadow-lg shadow-purple-600/30 text-white scale-[1.02]' : 'bg-white dark:bg-slate-800 hover:bg-gray-100 dark:hover:bg-slate-700 text-gray-700 dark:text-gray-200 shadow-sm border border-gray-100 dark:border-slate-700'}`}
             >
               <div className="flex items-center gap-4">
                 <div className={`p-3 rounded-xl ${activeChat?.type === 'private' ? 'bg-white/20' : 'bg-purple-100 dark:bg-purple-900/50 text-purple-600 dark:text-purple-400'}`}>
@@ -309,7 +312,7 @@ export default function StudentChat() {
                 </div>
                 <div className="text-right">
                   <span className="block font-bold text-lg">الإدارة</span>
-                  <span className={`block text-xs ${activeChat?.type === 'private' ? 'text-blue-100' : 'text-gray-500 dark:text-gray-400'}`}>
+                  <span className={`block text-xs ${activeChat?.type === 'private' ? 'text-purple-100' : 'text-gray-500 dark:text-gray-400'}`}>
                     تواصل مباشر وخاص
                   </span>
                 </div>
@@ -322,25 +325,31 @@ export default function StudentChat() {
         </div>
 
         {/* Main Chat Area */}
-        <div className="flex-1 flex flex-col bg-[#f0f2f5] dark:bg-slate-900 relative">
+        <div className={`flex-1 w-full flex-col bg-[#eef0f3] dark:bg-slate-900 relative ${!activeChat ? 'hidden md:flex' : 'flex'}`}>
           {activeChat ? (
             <>
               {/* Chat Header */}
-              <div className="h-20 px-6 bg-white dark:bg-slate-800 border-b border-gray-200 dark:border-slate-700 flex items-center gap-4 z-10 shadow-sm shrink-0">
+              <div className="h-20 px-4 sm:px-6 bg-white dark:bg-slate-800 border-b border-gray-200 dark:border-slate-700 flex items-center gap-3 sm:gap-4 z-10 shadow-sm shrink-0">
+                <button 
+                  onClick={() => setActiveChat(null)}
+                  className="md:hidden p-2 -mr-2 rounded-full text-gray-500 hover:bg-gray-100 dark:hover:bg-slate-700"
+                >
+                  <ArrowRight className="w-5 h-5" />
+                </button>
                 {activeChat.type === 'general' ? (
-                  <div className="w-12 h-12 rounded-full bg-blue-100 dark:bg-blue-900/50 flex items-center justify-center text-blue-600 dark:text-blue-400">
-                    <Users className="w-6 h-6" />
+                  <div className="w-10 h-10 sm:w-12 sm:h-12 rounded-full bg-blue-100 dark:bg-blue-900/50 flex items-center justify-center text-blue-600 dark:text-blue-400 shrink-0">
+                    <Users className="w-5 h-5 sm:w-6 sm:h-6" />
                   </div>
                 ) : (
-                  <div className="w-12 h-12 rounded-full bg-gradient-to-tr from-purple-600 to-indigo-600 flex items-center justify-center text-white font-bold text-xl">
+                  <div className="w-10 h-10 sm:w-12 sm:h-12 rounded-full bg-gradient-to-tr from-purple-600 to-indigo-600 flex items-center justify-center text-white font-bold text-lg sm:text-xl shrink-0 shadow-md">
                     أ
                   </div>
                 )}
-                <div>
-                  <h2 className="font-bold text-gray-900 dark:text-white text-xl">
+                <div className="min-w-0">
+                  <h2 className="font-bold text-gray-900 dark:text-white text-lg sm:text-xl truncate">
                     {activeChat.type === 'general' ? `المحادثة العامة - ${t(`grade_${profile.grade_level}`)}` : 'إدارة المنصة'}
                   </h2>
-                  <p className="text-sm text-gray-500 dark:text-gray-400">
+                  <p className="text-xs sm:text-sm text-gray-500 dark:text-gray-400 truncate">
                     {activeChat.type === 'general' ? 'نقاشات مع زملائك والأستاذ' : 'رسائل خاصة ومباشرة'}
                   </p>
                 </div>
@@ -396,52 +405,34 @@ export default function StudentChat() {
                             activeMessageOptions === msg.id ? 'z-50' : 'z-10'
                           } ${
                             isMe 
-                              ? 'bg-blue-600 text-white rounded-br-sm' 
+                              ? 'bg-blue-600 text-white rounded-tl-none' 
                               : isAdmin
-                                ? 'bg-gradient-to-l from-slate-800 to-slate-900 text-white rounded-bl-sm shadow-md'
-                                : 'bg-white dark:bg-slate-800 text-gray-900 dark:text-white rounded-bl-sm border border-gray-100 dark:border-slate-700'
+                                ? 'bg-gradient-to-l from-purple-600 to-indigo-600 text-white rounded-tr-none shadow-md'
+                                : 'bg-white dark:bg-slate-800 text-gray-900 dark:text-white rounded-tr-none border border-gray-200 dark:border-slate-700'
                           }`}>
 
-                            {/* Sender Name - professional badge style */}
+                            {/* Sender Name - Clean WhatsApp Style */}
                             {isFirstInGroup && (() => {
-                              const nameBgColors = [
-                                'rgba(244,63,94,0.18)','rgba(139,92,246,0.18)','rgba(251,191,36,0.18)','rgba(16,185,129,0.18)',
-                                'rgba(14,165,233,0.18)','rgba(236,72,153,0.18)','rgba(99,102,241,0.18)','rgba(20,184,166,0.18)',
-                                'rgba(249,115,22,0.18)','rgba(6,182,212,0.18)','rgba(132,204,22,0.18)','rgba(217,70,239,0.18)',
-                              ];
-                              const nameFgColors = [
-                                '#fb7185','#a78bfa','#fbbf24','#34d399',
-                                '#38bdf8','#f472b6','#818cf8','#2dd4bf',
-                                '#fb923c','#22d3ee','#a3e635','#e879f9',
+                              const nameColorClasses = [
+                                'text-rose-600 dark:text-rose-400', 'text-violet-600 dark:text-violet-400',
+                                'text-amber-600 dark:text-amber-400', 'text-emerald-600 dark:text-emerald-400',
+                                'text-sky-600 dark:text-sky-400', 'text-pink-600 dark:text-pink-400',
+                                'text-indigo-600 dark:text-indigo-400', 'text-teal-600 dark:text-teal-400',
+                                'text-orange-600 dark:text-orange-400', 'text-cyan-600 dark:text-cyan-400',
+                                'text-lime-600 dark:text-lime-400', 'text-fuchsia-600 dark:text-fuchsia-400',
                               ];
                               return (
-                                <div className={`flex items-center gap-2 mb-2 pb-2 ${
-                                  isMe 
-                                    ? 'border-b border-blue-400/30' 
-                                    : isAdmin
-                                      ? 'border-b border-slate-500/50'
-                                      : 'border-b border-gray-200 dark:border-slate-600/70'
-                                }`}>
-                                  <span
-                                    className="text-[12px] font-extrabold tracking-wide font-arabic px-2.5 py-0.5 rounded-full"
-                                    style={isMe ? {
-                                      background: 'rgba(255,255,255,0.15)',
-                                      color: '#bfdbfe',
-                                    } : isAdmin ? {
-                                      background: 'rgba(168,85,247,0.2)',
-                                      color: '#d8b4fe',
-                                    } : {
-                                      background: nameBgColors[colorIdx],
-                                      color: nameFgColors[colorIdx],
-                                    }}
-                                  >
+                                <div className="flex items-center gap-1.5 mb-1.5">
+                                  <span className={`text-[13px] font-extrabold tracking-wide font-arabic ${
+                                    isMe ? 'text-blue-200' : isAdmin ? 'text-purple-200' : nameColorClasses[colorIdx]
+                                  }`}>
                                     {senderName}
                                   </span>
                                   {isMe && (
-                                    <span className="text-[10px] text-blue-300/70">• أنت</span>
+                                    <span className="text-[10px] text-blue-300/70 bg-black/10 px-1.5 rounded-full">• أنت</span>
                                   )}
                                   {isAdmin && !isMe && (
-                                    <span className="text-[10px] text-purple-400/60">• الإدارة</span>
+                                    <span className="text-[10px] text-purple-200/80 bg-black/10 px-1.5 rounded-full shadow-sm">• الإدارة</span>
                                   )}
                                 </div>
                               );
@@ -450,7 +441,7 @@ export default function StudentChat() {
                             {msg.is_deleted ? (
                               <div className={`flex items-center gap-2 text-sm italic py-1 ${isMe ? 'text-blue-200' : 'text-gray-400 dark:text-gray-500'}`}>
                                 <Ban className="w-3.5 h-3.5" />
-                                <span>تم حذف هذه الرسالة</span>
+                                <span>{msg.deleted_by && msg.deleted_by !== msg.sender_id ? 'تم حذف هذه الرسالة بواسطة الإدارة' : 'تم حذف هذه الرسالة'}</span>
                               </div>
                             ) : (
                               <>
@@ -539,7 +530,8 @@ export default function StudentChat() {
                                 
                                 {activeMessageOptions === msg.id && (
                                   <div className="absolute left-0 mt-1 w-36 bg-white dark:bg-slate-800 rounded-xl shadow-2xl border border-gray-200 dark:border-slate-700 z-50 overflow-hidden">
-                                    {!msg.media_url && (
+                                    {/* Edit - allowed for text messages or media WITH text (except audio) */}
+                                    {msg.media_type !== 'audio' && (msg.content || !msg.media_url) && (
                                       <button
                                         onClick={() => handleEditClick(msg)}
                                         className="w-full flex items-center gap-2.5 px-4 py-2.5 text-sm text-gray-700 dark:text-gray-300 hover:bg-blue-50 dark:hover:bg-blue-900/20 hover:text-blue-600 dark:hover:text-blue-400 transition-colors"
@@ -630,6 +622,6 @@ export default function StudentChat() {
           </FadeIn>
         </div>
       )}
-    </div>
+    </>
   );
 }

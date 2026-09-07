@@ -112,7 +112,7 @@ export default function ChatInput({ onSendMessage }) {
         else mediaType = 'document';
       }
 
-      const finalContent = message.trim() || (mediaType === 'audio' ? '🎵 تسجيل صوتي' : mediaType === 'image' ? '📷 صورة' : mediaType === 'video' ? '🎥 فيديو' : mediaType === 'document' ? '📄 ملف' : '');
+      const finalContent = message.trim() || null;
 
       await onSendMessage({
         content: finalContent,

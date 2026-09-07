@@ -77,10 +77,10 @@ export const chatService = {
   },
 
   // Delete a message
-  async deleteMessage(messageId) {
+  async deleteMessage(messageId, userId) {
     const { error } = await supabase
       .from('chat_messages')
-      .update({ is_deleted: true, content: null, media_url: null, media_type: null })
+      .update({ is_deleted: true, deleted_by: userId })
       .eq('id', messageId);
 
     if (error) {

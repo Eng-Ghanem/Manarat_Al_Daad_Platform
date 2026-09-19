@@ -365,8 +365,17 @@ export default function AdminChat() {
     return list;
   }, [students, user.id, profile, messages]);
 
-  const renderTextWithMentions = (text) => {
+  const renderTextWithMentions = (text, isMe = false) => {
     if (!text) return null;
+    // High contrast styling for light mode, dark mode, and isMe bubble
+    const badgeClass = isMe
+      ? 'bg-black/30 text-amber-200 border-amber-300/40 shadow-xs'
+      : 'bg-amber-100 text-amber-950 border-amber-300 shadow-xs dark:bg-amber-950/60 dark:text-amber-200 dark:border-amber-500/40';
+
+    const atSignClass = isMe
+      ? 'text-amber-300 font-black'
+      : 'text-amber-700 dark:text-amber-400 font-black';
+
     // Check if message starts with @Name on the first line (mention with message underneath)
     const leadingMentionMatch = text.match(/^@([^\n]+)\n?([\s\S]*)$/);
     if (leadingMentionMatch) {
@@ -374,8 +383,8 @@ export default function AdminChat() {
       const messageBody = leadingMentionMatch[2];
       return (
         <div className="flex flex-col items-start gap-1 w-full" dir="auto">
-          <div className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-lg bg-amber-400/25 text-amber-200 dark:text-amber-300 border border-amber-400/50 font-extrabold text-xs shadow-xs tracking-wide">
-            <span className="text-amber-300 font-bold">@</span>
+          <div className={`inline-flex items-center gap-1 px-2.5 py-0.5 rounded-lg border font-black text-xs tracking-wide ${badgeClass}`}>
+            <span className={atSignClass}>@</span>
             <span>{mentionName}</span>
           </div>
           {messageBody ? (
@@ -397,7 +406,7 @@ export default function AdminChat() {
               return (
                 <span 
                   key={i} 
-                  className="inline-flex items-center gap-0.5 px-1.5 py-0.5 rounded bg-amber-400/25 text-amber-200 dark:text-amber-300 border border-amber-400/50 font-bold text-xs mx-0.5"
+                  className={`inline-flex items-center gap-0.5 px-1.5 py-0.5 rounded border font-black text-xs mx-0.5 ${badgeClass}`}
                 >
                   {part}
                 </span>
@@ -830,14 +839,14 @@ export default function AdminChat() {
                                 </div>
                               ) : (
                                 msg.content && msg.media_type !== 'audio' && (
-                                  <div className="text-sm leading-relaxed break-words whitespace-pre-wrap">{renderTextWithMentions(msg.content)}</div>
+                                  <div className="text-sm leading-relaxed break-words whitespace-pre-wrap">{renderTextWithMentions(msg.content, isMe)}</div>
                                 )
                               )}
                             </>
                           )}
 
                           {/* Timestamp + read receipt */}
-                          <div className={`flex items-center justify-end gap-1 mt-1 text-[10px] ${isMe ? 'text-blue-200' : 'text-gray-400 dark:text-gray-500'}`} dir="ltr">
+                          <div className={`flex items-center justify-end gap-1 mt-1 text-[10px] ps-7 ${isMe ? 'text-blue-200' : 'text-gray-400 dark:text-gray-500'}`} dir="ltr">
                             {msg.is_edited && !msg.is_deleted && <span className="opacity-70">{t('chat_edited')}</span>}
                             <span>{formatMsgTime(msg.created_at)}</span>
                             {isMe && (
@@ -847,13 +856,13 @@ export default function AdminChat() {
 
                           {/* Options Button - VISIBLE for active messages within 1 hour */}
                           {!msg.is_deleted && isDeletable && (
-                            <div className={`absolute top-1.5 ${isMe ? (isRTL ? 'left-1.5' : 'right-1.5') : (isRTL ? 'right-1.5' : 'left-1.5')} z-20`}>
+                            <div className="absolute bottom-1.5 left-1.5 z-20">
                               <button
                                 onClick={() => setActiveMessageOptions(activeMessageOptions === msg.id ? null : msg.id)}
-                                className={`p-1.5 rounded-full shadow-md backdrop-blur-xs transition-all active:scale-90 ${
+                                className={`p-1 rounded-full shadow-xs backdrop-blur-xs transition-all active:scale-90 ${
                                   isMe 
-                                    ? 'bg-black/30 hover:bg-black/50 text-white' 
-                                    : 'bg-black/10 dark:bg-white/10 hover:bg-black/20 dark:hover:bg-white/20 text-gray-600 dark:text-gray-300'
+                                    ? 'bg-black/25 hover:bg-black/40 text-purple-100 hover:text-white' 
+                                    : 'bg-black/5 dark:bg-white/10 hover:bg-black/15 dark:hover:bg-white/20 text-gray-500 dark:text-gray-300'
                                 }`}
                                 title={t('chat_msg_options')}
                               >
@@ -861,9 +870,7 @@ export default function AdminChat() {
                               </button>
 
                               {activeMessageOptions === msg.id && (
-                                <div className={`absolute mt-1 w-36 bg-white dark:bg-slate-800 rounded-xl shadow-2xl border border-gray-200 dark:border-slate-700 z-50 overflow-hidden ${
-                                  isMe ? (isRTL ? 'left-0' : 'right-0') : (isRTL ? 'right-0' : 'left-0')
-                                }`}>
+                                <div className="absolute bottom-full mb-1.5 left-0 w-36 bg-white dark:bg-slate-800 rounded-xl shadow-2xl border border-gray-200 dark:border-slate-700 z-50 overflow-hidden">
                                   {/* Reply Button - Available for all messages */}
                                   <button
                                     onClick={() => handleReplyClick(msg)}

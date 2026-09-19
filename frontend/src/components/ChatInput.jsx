@@ -1,9 +1,9 @@
 import React, { useState, useRef, useEffect } from 'react';
 import { useTranslation } from 'react-i18next';
-import { Send, Paperclip, Mic, Square, X, Image as ImageIcon, FileText, Loader } from 'lucide-react';
+import { Send, Paperclip, Mic, Square, X, Image as ImageIcon, FileText, Loader, Reply, AtSign } from 'lucide-react';
 import { chatService } from '../lib/chatService';
 
-export default function ChatInput({ onSendMessage }) {
+export default function ChatInput({ onSendMessage, replyingTo = null, onCancelReply = null, participants = [] }) {
   const { t, i18n } = useTranslation();
   const isRTL = i18n.language === 'ar';
   const [message, setMessage] = useState('');
@@ -13,17 +13,24 @@ export default function ChatInput({ onSendMessage }) {
   const [mediaPreview, setMediaPreview] = useState('');
   const [showAttachMenu, setShowAttachMenu] = useState(false);
   const [isUploading, setIsUploading] = useState(false);
+  const [mentionQuery, setMentionQuery] = useState(null);
+  const [mentionIndex, setMentionIndex] = useState(null);
 
+  const textareaRef = useRef(null);
   const fileInputRef = useRef(null);
   const mediaRecorderRef = useRef(null);
   const audioChunksRef = useRef([]);
   const timerIntervalRef = useRef(null);
   const attachMenuRef = useRef(null);
+  const mentionMenuRef = useRef(null);
 
   useEffect(() => {
     const handleClickOutside = (event) => {
       if (attachMenuRef.current && !attachMenuRef.current.contains(event.target)) {
         setShowAttachMenu(false);
+      }
+      if (mentionMenuRef.current && !mentionMenuRef.current.contains(event.target)) {
+        setMentionQuery(null);
       }
     };
     document.addEventListener('mousedown', handleClickOutside);
@@ -50,6 +57,40 @@ export default function ChatInput({ onSendMessage }) {
     setMediaPreview('');
     if (fileInputRef.current) fileInputRef.current.value = '';
   };
+
+  const handleTextChange = (e) => {
+    const val = e.target.value;
+    setMessage(val);
+
+    const cursor = e.target.selectionStart;
+    const textBeforeCursor = val.slice(0, cursor);
+    const match = textBeforeCursor.match(/@([a-zA-Z0-9_\u0600-\u06FF]*)$/);
+
+    if (match) {
+      setMentionQuery(match[1]);
+      setMentionIndex(cursor - match[1].length - 1);
+    } else {
+      setMentionQuery(null);
+      setMentionIndex(null);
+    }
+  };
+
+  const handleSelectMention = (participant) => {
+    if (mentionIndex === null) return;
+    const before = message.slice(0, mentionIndex);
+    const after = message.slice(mentionIndex + (mentionQuery?.length || 0) + 1);
+    const newText = `${before}@${participant.name} ${after}`;
+    setMessage(newText);
+    setMentionQuery(null);
+    setMentionIndex(null);
+    if (textareaRef.current) {
+      textareaRef.current.focus();
+    }
+  };
+
+  const filteredParticipants = mentionQuery !== null && Array.isArray(participants)
+    ? participants.filter(p => p && p.name && p.name.toLowerCase().includes(mentionQuery.toLowerCase()))
+    : [];
 
   const startRecording = async () => {
     try {
@@ -136,11 +177,19 @@ export default function ChatInput({ onSendMessage }) {
       await onSendMessage({
         content: finalContent,
         mediaUrl,
-        mediaType
+        mediaType,
+        replyTo: replyingTo ? {
+          id: replyingTo.id,
+          sender_name: replyingTo.sender_name,
+          content: replyingTo.content || '',
+          media_type: replyingTo.media_type || null
+        } : null
       });
 
       setMessage('');
       clearMedia();
+      setMentionQuery(null);
+      if (onCancelReply) onCancelReply();
     } catch (err) {
       console.error('Submit error:', err);
       alert(t('chat_send_error'));
@@ -152,6 +201,44 @@ export default function ChatInput({ onSendMessage }) {
   return (
     <form onSubmit={handleSubmit} className="p-3 sm:p-5 bg-white dark:bg-slate-800 border-t border-gray-200 dark:border-slate-700 shrink-0 sticky bottom-0 z-30 shadow-lg">
       
+      {/* Replying Preview Bar */}
+      {replyingTo && (
+        <div className="max-w-4xl mx-auto mb-2.5 px-3.5 py-2 bg-blue-50/90 dark:bg-slate-900/90 rounded-2xl border-s-4 border-blue-600 flex items-center justify-between shadow-xs transition-all animate-in fade-in slide-in-from-bottom-2">
+          <div className="flex items-center gap-2.5 overflow-hidden">
+            <div className="w-7 h-7 rounded-lg bg-blue-100 dark:bg-blue-900/50 flex items-center justify-center text-blue-600 dark:text-blue-400 shrink-0">
+              <Reply className="w-4 h-4 rtl:-scale-x-100" />
+            </div>
+            <div className="min-w-0">
+              <div className="flex items-center gap-1.5">
+                <span className="text-[11px] font-bold text-gray-500 dark:text-gray-400">{t('chat_replying_to')}</span>
+                <span className="text-xs font-black text-blue-600 dark:text-blue-400 truncate">{replyingTo.sender_name}</span>
+              </div>
+              <p className="text-xs text-gray-700 dark:text-gray-300 truncate mt-0.5">
+                {replyingTo.media_type ? (
+                  <span className="inline-flex items-center gap-1 text-[11px] font-medium text-gray-500 dark:text-gray-400">
+                    {replyingTo.media_type === 'image' && '📷 ' + t('chat_photo')}
+                    {replyingTo.media_type === 'audio' && '🎤 ' + t('chat_voice')}
+                    {replyingTo.media_type === 'video' && '🎥 ' + t('chat_video')}
+                    {replyingTo.media_type === 'document' && '📄 ' + t('chat_doc')}
+                    {replyingTo.content ? ` • ${replyingTo.content}` : ''}
+                  </span>
+                ) : (
+                  replyingTo.content || ''
+                )}
+              </p>
+            </div>
+          </div>
+          <button
+            type="button"
+            onClick={onCancelReply}
+            className="p-1.5 text-gray-400 hover:text-red-500 rounded-full hover:bg-red-50 dark:hover:bg-red-900/20 transition-colors shrink-0"
+            title={t('chat_cancel_reply')}
+          >
+            <X className="w-4 h-4" />
+          </button>
+        </div>
+      )}
+
       {/* Media Preview Area */}
       {mediaFile && mediaPreview !== 'audio' && (
         <div className="max-w-4xl mx-auto mb-3 p-3 bg-gray-50 dark:bg-slate-900 rounded-2xl border border-gray-200 dark:border-slate-700 flex items-start gap-4 relative">
@@ -231,6 +318,40 @@ export default function ChatInput({ onSendMessage }) {
       {(!mediaFile || mediaPreview !== 'audio') && !isRecording && (
         <div className="flex items-end gap-2 max-w-4xl mx-auto relative">
           
+          {/* Mentions Dropdown Menu */}
+          {mentionQuery !== null && filteredParticipants.length > 0 && (
+            <div 
+              ref={mentionMenuRef}
+              className={`absolute bottom-full mb-3 ${isRTL ? 'right-2' : 'left-2'} w-72 max-h-56 overflow-y-auto bg-white dark:bg-slate-800 rounded-2xl shadow-2xl border border-gray-200 dark:border-slate-700 z-50 p-1.5 divide-y divide-gray-100 dark:divide-slate-700/50 animate-in fade-in slide-in-from-bottom-2`}
+            >
+              <div className="px-3 py-1.5 text-[10px] font-bold text-gray-400 dark:text-gray-500 uppercase tracking-wider flex items-center justify-between">
+                <span className="flex items-center gap-1 font-arabic">
+                  <AtSign className="w-3 h-3 text-blue-500" />
+                  <span>إشارة إلى عضو أو معلم</span>
+                </span>
+                <span className="text-[9px] bg-gray-100 dark:bg-slate-700 px-1.5 py-0.5 rounded-full">{filteredParticipants.length}</span>
+              </div>
+              <div className="pt-1 space-y-0.5">
+                {filteredParticipants.slice(0, 10).map((p) => (
+                  <button
+                    key={p.id || p.name}
+                    type="button"
+                    onClick={() => handleSelectMention(p)}
+                    className="w-full flex items-center gap-2.5 px-3 py-2 hover:bg-blue-50 dark:hover:bg-blue-900/30 rounded-xl transition-colors text-right"
+                  >
+                    <div className="w-7 h-7 rounded-full bg-gradient-to-tr from-blue-600 to-indigo-600 text-white font-bold text-xs flex items-center justify-center shrink-0 shadow-xs">
+                      {p.name.charAt(0)}
+                    </div>
+                    <div className="min-w-0 flex-1">
+                      <p className="text-xs font-bold text-gray-900 dark:text-white truncate font-arabic">{p.name}</p>
+                      <span className="text-[10px] text-gray-400 dark:text-gray-500">{p.role === 'admin' ? 'معلم خبير / الإدارة' : 'طالب'}</span>
+                    </div>
+                  </button>
+                ))}
+              </div>
+            </div>
+          )}
+
           {/* Attach Menu */}
           <div className="relative" ref={attachMenuRef}>
             <button
@@ -277,8 +398,9 @@ export default function ChatInput({ onSendMessage }) {
 
           <div className="flex-1 bg-gray-100 dark:bg-slate-900 rounded-3xl border border-gray-200 dark:border-slate-700 overflow-hidden focus-within:ring-2 focus-within:ring-blue-500 focus-within:border-transparent transition-all shadow-inner">
             <textarea
+              ref={textareaRef}
               value={message}
-              onChange={(e) => setMessage(e.target.value)}
+              onChange={handleTextChange}
               placeholder={t('chat_input_ph')}
               className="w-full max-h-32 min-h-[48px] bg-transparent border-none focus:ring-0 text-gray-900 dark:text-white placeholder-gray-500 resize-none py-3.5 px-5 text-sm sm:text-base leading-relaxed"
               rows={1}

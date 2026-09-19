@@ -34,30 +34,52 @@ export const chatService = {
   },
 
   // Send a message
-  async sendMessage({ senderId, receiverId = null, gradeLevel = null, content, mediaUrl = null, mediaType = null }) {
-    const { data, error } = await supabase
-      .from('chat_messages')
-      .insert([
-        {
-          sender_id: senderId,
-          receiver_id: receiverId,
-          grade_level: gradeLevel,
-          content,
-          media_url: mediaUrl,
-          media_type: mediaType
-        }
-      ])
-      .select(`
-        *,
-        sender:profiles!chat_messages_sender_id_fkey(full_name, role)
-      `)
-      .single();
+  async sendMessage({ senderId, receiverId = null, gradeLevel = null, content, mediaUrl = null, mediaType = null, replyTo = null }) {
+    const payload = {
+      sender_id: senderId,
+      receiver_id: receiverId,
+      grade_level: gradeLevel,
+      content,
+      media_url: mediaUrl,
+      media_type: mediaType
+    };
 
-    if (error) {
-      console.error('Error sending message:', error);
-      throw error;
+    if (replyTo) {
+      payload.reply_to = replyTo;
     }
-    return data;
+
+    try {
+      const { data, error } = await supabase
+        .from('chat_messages')
+        .insert([payload])
+        .select(`
+          *,
+          sender:profiles!chat_messages_sender_id_fkey(full_name, role)
+        `)
+        .single();
+
+      if (error) {
+        // Fallback: If reply_to column does not exist yet on remote schema, retry without it so sending never crashes
+        if (error.message && error.message.includes('reply_to')) {
+          delete payload.reply_to;
+          const retryRes = await supabase
+            .from('chat_messages')
+            .insert([payload])
+            .select(`
+              *,
+              sender:profiles!chat_messages_sender_id_fkey(full_name, role)
+            `)
+            .single();
+          if (retryRes.error) throw retryRes.error;
+          return retryRes.data;
+        }
+        throw error;
+      }
+      return data;
+    } catch (err) {
+      console.error('Error sending message:', err);
+      throw err;
+    }
   },
 
   // Edit a message
@@ -78,9 +100,13 @@ export const chatService = {
 
   // Delete a message
   async deleteMessage(messageId, userId) {
+    const updatePayload = { is_deleted: true };
+    if (userId) {
+      updatePayload.deleted_by = userId;
+    }
     const { error } = await supabase
       .from('chat_messages')
-      .update({ is_deleted: true, deleted_by: userId })
+      .update(updatePayload)
       .eq('id', messageId);
 
     if (error) {

@@ -3,7 +3,7 @@ import { useTranslation } from 'react-i18next';
 import { supabase } from '../lib/supabase';
 import { chatService } from '../lib/chatService';
 import { useAuth } from '../context/AuthContext';
-import { Send, Users, ShieldAlert, Shield, MessageSquare, Image as ImageIcon, X, Loader, FileText, Check, CheckCheck, MoreVertical, Pencil, Trash2, Ban, ArrowRight } from 'lucide-react';
+import { Send, Users, ShieldAlert, Shield, MessageSquare, Image as ImageIcon, X, Loader, FileText, Check, CheckCheck, MoreVertical, Pencil, Trash2, Ban, ArrowRight, Reply } from 'lucide-react';
 import FadeIn from '../components/FadeIn';
 import ChatInput from '../components/ChatInput';
 
@@ -22,6 +22,7 @@ export default function StudentChat() {
   const [activeMessageOptions, setActiveMessageOptions] = useState(null);
   const [fullscreenImage, setFullscreenImage] = useState(null);
   const [messageToDelete, setMessageToDelete] = useState(null);
+  const [replyingTo, setReplyingTo] = useState(null);
   const messagesEndRef = useRef(null);
   const messagesContainerRef = useRef(null);
 
@@ -195,16 +196,41 @@ export default function StudentChat() {
     }
   };
 
-  const handleSendMessage = async ({ content, mediaUrl, mediaType }) => {
+  const scrollToMessage = (targetId) => {
+    if (!targetId) return;
+    const el = document.getElementById(`msg-${targetId}`);
+    if (el) {
+      el.scrollIntoView({ behavior: 'smooth', block: 'center' });
+      el.classList.add('ring-4', 'ring-amber-400', 'transition-all', 'duration-500');
+      setTimeout(() => {
+        el.classList.remove('ring-4', 'ring-amber-400');
+      }, 2000);
+    }
+  };
+
+  const handleReplyClick = (msg) => {
+    setReplyingTo({
+      id: msg.id,
+      sender_name: getSenderName(msg),
+      content: msg.content,
+      media_type: msg.media_type,
+      media_url: msg.media_url
+    });
+    setActiveMessageOptions(null);
+  };
+
+  const handleSendMessage = async ({ content, mediaUrl, mediaType, replyTo }) => {
     try {
       await chatService.sendMessage({
         senderId: user.id,
         receiverId: activeChat.type === 'private' ? adminProfile?.id : null,
-        gradeLevel: activeChat.type === 'general' ? profile.grade_level : null,
+        gradeLevel: activeChat.type === 'general' ? profile?.grade_level : null,
         content,
         mediaUrl,
-        mediaType
+        mediaType,
+        replyTo
       });
+      setReplyingTo(null);
     } catch (err) {
       console.error('Error sending message:', err);
       throw err;
@@ -240,12 +266,47 @@ export default function StudentChat() {
   const confirmDelete = async () => {
     if (!messageToDelete) return;
     try {
-      await chatService.deleteMessage(messageToDelete);
+      await chatService.deleteMessage(messageToDelete, user.id);
       setMessageToDelete(null);
     } catch (error) {
       console.error(error);
       alert('خطأ أثناء حذف الرسالة');
     }
+  };
+
+  const chatParticipants = React.useMemo(() => {
+    const list = [];
+    if (adminProfile) {
+      list.push({ id: adminProfile.id, name: adminProfile.full_name || 'أ. سيد غريب', role: 'admin' });
+    } else {
+      list.push({ id: 'admin', name: 'أ. سيد غريب', role: 'admin' });
+    }
+    const seen = new Set(list.map(p => p.id));
+    messages.forEach(m => {
+      if (m.sender_id && !seen.has(m.sender_id) && m.sender?.full_name) {
+        seen.add(m.sender_id);
+        list.push({ id: m.sender_id, name: m.sender.full_name, role: m.sender.role || 'student' });
+      }
+    });
+    return list;
+  }, [adminProfile, messages]);
+
+  const renderTextWithMentions = (text) => {
+    if (!text) return null;
+    const parts = text.split(/(@[a-zA-Z0-9_\u0600-\u06FF]+)/g);
+    return parts.map((part, i) => {
+      if (part.startsWith('@')) {
+        return (
+          <span 
+            key={i} 
+            className="font-extrabold text-amber-300 dark:text-amber-200 bg-black/25 dark:bg-black/35 px-1.5 py-0.5 rounded-md mx-0.5 inline-block shadow-2xs"
+          >
+            {part}
+          </span>
+        );
+      }
+      return part;
+    });
   };
 
   // Generate a consistent color for each sender based on their ID
@@ -430,8 +491,10 @@ export default function StudentChat() {
                         </div>
                       )}
 
-                      <div className={`max-w-[68%] flex flex-col ${isMe ? 'items-end' : 'items-start'
-                        }`}>
+                      <div 
+                        id={`msg-${msg.id}`}
+                        className={`max-w-[68%] flex flex-col ${isMe ? 'items-end' : 'items-start'}`}
+                      >
                         <div className={`rounded-2xl px-3 py-2 shadow-sm relative group transition-all ${activeMessageOptions === msg.id ? 'z-50' : 'z-10'
                           } ${isMe
                             ? 'bg-blue-600 text-white rounded-tl-none'
@@ -468,11 +531,41 @@ export default function StudentChat() {
 
                           {msg.is_deleted ? (
                             <div className={`flex items-center gap-2 text-sm italic py-1 ${isMe ? 'text-blue-200' : 'text-gray-400 dark:text-gray-500'}`}>
-                              <Ban className="w-3.5 h-3.5" />
-                              <span>{t('chat_msg_deleted')}</span>
+                              <Ban className="w-3.5 h-3.5 text-red-400 shrink-0" />
+                              <span>{msg.deleted_by && msg.deleted_by !== msg.sender_id ? t('chat_msg_deleted_admin') : t('chat_msg_deleted')}</span>
                             </div>
                           ) : (
                             <>
+                              {/* Quoted Reply Card */}
+                              {msg.reply_to && (
+                                <div 
+                                  onClick={() => scrollToMessage(msg.reply_to.id)}
+                                  className={`rounded-xl px-3 py-1.5 mb-2 text-xs cursor-pointer border-s-4 transition-all hover:opacity-90 ${
+                                    isMe
+                                      ? 'bg-blue-700/60 border-amber-300 text-blue-100'
+                                      : 'bg-gray-100/90 dark:bg-slate-700/80 border-blue-500 text-gray-700 dark:text-gray-300'
+                                  }`}
+                                >
+                                  <div className="flex items-center gap-1.5 font-bold mb-0.5">
+                                    <Reply className="w-3 h-3 text-amber-400 rtl:-scale-x-100" />
+                                    <span className="truncate">{msg.reply_to.sender_name}</span>
+                                  </div>
+                                  <p className="line-clamp-2 text-[11px] opacity-90 truncate">
+                                    {msg.reply_to.media_type ? (
+                                      <span className="flex items-center gap-1">
+                                        {msg.reply_to.media_type === 'image' && '📷 ' + t('chat_photo')}
+                                        {msg.reply_to.media_type === 'audio' && '🎤 ' + t('chat_voice')}
+                                        {msg.reply_to.media_type === 'video' && '🎥 ' + t('chat_video')}
+                                        {msg.reply_to.media_type === 'document' && '📄 ' + t('chat_doc')}
+                                        {msg.reply_to.content ? ` • ${msg.reply_to.content}` : ''}
+                                      </span>
+                                    ) : (
+                                      msg.reply_to.content || ''
+                                    )}
+                                  </p>
+                                </div>
+                              )}
+
                               {/* Render Media */}
                               {msg.media_url && (
                                 <div className="mb-2">
@@ -528,7 +621,7 @@ export default function StudentChat() {
                                 </div>
                               ) : (
                                 msg.content && msg.media_type !== 'audio' && (
-                                  <p className="text-sm leading-relaxed break-words whitespace-pre-wrap">{msg.content}</p>
+                                  <p className="text-sm leading-relaxed break-words whitespace-pre-wrap">{renderTextWithMentions(msg.content)}</p>
                                 )
                               )}
                             </>
@@ -544,36 +637,55 @@ export default function StudentChat() {
                             )}
                           </div>
 
-                          {/* Options Button - Student controls OWN messages only within 1h */}
-                          {isMe && !msg.is_deleted && isDeletable && (
-                            <div className={`absolute top-1 ${isRTL ? 'left-1' : 'right-1'} transition-opacity ${activeMessageOptions === msg.id ? 'opacity-100' : 'opacity-0 group-hover:opacity-100'}`}>
+                          {/* Options Button - ALWAYS VISIBLE for active messages, supports Reply + 1h Edit/Delete */}
+                          {!msg.is_deleted && (
+                            <div className={`absolute top-1.5 ${isMe ? (isRTL ? 'left-1.5' : 'right-1.5') : (isRTL ? 'right-1.5' : 'left-1.5')} z-20`}>
                               <button
                                 onClick={() => setActiveMessageOptions(activeMessageOptions === msg.id ? null : msg.id)}
-                                className="p-1 rounded-full text-blue-100 hover:text-white hover:bg-blue-700/50 transition-colors"
+                                className={`p-1.5 rounded-full shadow-md backdrop-blur-xs transition-all active:scale-90 ${
+                                  isMe 
+                                    ? 'bg-black/30 hover:bg-black/50 text-white' 
+                                    : 'bg-black/10 dark:bg-white/10 hover:bg-black/20 dark:hover:bg-white/20 text-gray-600 dark:text-gray-300'
+                                }`}
                                 title={t('chat_msg_options')}
                               >
                                 <MoreVertical className="w-3.5 h-3.5" />
                               </button>
 
                               {activeMessageOptions === msg.id && (
-                                <div className={`absolute ${isRTL ? 'left-0' : 'right-0'} mt-1 w-36 bg-white dark:bg-slate-800 rounded-xl shadow-2xl border border-gray-200 dark:border-slate-700 z-50 overflow-hidden`}>
-                                  {/* Edit - allowed for text messages or media WITH text (except audio) */}
-                                  {msg.media_type !== 'audio' && (msg.content || !msg.media_url) && (
+                                <div className={`absolute mt-1 w-36 bg-white dark:bg-slate-800 rounded-xl shadow-2xl border border-gray-200 dark:border-slate-700 z-50 overflow-hidden ${
+                                  isMe ? (isRTL ? 'left-0' : 'right-0') : (isRTL ? 'right-0' : 'left-0')
+                                }`}>
+                                  {/* Reply Button - Available for all messages */}
+                                  <button
+                                    onClick={() => handleReplyClick(msg)}
+                                    className="w-full flex items-center gap-2.5 px-4 py-2.5 text-sm text-gray-700 dark:text-gray-300 hover:bg-blue-50 dark:hover:bg-blue-900/20 hover:text-blue-600 dark:hover:text-blue-400 transition-colors"
+                                  >
+                                    <Reply className="w-3.5 h-3.5 rtl:-scale-x-100" />
+                                    <span>{t('chat_reply')}</span>
+                                  </button>
+
+                                  {/* Edit Button - Allowed for my messages within 1 hour */}
+                                  {isMe && isDeletable && msg.media_type !== 'audio' && (msg.content || !msg.media_url) && (
                                     <button
                                       onClick={() => handleEditClick(msg)}
-                                      className="w-full flex items-center gap-2.5 px-4 py-2.5 text-sm text-gray-700 dark:text-gray-300 hover:bg-blue-50 dark:hover:bg-blue-900/20 hover:text-blue-600 dark:hover:text-blue-400 transition-colors"
+                                      className="w-full flex items-center gap-2.5 px-4 py-2.5 text-sm text-gray-700 dark:text-gray-300 hover:bg-blue-50 dark:hover:bg-blue-900/20 hover:text-blue-600 dark:hover:text-blue-400 transition-colors border-t border-gray-100 dark:border-slate-700"
                                     >
                                       <Pencil className="w-3.5 h-3.5" />
                                       <span>{t('chat_edit')}</span>
                                     </button>
                                   )}
-                                  <button
-                                    onClick={() => handleDeleteMessage(msg.id)}
-                                    className="w-full flex items-center gap-2.5 px-4 py-2.5 text-sm text-red-600 hover:bg-red-50 dark:hover:bg-red-900/20 transition-colors border-t border-gray-100 dark:border-slate-700"
-                                  >
-                                    <Trash2 className="w-3.5 h-3.5" />
-                                    <span>{t('chat_delete')}</span>
-                                  </button>
+
+                                  {/* Delete Button - Allowed for my messages within 1 hour */}
+                                  {isMe && isDeletable && (
+                                    <button
+                                      onClick={() => handleDeleteMessage(msg.id)}
+                                      className="w-full flex items-center gap-2.5 px-4 py-2.5 text-sm text-red-600 hover:bg-red-50 dark:hover:bg-red-900/20 transition-colors border-t border-gray-100 dark:border-slate-700"
+                                    >
+                                      <Trash2 className="w-3.5 h-3.5" />
+                                      <span>{t('chat_delete')}</span>
+                                    </button>
+                                  )}
                                 </div>
                               )}
                             </div>
@@ -600,7 +712,12 @@ export default function StudentChat() {
 
             {/* Input */}
             {activeChat && (
-              <ChatInput onSendMessage={handleSendMessage} />
+              <ChatInput 
+                onSendMessage={handleSendMessage} 
+                replyingTo={replyingTo}
+                onCancelReply={() => setReplyingTo(null)}
+                participants={chatParticipants}
+              />
             )}
           </>
         ) : (

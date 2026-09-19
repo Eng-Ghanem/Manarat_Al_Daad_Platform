@@ -3,7 +3,7 @@ import { useTranslation } from 'react-i18next';
 import { supabase } from '../../lib/supabase';
 import { chatService } from '../../lib/chatService';
 import { useAuth } from '../../context/AuthContext';
-import { Send, Users, User as UserIcon, Search, Check, CheckCheck, Loader, MessageSquare, FileText, Image as ImageIcon, Play, Pause, MoreVertical, Pencil, Trash2, X, Ban, ArrowRight } from 'lucide-react';
+import { Send, Users, User as UserIcon, Search, Check, CheckCheck, Loader, MessageSquare, FileText, Image as ImageIcon, Play, Pause, MoreVertical, Pencil, Trash2, X, Ban, ArrowRight, Reply } from 'lucide-react';
 import FadeIn from '../../components/FadeIn';
 import ChatInput from '../../components/ChatInput';
 
@@ -24,6 +24,7 @@ export default function AdminChat() {
   const [activeMessageOptions, setActiveMessageOptions] = useState(null);
   const [fullscreenImage, setFullscreenImage] = useState(null);
   const [messageToDelete, setMessageToDelete] = useState(null);
+  const [replyingTo, setReplyingTo] = useState(null);
   const messagesEndRef = useRef(null);
   const messagesContainerRef = useRef(null);
 
@@ -206,7 +207,30 @@ export default function AdminChat() {
     }
   };
 
-  const handleSendMessage = async ({ content, mediaUrl, mediaType }) => {
+  const scrollToMessage = (targetId) => {
+    if (!targetId) return;
+    const el = document.getElementById(`msg-${targetId}`);
+    if (el) {
+      el.scrollIntoView({ behavior: 'smooth', block: 'center' });
+      el.classList.add('ring-4', 'ring-amber-400', 'transition-all', 'duration-500');
+      setTimeout(() => {
+        el.classList.remove('ring-4', 'ring-amber-400');
+      }, 2000);
+    }
+  };
+
+  const handleReplyClick = (msg) => {
+    setReplyingTo({
+      id: msg.id,
+      sender_name: getSenderName(msg),
+      content: msg.content,
+      media_type: msg.media_type,
+      media_url: msg.media_url
+    });
+    setActiveMessageOptions(null);
+  };
+
+  const handleSendMessage = async ({ content, mediaUrl, mediaType, replyTo }) => {
     try {
       await chatService.sendMessage({
         senderId: user.id,
@@ -214,8 +238,10 @@ export default function AdminChat() {
         gradeLevel: activeChat.type === 'general' ? activeChat.id : null,
         content,
         mediaUrl,
-        mediaType
+        mediaType,
+        replyTo
       });
+      setReplyingTo(null);
     } catch (err) {
       console.error('Error sending message:', err);
       throw err; // Re-throw to handle it in ChatInput
@@ -251,12 +277,48 @@ export default function AdminChat() {
   const confirmDelete = async () => {
     if (!messageToDelete) return;
     try {
-      await chatService.deleteMessage(messageToDelete);
+      await chatService.deleteMessage(messageToDelete, user.id);
       setMessageToDelete(null);
     } catch (error) {
       console.error(error);
       alert('خطأ أثناء حذف الرسالة');
     }
+  };
+
+  const chatParticipants = React.useMemo(() => {
+    const list = [{ id: user.id, name: profile?.full_name || 'أ. سيد غريب', role: 'admin' }];
+    const seen = new Set([user.id]);
+    students.forEach(s => {
+      if (s.id && !seen.has(s.id) && s.full_name) {
+        seen.add(s.id);
+        list.push({ id: s.id, name: s.full_name, role: 'student' });
+      }
+    });
+    messages.forEach(m => {
+      if (m.sender_id && !seen.has(m.sender_id) && m.sender?.full_name) {
+        seen.add(m.sender_id);
+        list.push({ id: m.sender_id, name: m.sender.full_name, role: m.sender.role || 'student' });
+      }
+    });
+    return list;
+  }, [students, user.id, profile, messages]);
+
+  const renderTextWithMentions = (text) => {
+    if (!text) return null;
+    const parts = text.split(/(@[a-zA-Z0-9_\u0600-\u06FF]+)/g);
+    return parts.map((part, i) => {
+      if (part.startsWith('@')) {
+        return (
+          <span 
+            key={i} 
+            className="font-extrabold text-amber-300 dark:text-amber-200 bg-black/25 dark:bg-black/35 px-1.5 py-0.5 rounded-md mx-0.5 inline-block shadow-2xs"
+          >
+            {part}
+          </span>
+        );
+      }
+      return part;
+    });
   };
 
   const filteredStudents = students.filter(s =>
@@ -523,8 +585,10 @@ export default function AdminChat() {
                         </div>
                       )}
 
-                      <div className={`max-w-[68%] flex flex-col ${isMe ? 'items-end' : 'items-start'
-                        }`}>
+                      <div 
+                        id={`msg-${msg.id}`}
+                        className={`max-w-[68%] flex flex-col ${isMe ? 'items-end' : 'items-start'}`}
+                      >
                         <div className={`rounded-2xl px-3 py-2 shadow-sm relative group transition-all ${activeMessageOptions === msg.id ? 'z-50' : 'z-10'
                           } ${isMe
                             ? 'bg-gradient-to-l from-purple-600 to-indigo-600 text-white rounded-tl-none shadow-md'
@@ -557,11 +621,41 @@ export default function AdminChat() {
 
                           {msg.is_deleted ? (
                             <div className={`flex items-center gap-2 text-sm italic py-1 ${isMe ? 'text-blue-200' : 'text-gray-400 dark:text-gray-500'}`}>
-                              <Ban className="w-3.5 h-3.5" />
+                              <Ban className="w-3.5 h-3.5 text-red-400 shrink-0" />
                               <span>{msg.deleted_by && msg.deleted_by !== msg.sender_id ? t('chat_msg_deleted_admin') : t('chat_msg_deleted')}</span>
                             </div>
                           ) : (
                             <>
+                              {/* Quoted Reply Card */}
+                              {msg.reply_to && (
+                                <div 
+                                  onClick={() => scrollToMessage(msg.reply_to.id)}
+                                  className={`rounded-xl px-3 py-1.5 mb-2 text-xs cursor-pointer border-s-4 transition-all hover:opacity-90 ${
+                                    isMe
+                                      ? 'bg-purple-700/60 border-amber-300 text-purple-100'
+                                      : 'bg-gray-100/90 dark:bg-slate-700/80 border-blue-500 text-gray-700 dark:text-gray-300'
+                                  }`}
+                                >
+                                  <div className="flex items-center gap-1.5 font-bold mb-0.5">
+                                    <Reply className="w-3 h-3 text-amber-400 rtl:-scale-x-100" />
+                                    <span className="truncate">{msg.reply_to.sender_name}</span>
+                                  </div>
+                                  <p className="line-clamp-2 text-[11px] opacity-90 truncate">
+                                    {msg.reply_to.media_type ? (
+                                      <span className="flex items-center gap-1">
+                                        {msg.reply_to.media_type === 'image' && '📷 ' + t('chat_photo')}
+                                        {msg.reply_to.media_type === 'audio' && '🎤 ' + t('chat_voice')}
+                                        {msg.reply_to.media_type === 'video' && '🎥 ' + t('chat_video')}
+                                        {msg.reply_to.media_type === 'document' && '📄 ' + t('chat_doc')}
+                                        {msg.reply_to.content ? ` • ${msg.reply_to.content}` : ''}
+                                      </span>
+                                    ) : (
+                                      msg.reply_to.content || ''
+                                    )}
+                                  </p>
+                                </div>
+                              )}
+
                               {/* Render Media */}
                               {msg.media_url && (
                                 <div className="mb-2">
@@ -617,7 +711,7 @@ export default function AdminChat() {
                                 </div>
                               ) : (
                                 msg.content && msg.media_type !== 'audio' && (
-                                  <p className="text-sm leading-relaxed break-words whitespace-pre-wrap">{msg.content}</p>
+                                  <p className="text-sm leading-relaxed break-words whitespace-pre-wrap">{renderTextWithMentions(msg.content)}</p>
                                 )
                               )}
                             </>
@@ -632,38 +726,57 @@ export default function AdminChat() {
                             )}
                           </div>
 
-                          {/* Options Button - Admin controls ALL messages within 1h */}
-                          {!msg.is_deleted && isDeletable && (
-                            <div className={`absolute top-1 ${isMe ? (isRTL ? 'left-1' : 'right-1') : (isRTL ? 'right-1' : 'left-1')} transition-opacity ${activeMessageOptions === msg.id ? 'opacity-100' : 'opacity-0 group-hover:opacity-100'}`}>
+                          {/* Options Button - ALWAYS VISIBLE for active messages, supports Reply + 1h Delete/Edit */}
+                          {!msg.is_deleted && (
+                            <div className={`absolute top-1.5 ${isMe ? (isRTL ? 'left-1.5' : 'right-1.5') : (isRTL ? 'right-1.5' : 'left-1.5')} z-20`}>
                               <button
                                 onClick={() => setActiveMessageOptions(activeMessageOptions === msg.id ? null : msg.id)}
-                                className={`p-1 rounded-full transition-colors ${isMe ? 'text-blue-100 hover:text-white hover:bg-blue-700/50' : 'text-gray-400 hover:text-gray-700 dark:hover:text-gray-200 hover:bg-gray-100 dark:hover:bg-slate-700'}`}
+                                className={`p-1.5 rounded-full shadow-md backdrop-blur-xs transition-all active:scale-90 ${
+                                  isMe 
+                                    ? 'bg-black/30 hover:bg-black/50 text-white' 
+                                    : 'bg-black/10 dark:bg-white/10 hover:bg-black/20 dark:hover:bg-white/20 text-gray-600 dark:text-gray-300'
+                                }`}
                                 title={t('chat_msg_options')}
                               >
                                 <MoreVertical className="w-3.5 h-3.5" />
                               </button>
 
                               {activeMessageOptions === msg.id && (
-                                <div className={`absolute mt-1 w-36 bg-white dark:bg-slate-800 rounded-xl shadow-2xl border border-gray-200 dark:border-slate-700 z-50 overflow-hidden ${isMe ? (isRTL ? 'left-0' : 'right-0') : (isRTL ? 'right-0' : 'left-0')}`}>
-                                  {/* Edit - allowed only for MY text messages or media WITH text (except audio) */}
-                                  {isMe && msg.media_type !== 'audio' && (msg.content || !msg.media_url) && (
+                                <div className={`absolute mt-1 w-36 bg-white dark:bg-slate-800 rounded-xl shadow-2xl border border-gray-200 dark:border-slate-700 z-50 overflow-hidden ${
+                                  isMe ? (isRTL ? 'left-0' : 'right-0') : (isRTL ? 'right-0' : 'left-0')
+                                }`}>
+                                  {/* Reply Button - Available for all messages */}
+                                  <button
+                                    onClick={() => handleReplyClick(msg)}
+                                    className="w-full flex items-center gap-2.5 px-4 py-2.5 text-sm text-gray-700 dark:text-gray-300 hover:bg-blue-50 dark:hover:bg-blue-900/20 hover:text-blue-600 dark:hover:text-blue-400 transition-colors"
+                                  >
+                                    <Reply className="w-3.5 h-3.5 rtl:-scale-x-100" />
+                                    <span>{t('chat_reply')}</span>
+                                  </button>
+
+                                  {/* Edit - allowed only for MY text messages or media WITH text within 1 hour */}
+                                  {isMe && isDeletable && msg.media_type !== 'audio' && (msg.content || !msg.media_url) && (
                                     <button
                                       onClick={() => handleEditClick(msg)}
-                                      className="w-full flex items-center gap-2.5 px-4 py-2.5 text-sm text-gray-700 dark:text-gray-300 hover:bg-blue-50 dark:hover:bg-blue-900/20 hover:text-blue-600 dark:hover:text-blue-400 transition-colors"
+                                      className="w-full flex items-center gap-2.5 px-4 py-2.5 text-sm text-gray-700 dark:text-gray-300 hover:bg-blue-50 dark:hover:bg-blue-900/20 hover:text-blue-600 dark:hover:text-blue-400 transition-colors border-t border-gray-100 dark:border-slate-700"
                                     >
                                       <Pencil className="w-3.5 h-3.5" />
                                       <span>{t('chat_edit')}</span>
                                       {!isMe && <span className={`mr-auto text-[10px] text-orange-400 font-bold`}>{t('chat_admin_sender')}</span>}
                                     </button>
                                   )}
-                                  <button
-                                    onClick={() => handleDeleteMessage(msg.id)}
-                                    className="w-full flex items-center gap-2.5 px-4 py-2.5 text-sm text-red-600 hover:bg-red-50 dark:hover:bg-red-900/20 transition-colors border-t border-gray-100 dark:border-slate-700"
-                                  >
-                                    <Trash2 className="w-3.5 h-3.5" />
-                                    <span>{t('chat_delete')}</span>
-                                    {!isMe && <span className={`mr-auto text-[10px] text-orange-400 font-bold`}>{t('chat_admin_sender')}</span>}
-                                  </button>
+
+                                  {/* Delete - Admin can delete within 1 hour */}
+                                  {isDeletable && (
+                                    <button
+                                      onClick={() => handleDeleteMessage(msg.id)}
+                                      className="w-full flex items-center gap-2.5 px-4 py-2.5 text-sm text-red-600 hover:bg-red-50 dark:hover:bg-red-900/20 transition-colors border-t border-gray-100 dark:border-slate-700"
+                                    >
+                                      <Trash2 className="w-3.5 h-3.5" />
+                                      <span>{t('chat_delete')}</span>
+                                      {!isMe && <span className={`mr-auto text-[10px] text-orange-400 font-bold`}>{t('chat_admin_sender')}</span>}
+                                    </button>
+                                  )}
                                 </div>
                               )}
                             </div>
@@ -689,7 +802,12 @@ export default function AdminChat() {
             </div>
 
             {/* Input */}
-            <ChatInput onSendMessage={handleSendMessage} />
+            <ChatInput 
+              onSendMessage={handleSendMessage} 
+              replyingTo={replyingTo}
+              onCancelReply={() => setReplyingTo(null)}
+              participants={chatParticipants}
+            />
           </>
         ) : (
           <div className="flex-1 flex flex-col items-center justify-center opacity-50">

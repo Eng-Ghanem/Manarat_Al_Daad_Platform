@@ -364,39 +364,98 @@ export default function StudentChat() {
       ? 'text-amber-300 font-black'
       : 'text-amber-700 dark:text-amber-400 font-black';
 
-    // Check if message starts with @Name on the first line (mention with message underneath)
-    const leadingMentionMatch = text.match(/^@([^\n]+)\n?([\s\S]*)$/);
-    if (leadingMentionMatch) {
-      const mentionName = leadingMentionMatch[1].trim();
-      const messageBody = leadingMentionMatch[2];
-      return (
-        <div className="flex flex-col items-start gap-1 w-full" dir="auto">
-          <div className={`inline-flex items-center gap-1 px-2.5 py-0.5 rounded-lg border font-black text-xs tracking-wide ${badgeClass}`}>
-            <span className={`font-black text-xs ${atSignClass}`}>@</span>
-            <span>{mentionName}</span>
-          </div>
-          {messageBody ? (
-            <span className="leading-relaxed break-words whitespace-pre-wrap mt-0.5">
-              {messageBody}
-            </span>
-          ) : null}
-        </div>
-      );
-    }
-
-    // Inline @mentions
     if (text.includes('@')) {
+      const lines = text.split('\n');
+      const mentions = [];
+      const bodyLines = [];
+      let inMentionsHeader = true;
+
+      // Extract known names from chatParticipants for accurate matching
+      const knownNames = (chatParticipants || [])
+        .map(p => (typeof p === 'string' ? p : p?.name)?.trim())
+        .filter(Boolean)
+        .sort((a, b) => b.length - a.length);
+
+      for (let i = 0; i < lines.length; i++) {
+        const line = lines[i];
+        const trimmed = line.trim();
+
+        if (inMentionsHeader && trimmed.startsWith('@')) {
+          const afterAt = trimmed.slice(1).trim();
+          // Check if matches a known participant name
+          const matched = knownNames.find(n => 
+            afterAt.toLowerCase() === n.toLowerCase() ||
+            afterAt.toLowerCase().startsWith(n.toLowerCase() + ' ')
+          );
+
+          if (matched) {
+            mentions.push(matched);
+            const rest = afterAt.slice(matched.length).trim();
+            if (rest) {
+              bodyLines.push(rest);
+              inMentionsHeader = false;
+            }
+          } else {
+            // Line starts with @ but not in knownNames
+            // If there are multiple lines or no spaces, treat entire line as mention name
+            if (i < lines.length - 1 || !afterAt.includes(' ')) {
+              mentions.push(afterAt);
+            } else {
+              // Single line with spaces, e.g. "@علي ازيك"
+              const spaceIdx = afterAt.indexOf(' ');
+              mentions.push(afterAt.slice(0, spaceIdx));
+              bodyLines.push(afterAt.slice(spaceIdx).trim());
+              inMentionsHeader = false;
+            }
+          }
+        } else {
+          inMentionsHeader = false;
+          bodyLines.push(line);
+        }
+      }
+
+      const bodyText = bodyLines.join('\n').trim();
+
+      if (mentions.length > 0) {
+        return (
+          <div className="flex flex-col items-start gap-1 w-full" dir="auto">
+            {/* Mention badge pills - preceded by @ */}
+            <div className="flex flex-wrap items-center gap-1.5 mb-0.5">
+              {mentions.map((mName, idx) => (
+                <div 
+                  key={idx} 
+                  className={`inline-flex items-center gap-1 px-2.5 py-0.5 rounded-lg border font-black text-xs tracking-wide ${badgeClass}`}
+                >
+                  <span className={atSignClass} dir="ltr">@</span>
+                  <bdi className="font-bold">{mName}</bdi>
+                </div>
+              ))}
+            </div>
+
+            {/* Message Body underneath if present */}
+            {bodyText ? (
+              <div className="leading-relaxed break-words whitespace-pre-wrap mt-0.5 text-sm" dir="auto">
+                {bodyText}
+              </div>
+            ) : null}
+          </div>
+        );
+      }
+
+      // Inline @mentions fallback
       const parts = text.split(/(@[^\s@\n]+)/g);
       return (
-        <span dir="auto" className="break-words leading-relaxed whitespace-pre-wrap">
+        <span dir="auto" className="break-words leading-relaxed whitespace-pre-wrap text-sm">
           {parts.map((part, i) => {
             if (part.startsWith('@')) {
+              const name = part.slice(1);
               return (
                 <span 
                   key={i} 
-                  className={`inline-flex items-center gap-0.5 px-1.5 py-0.5 rounded border font-black text-xs mx-0.5 ${badgeClass}`}
+                  className={`inline-flex items-center gap-1 px-2 py-0.5 rounded-lg border font-black text-xs mx-0.5 ${badgeClass}`}
                 >
-                  {part}
+                  <span className={atSignClass} dir="ltr">@</span>
+                  <bdi className="font-bold">{name}</bdi>
                 </span>
               );
             }
@@ -561,6 +620,8 @@ export default function StudentChat() {
                   const nextMsg = messages[index + 1];
                   const showAvatar = !isMe && (!nextMsg || nextMsg.sender_id !== msg.sender_id);
                   const isFirstInGroup = index === 0 || prevMsg?.sender_id !== msg.sender_id;
+                  const hasMention = Boolean(msg.content && msg.content.includes('@'));
+                  const shouldShowSenderName = isFirstInGroup || hasMention;
                   const msgTime = msg.created_at ? new Date(msg.created_at).getTime() : Date.now();
                   const isDeletable = !isNaN(msgTime) && (Date.now() - msgTime) < 60 * 60 * 1000;
                   const colorIdx = getSenderColorIndex(msg.sender_id);
@@ -629,7 +690,7 @@ export default function StudentChat() {
                           }`}>
 
                           {/* Sender Name - Clean WhatsApp Style */}
-                          {isFirstInGroup && (() => {
+                          {shouldShowSenderName && (() => {
                             const nameColorClasses = [
                               'text-rose-600 dark:text-rose-400', 'text-violet-600 dark:text-violet-400',
                               'text-amber-600 dark:text-amber-400', 'text-emerald-600 dark:text-emerald-400',
@@ -640,15 +701,15 @@ export default function StudentChat() {
                             ];
                             return (
                               <div className="flex items-center gap-1.5 mb-1.5">
-                                <span className={`text-[13px] font-extrabold tracking-wide font-arabic ${isMe ? 'text-blue-200' : isAdmin ? 'text-purple-200' : nameColorClasses[colorIdx]
+                                <span className={`text-[13px] font-black tracking-wide font-arabic ${isMe ? 'text-blue-100' : isAdmin ? 'text-purple-100' : nameColorClasses[colorIdx]
                                   }`}>
                                   {senderName}
                                 </span>
                                 {isMe && (
-                                  <span className="text-[10px] text-blue-300/70 bg-black/10 px-1.5 rounded-full">• {t('chat_you')}</span>
+                                  <span className="text-[10px] text-blue-200 bg-black/20 px-1.5 py-0.5 rounded-full font-bold">• {t('chat_you')}</span>
                                 )}
                                 {isAdmin && !isMe && (
-                                  <span className="text-[10px] text-purple-200/80 bg-black/10 px-1.5 rounded-full shadow-sm">• {t('chat_admin_sender')}</span>
+                                  <span className="text-[10px] text-purple-100 bg-black/20 px-1.5 py-0.5 rounded-full font-bold shadow-sm">• {t('chat_admin_sender')}</span>
                                 )}
                               </div>
                             );

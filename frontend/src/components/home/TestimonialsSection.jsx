@@ -220,7 +220,7 @@ export default function TestimonialsSection() {
             {[1, 2, 3, 4].map((i) => (
               <div
                 key={i}
-                className="bg-white dark:bg-slate-800/60 p-8 rounded-[2rem] border border-gray-100 dark:border-slate-800 animate-pulse space-y-4"
+                className="bg-white dark:bg-slate-800/60 p-5 sm:p-7 md:p-8 rounded-2xl sm:rounded-[2rem] border border-gray-100 dark:border-slate-800 animate-pulse space-y-4"
               >
                 <div className="flex items-center gap-4">
                   <div className="w-16 h-16 rounded-full bg-gray-200 dark:bg-slate-700"></div>
@@ -271,7 +271,7 @@ export default function TestimonialsSection() {
 
               return (
                 <FadeIn key={review.id || index} delay={index * 80}>
-                  <div className={`bg-white dark:bg-slate-800 p-8 rounded-[2rem] shadow-sm border transition-all duration-300 flex flex-col justify-between relative group hover:shadow-xl ${
+                  <div className={`bg-white dark:bg-slate-800 p-5 sm:p-7 md:p-8 rounded-2xl sm:rounded-[2rem] shadow-sm border transition-all duration-300 flex flex-col justify-between relative group hover:shadow-xl overflow-hidden ${
                     isMyReview 
                       ? 'border-blue-300 dark:border-blue-700/80 ring-2 ring-blue-500/20' 
                       : 'border-gray-100 dark:border-slate-700/60 hover:border-blue-200 dark:hover:border-blue-800/50'
@@ -280,44 +280,44 @@ export default function TestimonialsSection() {
 
                     <div>
                       {/* Card Header: Avatar, Name, Badges & Actions */}
-                      <div className="flex items-start justify-between gap-4 mb-5">
-                        <div className="flex items-center gap-4">
+                      <div className="flex items-start justify-between gap-2.5 sm:gap-4 mb-4 sm:mb-5">
+                        <div className="flex items-center gap-2.5 sm:gap-4 min-w-0 flex-1">
                           {review.avatar_url ? (
                             <img
                               src={review.avatar_url}
                               alt={review.student_name}
-                              className="w-16 h-16 rounded-2xl object-cover border-2 border-white dark:border-slate-700 shadow-md"
+                              className="w-12 h-12 sm:w-16 sm:h-16 rounded-xl sm:rounded-2xl object-cover border-2 border-white dark:border-slate-700 shadow-md shrink-0"
                             />
                           ) : (
                             <div
-                              className={`w-16 h-16 rounded-2xl bg-gradient-to-br ${avatarGrad} text-white flex items-center justify-center font-black text-xl shadow-md border-2 border-white dark:border-slate-700`}
+                              className={`w-12 h-12 sm:w-16 sm:h-16 rounded-xl sm:rounded-2xl bg-gradient-to-br ${avatarGrad} text-white flex items-center justify-center font-black text-base sm:text-xl shadow-md border-2 border-white dark:border-slate-700 shrink-0`}
                             >
                               {getInitials(review.student_name)}
                             </div>
                           )}
 
-                          <div>
-                            <div className="flex items-center gap-2 flex-wrap">
-                              <h3 className="text-xl font-bold text-gray-900 dark:text-white">
+                          <div className="min-w-0 flex-1">
+                            <div className="flex items-center gap-1.5 sm:gap-2 flex-wrap">
+                              <h3 className="text-base sm:text-lg md:text-xl font-bold text-gray-900 dark:text-white truncate">
                                 {review.student_name}
                               </h3>
                               {isMyReview && (
-                                <span className="inline-flex items-center px-2 py-0.5 rounded-full text-[10px] font-bold bg-blue-100 dark:bg-blue-900/50 text-blue-700 dark:text-blue-300 border border-blue-200 dark:border-blue-800">
+                                <span className="inline-flex items-center px-2 py-0.5 rounded-full text-[10px] font-bold bg-blue-100 dark:bg-blue-900/50 text-blue-700 dark:text-blue-300 border border-blue-200 dark:border-blue-800 shrink-0">
                                   رأيك الشخصي
                                 </span>
                               )}
                               {review.user_id && !isMyReview && (
-                                <span className="inline-flex items-center px-2 py-0.5 rounded-full text-[10px] font-bold bg-emerald-50 dark:bg-emerald-950/50 text-emerald-600 dark:text-emerald-400 border border-emerald-200 dark:border-emerald-800">
+                                <span className="inline-flex items-center px-2 py-0.5 rounded-full text-[10px] font-bold bg-emerald-50 dark:bg-emerald-950/50 text-emerald-600 dark:text-emerald-400 border border-emerald-200 dark:border-emerald-800 shrink-0">
                                   طالب موثق ✓
                                 </span>
                               )}
                             </div>
-                            <div className="flex items-center gap-2 mt-0.5 text-xs text-gray-500 dark:text-gray-400 font-medium">
+                            <div className="flex items-center gap-1.5 sm:gap-2 mt-0.5 text-[11px] sm:text-xs text-gray-500 dark:text-gray-400 font-medium flex-wrap">
                               <span>{formatGradeName(review.grade_level)}</span>
                               {review.created_at && (
                                 <>
                                   <span>•</span>
-                                  <span>{formatDate(review.created_at)}</span>
+                                  <span className="shrink-0">{formatDate(review.created_at)}</span>
                                 </>
                               )}
                             </div>
@@ -325,38 +325,40 @@ export default function TestimonialsSection() {
                         </div>
 
                         {/* Card Actions (Edit/Delete) */}
-                        <div className="flex items-center gap-1.5">
-                          {/* Edit button: only for the author of this review */}
-                          {isMyReview && (
-                            <button
-                              onClick={() => openReviewModal(review)}
-                              title="تعديل رأيك"
-                              className="flex items-center gap-1 px-2.5 py-1 text-xs font-bold text-blue-600 dark:text-blue-400 hover:bg-blue-50 dark:hover:bg-blue-950/50 rounded-lg transition-all cursor-pointer border border-blue-200/60 dark:border-blue-800/60 shadow-xs"
-                            >
-                              <Edit3 className="w-3.5 h-3.5" />
-                              <span>تعديل</span>
-                            </button>
-                          )}
+                        {(isMyReview || canDelete) && (
+                          <div className="flex items-center gap-1 sm:gap-1.5 shrink-0 self-start mt-0.5">
+                            {/* Edit button: only for the author of this review */}
+                            {isMyReview && (
+                              <button
+                                onClick={() => openReviewModal(review)}
+                                title="تعديل رأيك"
+                                className="flex items-center gap-1 px-2.5 py-1 text-xs font-bold text-blue-600 dark:text-blue-400 hover:bg-blue-100 dark:hover:bg-blue-900/40 bg-blue-50 dark:bg-blue-950/60 rounded-lg transition-all cursor-pointer border border-blue-200 dark:border-blue-800 shadow-2xs active:scale-95 shrink-0"
+                              >
+                                <Edit3 className="w-3.5 h-3.5" />
+                                <span>تعديل</span>
+                              </button>
+                            )}
 
-                          {/* Delete button: for author or admin */}
-                          {canDelete && (
-                            <button
-                              onClick={() => handleDeleteClick(review)}
-                              disabled={deletingId === review.id}
-                              title={isMyReview ? "حذف رأيك" : "حذف هذا الرأي (إدارة)"}
-                              className="flex items-center gap-1 px-2.5 py-1 text-xs font-bold text-rose-600 dark:text-rose-400 hover:bg-rose-50 dark:hover:bg-rose-950/50 rounded-lg transition-all cursor-pointer border border-rose-200/60 dark:border-rose-800/60 shadow-xs"
-                            >
-                              {deletingId === review.id ? (
-                                <Loader className="w-3.5 h-3.5 animate-spin text-rose-500" />
-                              ) : (
-                                <>
-                                  <Trash2 className="w-3.5 h-3.5" />
-                                  <span>حذف</span>
-                                </>
-                              )}
-                            </button>
-                          )}
-                        </div>
+                            {/* Delete button: for author or admin */}
+                            {canDelete && (
+                              <button
+                                onClick={() => handleDeleteClick(review)}
+                                disabled={deletingId === review.id}
+                                title={isMyReview ? "حذف رأيك" : "حذف هذا الرأي (إدارة)"}
+                                className="flex items-center gap-1 px-2.5 py-1 text-xs font-bold text-rose-600 dark:text-rose-400 hover:bg-rose-100 dark:hover:bg-rose-900/40 bg-rose-50 dark:bg-rose-950/60 rounded-lg transition-all cursor-pointer border border-rose-200 dark:border-rose-800 shadow-2xs active:scale-95 shrink-0"
+                              >
+                                {deletingId === review.id ? (
+                                  <Loader className="w-3.5 h-3.5 animate-spin text-rose-500" />
+                                ) : (
+                                  <>
+                                    <Trash2 className="w-3.5 h-3.5" />
+                                    <span>حذف</span>
+                                  </>
+                                )}
+                              </button>
+                            )}
+                          </div>
+                        )}
                       </div>
 
                       {/* Star Rating */}

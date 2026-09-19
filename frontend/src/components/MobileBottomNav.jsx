@@ -1,6 +1,6 @@
 import React from 'react';
 import { NavLink, useLocation } from 'react-router-dom';
-import { Home, BookOpen, MessageSquare, ClipboardList, User, ShieldCheck } from 'lucide-react';
+import { Home, BookOpen, MessageSquare, ClipboardList, User, ShieldCheck, Video } from 'lucide-react';
 import { useTranslation } from 'react-i18next';
 import { useAuth } from '../context/AuthContext';
 import { motion } from 'framer-motion';
@@ -19,6 +19,7 @@ export default function MobileBottomNav() {
     return null;
   }
 
+  const liveRoute = isAdmin ? '/admin-dashboard/live-sessions' : '/live-sessions';
   const chatRoute = isAdmin ? '/admin-dashboard/chat' : '/chat';
   const quizzesRoute = isAdmin ? '/admin-dashboard/quizzes' : '/quizzes';
   const accountRoute = isAdmin 
@@ -37,10 +38,17 @@ export default function MobileBottomNav() {
     },
     {
       id: 'courses',
-      label: t('courses') || (isRTL ? 'الكورسات' : 'Courses'),
-      to: '/courses',
+      label: isRTL ? 'كورسات التأسيس' : 'Courses',
+      to: '/classes',
       icon: BookOpen,
       matchPrefixes: ['/courses', '/classes', '/course/']
+    },
+    {
+      id: 'live',
+      label: isRTL ? 'حصص الأونلاين' : 'Live',
+      to: liveRoute,
+      icon: Video,
+      matchPrefixes: ['/live-sessions', '/admin-dashboard/live-sessions']
     },
     {
       id: 'quizzes',
@@ -51,7 +59,7 @@ export default function MobileBottomNav() {
     },
     {
       id: 'chat',
-      label: t('nav_chat') || (isRTL ? 'المحادثة' : 'Chat'),
+      label: t('nav_chat') || (isRTL ? 'المحادثات' : 'Chat'),
       to: chatRoute,
       icon: MessageSquare,
       matchPrefixes: ['/chat', '/admin-dashboard/chat']
@@ -71,6 +79,12 @@ export default function MobileBottomNav() {
     }
     if (location.pathname === item.to) {
       return true;
+    }
+    if (item.id === 'account' && isAdmin) {
+      return location.pathname === '/admin-dashboard' || 
+             location.pathname === '/admin-dashboard/' || 
+             location.pathname === '/settings' ||
+             location.pathname === '/admin-dashboard/settings';
     }
     if (item.matchPrefixes) {
       return item.matchPrefixes.some(prefix => location.pathname.startsWith(prefix));

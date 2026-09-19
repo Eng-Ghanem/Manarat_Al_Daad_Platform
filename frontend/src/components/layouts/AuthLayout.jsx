@@ -36,11 +36,12 @@ export default function AuthLayout() {
           </button>
           <button
             onClick={toggleLanguage}
-            className="flex items-center gap-2 px-4 py-2 h-10 rounded-full bg-white/50 dark:bg-slate-800/50 hover:bg-white dark:hover:bg-slate-700 text-gray-700 dark:text-gray-200 transition-colors shadow-sm backdrop-blur-md font-medium"
+            className="flex items-center gap-2 px-4 py-2 h-10 rounded-full bg-blue-50/80 hover:bg-blue-100/80 dark:bg-slate-800/80 dark:hover:bg-slate-700 text-blue-700 dark:text-blue-300 transition-all shadow-sm backdrop-blur-md font-bold border border-blue-200/60 dark:border-slate-700 hover:scale-105 active:scale-95 cursor-pointer"
             aria-label="Toggle Language"
+            title={i18n.language === 'ar' ? 'Switch to English' : 'التحويل إلى العربية'}
           >
-            <Globe size={18} />
-            <span className="text-sm font-bold uppercase">{i18n.language === 'ar' ? 'en' : 'ar'}</span>
+            <Globe size={18} className="text-blue-600 dark:text-blue-400" />
+            <span className="text-sm font-bold">{t('nav_switch_lang')}</span>
           </button>
         </div>
       </div>

@@ -3,19 +3,26 @@ import { useParams, Link } from 'react-router-dom';
 import { useTranslation } from 'react-i18next';
 import { 
   Trophy, Star, ArrowRight, BookOpen, 
-  CheckCircle, XCircle, RefreshCw
+  CheckCircle, XCircle, RefreshCw, AlertCircle,
+  Eye, FileText, Check, X, HelpCircle, Sparkles
 } from 'lucide-react';
 import { supabase } from '../lib/supabase';
 import { useAuth } from '../context/AuthContext';
+import { getXpRules } from '../utils/gamification';
+import toast from 'react-hot-toast';
 import FadeIn from '../components/FadeIn';
 
 export default function QuizResult() {
+  const { t, i18n } = useTranslation();
+  const isRTL = i18n.language === 'ar';
   const { id } = useParams();
-  const { user } = useAuth();
+  const { user, profile } = useAuth();
   
   const [submission, setSubmission] = useState(null);
   const [quiz, setQuiz] = useState(null);
+  const [questions, setQuestions] = useState([]);
   const [loading, setLoading] = useState(true);
+  const [showReview, setShowReview] = useState(false);
 
   useEffect(() => {
     fetchResult();
@@ -44,6 +51,42 @@ export default function QuizResult() {
       if (quizError) throw quizError;
       setQuiz(quizData);
 
+      // Fetch Questions for Answer Review
+      const { data: qData, error: qError } = await supabase
+        .from('quiz_questions')
+        .select('*')
+        .eq('quiz_id', id)
+        .order('created_at', { ascending: true });
+
+      if (!qError && qData) {
+        setQuestions(qData);
+      }
+
+      // Automatically award student XP based on dynamic platform rules
+      if (subData && user) {
+        const isStaff = profile?.role === 'admin' || profile?.role === 'teacher';
+        const subXpKey = `quiz_xp_awarded_${subData.id}`;
+        const pct = Math.round((subData.score / subData.total_marks) * 100);
+        if (!isStaff && !localStorage.getItem(subXpKey)) {
+          const rules = getXpRules();
+          let bonus = 0;
+          if (pct === 100) {
+            bonus = rules.quiz_full_score || 50;
+          } else if (pct >= 50) {
+            bonus = rules.quiz_passed || 20;
+          }
+          if (bonus > 0) {
+            localStorage.setItem(subXpKey, 'true');
+            supabase.from('profiles').select('xp_points').eq('id', user.id).single().then(({ data }) => {
+              if (data) {
+                supabase.from('profiles').update({ xp_points: (data.xp_points || 0) + bonus }).eq('id', user.id);
+              }
+            });
+            toast.success(isRTL ? `🎉 أحسنت! تم إضافة +${bonus} نقطة تميز لرصيدك!` : `🎉 Great job! +${bonus} XP awarded!`);
+          }
+        }
+      }
+
     } catch (error) {
       console.error('Error fetching result:', error);
     } finally {
@@ -64,10 +107,10 @@ export default function QuizResult() {
       <div className="min-h-screen bg-gray-50 dark:bg-slate-900 flex flex-col items-center justify-center p-4">
         <div className="text-center bg-white dark:bg-slate-800 p-10 rounded-3xl shadow-lg border border-gray-100 dark:border-slate-700 max-w-md w-full">
           <AlertCircle className="w-20 h-20 text-red-500 mx-auto mb-4" />
-          <h2 className="text-2xl font-bold text-gray-900 dark:text-white mb-2">لم يتم العثور على النتيجة</h2>
-          <p className="text-gray-500 dark:text-gray-400 mb-6">يبدو أنك لم تقم بأداء هذا الامتحان بعد.</p>
+          <h2 className="text-2xl font-bold text-gray-900 dark:text-white mb-2">{t('quiz_result_not_found')}</h2>
+          <p className="text-gray-500 dark:text-gray-400 mb-6">{isRTL ? 'يبدو أنك لم تقم بأداء هذا الامتحان بعد.' : 'It looks like you have not taken this quiz yet.'}</p>
           <Link to={`/quizzes/${id}`} className="block w-full py-3 bg-blue-600 hover:bg-blue-700 text-white rounded-xl font-bold transition-all">
-            بدء الامتحان
+            {t('quiz_start_btn')}
           </Link>
         </div>
       </div>
@@ -79,7 +122,7 @@ export default function QuizResult() {
   const isExcellent = percentage >= 85;
 
   return (
-    <div className="min-h-screen bg-gray-50 dark:bg-slate-900 py-20 px-4 flex items-center justify-center font-arabic relative overflow-hidden">
+    <div className="min-h-screen bg-gray-50 dark:bg-slate-900 py-16 px-4 flex flex-col items-center justify-center font-arabic relative overflow-hidden">
       
       {/* Celebration Background Effects */}
       {submission.status !== 'pending' && isSuccess && (
@@ -90,9 +133,9 @@ export default function QuizResult() {
         </div>
       )}
 
-      <div className="max-w-2xl w-full relative z-10">
+      <div className="max-w-3xl w-full relative z-10">
         <FadeIn>
-          <div className="bg-white dark:bg-slate-800 rounded-[3rem] shadow-2xl border border-gray-100 dark:border-slate-700/50 overflow-hidden text-center relative">
+          <div className="bg-white dark:bg-slate-800 rounded-[3rem] shadow-2xl border border-gray-100 dark:border-slate-700/50 overflow-hidden text-center relative mb-8">
             
             {/* Top Pattern Area */}
             <div className={`h-40 w-full relative ${
@@ -140,8 +183,8 @@ export default function QuizResult() {
             </div>
 
             {/* Content Area */}
-            <div className="pt-20 pb-12 px-8">
-              <h2 className="text-gray-500 dark:text-gray-400 font-bold mb-2">نتيجة امتحان</h2>
+            <div className="pt-20 pb-12 px-6 sm:px-10">
+              <h2 className="text-gray-500 dark:text-gray-400 font-bold mb-2">{t('quiz_result_title')}</h2>
               <h1 className="text-3xl font-black text-gray-900 dark:text-white mb-6 line-clamp-2">
                 {quiz?.title}
               </h1>
@@ -161,57 +204,255 @@ export default function QuizResult() {
                     <div className={`px-4 py-1 rounded-full text-sm font-bold ${
                       isSuccess ? 'bg-green-100 text-green-700 dark:bg-green-900/30 dark:text-green-400' : 'bg-red-100 text-red-700 dark:bg-red-900/30 dark:text-red-400'
                     }`}>
-                      النسبة: {percentage}%
+                      {t('quiz_ratio_label')} {percentage}%
                     </div>
                   </div>
                 </div>
               ) : (
                 <div className="mb-8 p-6 bg-yellow-50 dark:bg-yellow-900/20 border border-yellow-200 dark:border-yellow-800 rounded-2xl inline-block max-w-sm">
-                  <h3 className="text-xl font-bold text-yellow-700 dark:text-yellow-500 mb-2">قيد المراجعة والتصحيح ⏳</h3>
+                  <h3 className="text-xl font-bold text-yellow-700 dark:text-yellow-500 mb-2">{t('quiz_stat_pending')} ⏳</h3>
                   <p className="text-sm text-yellow-600 dark:text-yellow-400">
-                    هذا الامتحان يحتوي على أسئلة مقالية. سيتم ظهور نتيجتك النهائية بمجرد أن يقوم المعلم بمراجعة إجاباتك وتصحيحها يدوياً.
+                    {t('quiz_essay_pending_review')}
                   </p>
                 </div>
               )}
 
               {/* Message */}
               {submission.status !== 'pending' && (
-                <div className="max-w-sm mx-auto mb-10">
+                <div className="max-w-sm mx-auto mb-8">
                   <h3 className={`text-2xl font-bold mb-3 ${isSuccess ? 'text-green-600 dark:text-green-400' : 'text-red-500'}`}>
-                    {isExcellent ? 'مذهل! عمل رائع يا بطل 🥇' : isSuccess ? 'مبروك! لقد اجتزت الامتحان بنجاح 🎉' : 'حظ أوفر المرة القادمة! لا تستسلم 💪'}
+                    {isExcellent 
+                      ? (isRTL ? 'مذهل! عمل رائع يا بطل 🥇' : 'Amazing! Great job champion 🥇') 
+                      : isSuccess 
+                      ? (isRTL ? 'مبروك! لقد اجتزت الامتحان بنجاح 🎉' : 'Congratulations! You passed the quiz 🎉') 
+                      : (isRTL ? 'حظ أوفر المرة القادمة! لا تستسلم 💪' : 'Better luck next time! Never give up 💪')}
                   </h3>
                   <p className="text-gray-600 dark:text-gray-300">
                     {isExcellent 
-                      ? 'لقد حصلت على درجة ممتازة. استمر في هذا التفوق.' 
+                      ? t('quiz_pass_congrats') 
                       : isSuccess 
-                      ? 'لقد بذلت جهداً جيداً، ولكن يمكنك دائماً تحقيق الأفضل.' 
-                      : 'النجاح يتطلب المحاولة. راجع دروسك وحاول مرة أخرى في الامتحانات القادمة.'}
+                      ? (isRTL ? 'لقد بذلت جهداً جيداً، ولكن يمكنك دائماً تحقيق الأفضل.' : 'Good effort, but you can always do even better.') 
+                      : t('quiz_try_again_msg')}
                   </p>
                 </div>
               )}
 
               {/* Action Buttons */}
-              <div className="flex flex-col sm:flex-row gap-4 justify-center">
+              <div className="flex flex-col sm:flex-row gap-4 justify-center items-center">
+                {questions.length > 0 && (
+                  <button
+                    onClick={() => setShowReview(!showReview)}
+                    className="w-full sm:w-auto flex items-center justify-center gap-2 px-8 py-4 bg-emerald-50 hover:bg-emerald-100 dark:bg-emerald-900/30 dark:hover:bg-emerald-900/50 text-emerald-700 dark:text-emerald-300 rounded-2xl font-bold transition-all border border-emerald-300 dark:border-emerald-700 shadow-sm cursor-pointer"
+                  >
+                    <Eye className="w-5 h-5" />
+                    <span>{showReview ? (isRTL ? 'إخفاء مراجعة الإجابات' : 'Hide Answer Review') : (isRTL ? 'مراجعة إجاباتي بالتفصيل' : 'Review My Answers')}</span>
+                  </button>
+                )}
+
                 <Link 
                   to="/quizzes"
-                  className="flex items-center justify-center gap-2 px-8 py-4 bg-gray-100 hover:bg-gray-200 dark:bg-slate-700 dark:hover:bg-slate-600 text-gray-800 dark:text-white rounded-2xl font-bold transition-all"
+                  className="w-full sm:w-auto flex items-center justify-center gap-2 px-8 py-4 bg-gray-100 hover:bg-gray-200 dark:bg-slate-700 dark:hover:bg-slate-600 text-gray-800 dark:text-white rounded-2xl font-bold transition-all"
                 >
                   <BookOpen className="w-5 h-5" />
-                  امتحانات أخرى
+                  {t('quiz_browse_other')}
                 </Link>
+
                 <Link 
                   to="/dashboard"
-                  className="flex items-center justify-center gap-2 px-8 py-4 bg-gradient-to-r from-blue-600 to-indigo-600 hover:from-blue-700 hover:to-indigo-700 text-white rounded-2xl font-bold transition-all shadow-lg hover:shadow-xl hover:-translate-y-1"
+                  className="w-full sm:w-auto flex items-center justify-center gap-2 px-8 py-4 bg-gradient-to-r from-blue-600 to-indigo-600 hover:from-blue-700 hover:to-indigo-700 text-white rounded-2xl font-bold transition-all shadow-lg hover:shadow-xl"
                 >
-                  العودة للوحة القيادة
-                  <ArrowRight className="w-5 h-5" />
+                  {t('quiz_back_to_dash')}
+                  <ArrowRight className={`w-5 h-5 ${isRTL ? '' : 'rotate-180'}`} />
                 </Link>
               </div>
 
             </div>
           </div>
         </FadeIn>
+
+        {/* Detailed Answer Review Section */}
+        {showReview && (
+          <FadeIn>
+            <div className="bg-white dark:bg-slate-800 rounded-[2.5rem] shadow-xl border border-gray-100 dark:border-slate-700/50 p-6 sm:p-10 mb-8 text-start">
+              <div className="flex items-center justify-between pb-6 border-b border-gray-100 dark:border-slate-700 mb-8">
+                <div className="flex items-center gap-3">
+                  <div className="w-12 h-12 rounded-2xl bg-emerald-50 dark:bg-emerald-900/30 text-emerald-600 dark:text-emerald-400 flex items-center justify-center shadow-sm">
+                    <CheckCircle className="w-6 h-6" />
+                  </div>
+                  <div>
+                    <h3 className="text-2xl font-extrabold text-gray-900 dark:text-white">
+                      {isRTL ? 'مراجعة وتصحيح الإجابات' : 'Answers & Solutions Review'}
+                    </h3>
+                    <p className="text-sm text-gray-500 dark:text-gray-400">
+                      {isRTL ? 'قارن إجاباتك بالإجابات الصحيحة واستفد من أخطائك' : 'Compare your answers with model solutions'}
+                    </p>
+                  </div>
+                </div>
+
+                <span className="px-4 py-1.5 rounded-full bg-blue-50 dark:bg-blue-900/30 text-blue-700 dark:text-blue-300 text-xs font-bold border border-blue-200 dark:border-blue-800">
+                  {isRTL ? `${questions.length} أسئلة` : `${questions.length} questions`}
+                </span>
+              </div>
+
+              {/* Questions List */}
+              <div className="space-y-8">
+                {questions.map((question, qIdx) => {
+                  const studentAnswer = submission.answers?.[question.id];
+                  const isEssay = question.question_type === 'essay';
+
+                  let isCorrect = false;
+                  if (!isEssay) {
+                    const parsedStudent = studentAnswer !== undefined && studentAnswer !== null ? parseInt(studentAnswer) : null;
+                    isCorrect = parsedStudent !== null && parsedStudent === question.correct_option_index;
+                  }
+
+                  // Parse options if JSON string or array
+                  let options = [];
+                  if (Array.isArray(question.options)) {
+                    options = question.options;
+                  } else if (typeof question.options === 'string') {
+                    try {
+                      options = JSON.parse(question.options);
+                    } catch (e) {
+                      options = [];
+                    }
+                  }
+
+                  return (
+                    <div 
+                      key={question.id}
+                      className={`p-6 sm:p-7 rounded-3xl border transition-all ${
+                        isEssay 
+                          ? 'bg-amber-50/40 dark:bg-amber-950/20 border-amber-200 dark:border-amber-800/50'
+                          : isCorrect 
+                          ? 'bg-emerald-50/30 dark:bg-emerald-950/20 border-emerald-200 dark:border-emerald-800/60'
+                          : 'bg-red-50/30 dark:bg-red-950/20 border-red-200 dark:border-red-800/60'
+                      }`}
+                    >
+                      {/* Question Header */}
+                      <div className="flex items-start justify-between gap-4 mb-4">
+                        <div className="flex items-center gap-3">
+                          <span className="w-8 h-8 rounded-full bg-white dark:bg-slate-700 shadow-sm border border-gray-200 dark:border-slate-600 flex items-center justify-center font-bold text-sm text-gray-700 dark:text-gray-300">
+                            {qIdx + 1}
+                          </span>
+                          <h4 className="text-lg font-bold text-gray-900 dark:text-white leading-snug">
+                            {question.text}
+                          </h4>
+                        </div>
+
+                        {/* Status Badge */}
+                        <div className="shrink-0">
+                          {isEssay ? (
+                            <span className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-xs font-bold bg-amber-100 text-amber-800 dark:bg-amber-900/40 dark:text-amber-300 border border-amber-300 dark:border-amber-700">
+                              <FileText className="w-3.5 h-3.5" />
+                              <span>{isRTL ? 'سؤال مقالي' : 'Essay Question'}</span>
+                            </span>
+                          ) : isCorrect ? (
+                            <span className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-xs font-bold bg-emerald-100 text-emerald-800 dark:bg-emerald-900/40 dark:text-emerald-300 border border-emerald-300 dark:border-emerald-700">
+                              <CheckCircle className="w-3.5 h-3.5" />
+                              <span>{isRTL ? `إجابة صحيحة (+${question.marks})` : `Correct (+${question.marks})`}</span>
+                            </span>
+                          ) : (
+                            <span className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-xs font-bold bg-red-100 text-red-800 dark:bg-red-900/40 dark:text-red-300 border border-red-300 dark:border-red-700">
+                              <XCircle className="w-3.5 h-3.5" />
+                              <span>{isRTL ? `إجابة خاطئة (0 / ${question.marks})` : `Incorrect (0 / ${question.marks})`}</span>
+                            </span>
+                          )}
+                        </div>
+                      </div>
+
+                      {/* Options or Essay Content */}
+                      {isEssay ? (
+                        <div className="space-y-4 mt-4">
+                          <div className="p-4 rounded-2xl bg-white dark:bg-slate-700/60 border border-amber-200 dark:border-slate-600">
+                            <p className="text-xs font-bold text-gray-500 dark:text-gray-400 mb-1.5">
+                              {isRTL ? 'إجابتك المسجلة:' : 'Your submitted answer:'}
+                            </p>
+                            <p className="text-gray-900 dark:text-white whitespace-pre-wrap text-sm leading-relaxed">
+                              {studentAnswer || (isRTL ? 'لم تتم كتابة إجابة' : 'No answer submitted')}
+                            </p>
+                          </div>
+
+                          {submission.graded_marks && submission.graded_marks[question.id] !== undefined ? (
+                            <div className="p-3.5 rounded-xl bg-blue-50 dark:bg-blue-900/30 border border-blue-200 dark:border-blue-800 text-xs font-bold text-blue-800 dark:text-blue-300 flex items-center justify-between">
+                              <span>{isRTL ? 'درجة تقييم المعلم:' : 'Teacher Grade:'}</span>
+                              <span className="font-extrabold">{submission.graded_marks[question.id]} / {question.marks}</span>
+                            </div>
+                          ) : (
+                            <p className="text-xs text-amber-600 dark:text-amber-400 italic">
+                              {isRTL ? '⏳ هذا السؤال قيد مراجعة وتصحيح المعلم حالياً.' : '⏳ This question is currently being reviewed by instructor.'}
+                            </p>
+                          )}
+                        </div>
+                      ) : (
+                        <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 mt-4">
+                          {options.map((option, optIdx) => {
+                            const isSelected = studentAnswer !== undefined && studentAnswer !== null && parseInt(studentAnswer) === optIdx;
+                            const isThisCorrect = question.correct_option_index === optIdx;
+
+                            let cardStyle = 'bg-white dark:bg-slate-700/60 border-gray-200 dark:border-slate-600 text-gray-700 dark:text-gray-300';
+                            let icon = null;
+
+                            if (isThisCorrect) {
+                              cardStyle = 'bg-emerald-100/70 dark:bg-emerald-900/40 border-emerald-500 text-emerald-900 dark:text-emerald-100 font-bold shadow-sm';
+                              icon = <Check className="w-4 h-4 text-emerald-600 dark:text-emerald-400 shrink-0" />;
+                            } else if (isSelected && !isThisCorrect) {
+                              cardStyle = 'bg-red-100/70 dark:bg-red-900/40 border-red-500 text-red-900 dark:text-red-100 font-bold shadow-sm';
+                              icon = <X className="w-4 h-4 text-red-600 dark:text-red-400 shrink-0" />;
+                            }
+
+                            return (
+                              <div
+                                key={optIdx}
+                                className={`flex items-center justify-between p-3.5 rounded-2xl border text-sm transition-all ${cardStyle}`}
+                              >
+                                <div className="flex items-center gap-2.5">
+                                  <span className="w-6 h-6 rounded-full bg-black/5 dark:bg-white/10 flex items-center justify-center text-xs font-bold shrink-0">
+                                    {String.fromCharCode(65 + optIdx)}
+                                  </span>
+                                  <span>{typeof option === 'object' ? option.text : option}</span>
+                                </div>
+
+                                <div className="flex items-center gap-1.5 text-xs font-bold shrink-0">
+                                  {isSelected && (
+                                    <span className="text-[11px] px-2 py-0.5 rounded-full bg-black/10 dark:bg-white/10">
+                                      {isRTL ? 'إجابتك' : 'Your choice'}
+                                    </span>
+                                  )}
+                                  {isThisCorrect && (
+                                    <span className="text-[11px] px-2 py-0.5 rounded-full bg-emerald-600 text-white">
+                                      {isRTL ? 'الإجابة النموذجية' : 'Correct'}
+                                    </span>
+                                  )}
+                                  {icon}
+                                </div>
+                              </div>
+                            );
+                          })}
+                        </div>
+                      )}
+
+                      {/* Explanation if available */}
+                      {question.explanation && (
+                        <div className="mt-4 p-3.5 rounded-2xl bg-blue-50/80 dark:bg-blue-900/20 border border-blue-200 dark:border-blue-800 text-xs text-blue-900 dark:text-blue-200 flex items-start gap-2.5">
+                          <HelpCircle className="w-4 h-4 text-blue-600 shrink-0 mt-0.5" />
+                          <div>
+                            <span className="font-bold block mb-0.5">{isRTL ? 'توضيح وفائدة تعليمية:' : 'Explanation & Tip:'}</span>
+                            <p>{question.explanation}</p>
+                          </div>
+                        </div>
+                      )}
+                    </div>
+                  );
+                })}
+              </div>
+
+            </div>
+          </FadeIn>
+        )}
+
       </div>
     </div>
   );
 }
+

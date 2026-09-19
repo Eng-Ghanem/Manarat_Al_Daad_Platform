@@ -1,5 +1,6 @@
 import { useEffect, useState } from 'react';
 import { useParams, Link, useNavigate } from 'react-router-dom';
+import { useTranslation } from 'react-i18next';
 import { supabase } from '../../lib/supabase';
 import { BookOpen, Video, Plus, Edit, Trash2, ArrowRight, Loader, PlayCircle } from 'lucide-react';
 import FadeIn from '../../components/FadeIn';
@@ -8,6 +9,7 @@ import BackButton from '../../components/BackButton';
 import ConfirmModal from '../../components/ConfirmModal';
 
 export default function CourseDetailsAdmin() {
+  const { t, i18n } = useTranslation();
   const { id } = useParams();
   const navigate = useNavigate();
   const [course, setCourse] = useState(null);
@@ -44,7 +46,7 @@ export default function CourseDetailsAdmin() {
       
     } catch (error) {
       console.error('Error fetching course details:', error);
-      alert('حدث خطأ أثناء جلب بيانات الكورس.');
+      alert(t('admin_error_fetch_course'));
     } finally {
       setLoading(false);
     }
@@ -64,7 +66,7 @@ export default function CourseDetailsAdmin() {
       setLessons(lessons.filter(l => l.id !== lessonId));
     } catch (error) {
       console.error('Error deleting lesson:', error);
-      alert('حدث خطأ أثناء حذف الدرس.');
+      alert(i18n.language === 'en' ? 'Error deleting lesson.' : 'حدث خطأ أثناء حذف الدرس.');
     }
   };
 
@@ -80,7 +82,7 @@ export default function CourseDetailsAdmin() {
       setCourse({ ...course, is_published: newStatus });
     } catch (error) {
       console.error('Error updating status:', error);
-      alert('حدث خطأ أثناء تغيير حالة الكورس.');
+      alert(i18n.language === 'en' ? 'Error updating course status.' : 'حدث خطأ أثناء تغيير حالة الكورس.');
     }
   };
 
@@ -92,9 +94,11 @@ export default function CourseDetailsAdmin() {
     return (
       <div className="min-h-screen flex flex-col items-center justify-center dark:bg-slate-900 text-center px-4">
         <BookOpen className="w-16 h-16 text-gray-300 dark:text-slate-700 mb-4" />
-        <h2 className="text-2xl font-bold text-gray-900 dark:text-white mb-2">الكورس غير موجود</h2>
+        <h2 className="text-2xl font-bold text-gray-900 dark:text-white mb-2">
+          {i18n.language === 'en' ? 'Course not found' : 'الكورس غير موجود'}
+        </h2>
         <div className="mb-6">
-          <BackButton to="/admin-dashboard" text="العودة للوحة الإدارة" />
+          <BackButton to="/admin-dashboard" text={t('admin_back_to_dashboard')} />
         </div>
       </div>
     );
@@ -104,7 +108,7 @@ export default function CourseDetailsAdmin() {
     <div className="min-h-screen bg-gray-50 dark:bg-slate-900 py-12">
       <div className="max-w-6xl mx-auto px-4 sm:px-6 lg:px-8">
         <div className="mb-6">
-          <BackButton to="/admin-dashboard" text="العودة للكورسات" />
+          <BackButton to="/admin-dashboard" text={t('admin_course_back_courses')} />
         </div>
 
         <FadeIn>
@@ -123,7 +127,7 @@ export default function CourseDetailsAdmin() {
                   {course.category}
                 </span>
                 <span className={`px-3 py-1 text-sm font-bold rounded-full ${course.is_published ? 'bg-green-100 text-green-700 dark:bg-green-900/30 dark:text-green-400' : 'bg-yellow-100 text-yellow-700 dark:bg-yellow-900/30 dark:text-yellow-400'}`}>
-                  {course.is_published ? 'منشور للطلاب' : 'مسودة (مخفي)'}
+                  {course.is_published ? t('admin_course_published_badge') : t('admin_course_draft_badge')}
                 </span>
               </div>
               <h1 className="text-3xl font-bold font-arabic text-gray-900 dark:text-white mb-2">{course.title}</h1>
@@ -134,10 +138,10 @@ export default function CourseDetailsAdmin() {
                   onClick={toggleCoursePublishStatus}
                   className={`px-5 py-2.5 rounded-xl font-bold transition-all shadow-sm ${course.is_published ? 'bg-yellow-100 hover:bg-yellow-200 text-yellow-800' : 'bg-green-600 hover:bg-green-700 text-white'}`}
                 >
-                  {course.is_published ? 'إلغاء النشر (إخفاء)' : 'نشر الكورس للطلاب'}
+                  {course.is_published ? t('admin_course_unpublish_btn') : t('admin_course_publish_btn')}
                 </button>
                 <button onClick={() => navigate(`/admin-dashboard/courses/${course.id}/edit`)} className="px-5 py-2.5 rounded-xl font-bold bg-gray-100 hover:bg-gray-200 dark:bg-slate-700 dark:hover:bg-slate-600 text-gray-800 dark:text-gray-200 transition-all flex items-center gap-2">
-                  <Edit className="w-4 h-4" /> تعديل البيانات
+                  <Edit className="w-4 h-4" /> {t('admin_course_edit_data')}
                 </button>
               </div>
             </div>
@@ -151,16 +155,16 @@ export default function CourseDetailsAdmin() {
               <div>
                 <h2 className="text-2xl font-bold font-arabic text-gray-900 dark:text-white flex items-center gap-2 mb-1">
                   <Video className="w-6 h-6 text-indigo-500" />
-                  محتوى الكورس والدروس
+                  {t('admin_course_lessons_title')}
                 </h2>
-                <p className="text-gray-500 dark:text-gray-400 text-sm">قم برفع الفيديوهات وإضافة المرفقات لكل درس.</p>
+                <p className="text-gray-500 dark:text-gray-400 text-sm">{t('admin_course_lessons_desc')}</p>
               </div>
               <Link 
                 to={`/admin-dashboard/courses/${course.id}/lessons/new`}
                 className="bg-indigo-600 hover:bg-indigo-700 text-white px-6 py-3 rounded-xl font-bold flex items-center gap-2 transition-colors shadow-sm w-full sm:w-auto justify-center"
               >
                 <Plus className="w-5 h-5" />
-                إضافة درس جديد
+                {t('admin_course_add_lesson')}
               </Link>
             </div>
 
@@ -169,13 +173,13 @@ export default function CourseDetailsAdmin() {
                 <div className="w-16 h-16 bg-indigo-50 dark:bg-indigo-900/30 text-indigo-500 rounded-full flex items-center justify-center mx-auto mb-4">
                   <Video className="w-8 h-8" />
                 </div>
-                <h3 className="text-xl font-bold text-gray-900 dark:text-white mb-2">لا يوجد دروس بعد!</h3>
-                <p className="text-gray-500 dark:text-gray-400 max-w-md mx-auto mb-6">محتوى الكورس فارغ حالياً، ابدأ بإضافة الدرس الأول ليتمكن الطلاب من بدء التعلم.</p>
+                <h3 className="text-xl font-bold text-gray-900 dark:text-white mb-2">{t('admin_course_no_lessons')}</h3>
+                <p className="text-gray-500 dark:text-gray-400 max-w-md mx-auto mb-6">{t('admin_course_no_lessons_desc')}</p>
                 <Link 
                   to={`/admin-dashboard/courses/${course.id}/lessons/new`}
                   className="inline-flex items-center gap-2 bg-indigo-100 hover:bg-indigo-200 dark:bg-indigo-900/40 dark:hover:bg-indigo-900/60 text-indigo-700 dark:text-indigo-400 font-bold px-6 py-3 rounded-xl transition-colors"
                 >
-                  <Plus className="w-5 h-5" /> أضف الدرس الأول
+                  <Plus className="w-5 h-5" /> {t('admin_course_add_lesson')}
                 </Link>
               </div>
             ) : (
@@ -190,11 +194,11 @@ export default function CourseDetailsAdmin() {
                         <h4 className="font-bold text-gray-900 dark:text-white text-lg flex items-center gap-2">
                           {lesson.title}
                           {lesson.is_free_preview && (
-                            <span className="text-[10px] bg-green-100 text-green-700 dark:bg-green-900/50 dark:text-green-400 px-2 py-1 rounded-md font-bold uppercase tracking-wider">مجاني</span>
+                            <span className="text-[10px] bg-green-100 text-green-700 dark:bg-green-900/50 dark:text-green-400 px-2 py-1 rounded-md font-bold uppercase tracking-wider">{t('admin_lesson_free_badge')}</span>
                           )}
                         </h4>
                         <div className="flex items-center gap-4 text-sm text-gray-500 dark:text-gray-400 mt-1">
-                          {lesson.video_url && <span className="flex items-center gap-1"><PlayCircle className="w-4 h-4" /> يوجد فيديو</span>}
+                          {lesson.video_url && <span className="flex items-center gap-1"><PlayCircle className="w-4 h-4" /> {i18n.language === 'en' ? 'Video available' : 'يوجد فيديو'}</span>}
                         </div>
                       </div>
                     </div>
@@ -220,10 +224,10 @@ export default function CourseDetailsAdmin() {
         isOpen={deleteConfig.isOpen}
         onClose={() => setDeleteConfig({ isOpen: false, lessonId: null })}
         onConfirm={confirmDeleteLesson}
-        title="حذف الدرس"
-        message="هل أنت متأكد من حذف هذا الدرس؟ لن يمكنك التراجع عن هذا الإجراء وسيتم مسح بيانات الدرس بالكامل."
-        confirmText="نعم، احذف الدرس"
-        cancelText="إلغاء"
+        title={t('admin_lesson_delete_title')}
+        message={t('admin_lesson_delete_msg')}
+        confirmText={t('common_delete')}
+        cancelText={t('common_cancel')}
         isDanger={true}
       />
     </div>

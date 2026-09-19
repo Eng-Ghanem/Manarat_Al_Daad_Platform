@@ -25,29 +25,22 @@ export default function Navbar() {
     i18n.changeLanguage(newLang);
   };
 
-
-
   // Close mobile menu on route change
   useEffect(() => {
     setIsMobileMenuOpen(false);
   }, [location.pathname]);
 
+  const chatRoute = profile?.role === 'admin' ? '/admin-dashboard/chat' : '/chat';
+  const quizzesRoute = profile?.role === 'admin' ? '/admin-dashboard/quizzes' : '/quizzes';
+
   const navLinks = [
     { to: '/', label: t('home') },
     { to: '/classes', label: t('classes') },
     { to: '/courses', label: t('courses') },
-    { to: '/live-sessions', label: 'حصص الأونلاين' }
+    { to: '/live-sessions', label: t('nav_live_sessions') },
+    { to: chatRoute, label: t('nav_chat') },
+    { to: quizzesRoute, label: t('nav_quizzes') }
   ];
-
-  if (user) {
-    if (profile?.role === 'admin') {
-      navLinks.push({ to: '/admin-dashboard/chat', label: 'المحادثات' });
-      navLinks.push({ to: '/admin-dashboard/quizzes', label: 'الامتحانات' });
-    } else {
-      navLinks.push({ to: '/chat', label: 'الرسائل' });
-      navLinks.push({ to: '/quizzes', label: 'الامتحانات' });
-    }
-  }
 
   return (
     <nav className="sticky top-0 z-50 w-full backdrop-blur-md bg-white/70 dark:bg-slate-900/70 border-b border-gray-200 dark:border-slate-800 transition-colors duration-300">
@@ -61,7 +54,7 @@ export default function Navbar() {
           </div>
 
           {/* Links - Desktop */}
-          <div className="hidden lg:flex items-center gap-4 xl:gap-8">
+          <div className="hidden lg:flex items-center gap-3 xl:gap-6">
             {navLinks.map((link) => (
               <Link key={link.to} to={link.to} className="relative group text-gray-700 dark:text-gray-200 hover:text-blue-600 dark:hover:text-blue-400 font-semibold transition-colors text-sm xl:text-base py-1 whitespace-nowrap">
                 {link.label}
@@ -100,7 +93,7 @@ export default function Navbar() {
                         }}
                         className="block w-full text-right px-4 py-2 rounded-lg text-sm font-bold text-blue-600 hover:bg-blue-50 dark:hover:bg-slate-700 transition-colors ltr:text-left rtl:text-right"
                       >
-                        {profile?.role === 'admin' ? t('nav_dashboard') : 'الملف الشخصي'}
+                        {profile?.role === 'admin' ? t('nav_dashboard') : t('nav_profile')}
                       </Link>
                       <Link 
                         to="/settings"
@@ -111,13 +104,13 @@ export default function Navbar() {
                         }}
                         className="block w-full text-right px-4 py-2 rounded-lg text-sm font-bold text-gray-700 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-slate-700 transition-colors ltr:text-left rtl:text-right"
                       >
-                        إعدادات الحساب
+                        {t('nav_settings')}
                       </Link>
                       <button 
                         onClick={handleLogout}
                         className="w-full block text-right px-4 py-2 rounded-lg text-sm font-bold text-red-600 hover:bg-red-50 dark:hover:bg-red-900/30 transition-colors ltr:text-left rtl:text-right"
                       >
-                        تسجيل الخروج
+                        {t('nav_logout')}
                       </button>
                     </>
                   ) : (
@@ -151,104 +144,127 @@ export default function Navbar() {
             </button>
             <button
               onClick={toggleLanguage}
-              className="flex items-center gap-2 px-3 sm:px-4 py-2 h-10 rounded-full bg-gray-100 dark:bg-slate-800 hover:bg-gray-200 dark:hover:bg-slate-700 text-gray-700 dark:text-gray-200 transition-colors shadow-sm font-medium"
+              className="flex items-center justify-center gap-1.5 px-2.5 sm:px-3.5 py-2 h-10 rounded-full bg-blue-50/80 hover:bg-blue-100/80 dark:bg-slate-800 dark:hover:bg-slate-700 text-blue-700 dark:text-blue-300 transition-all shadow-sm font-bold border border-blue-200/60 dark:border-slate-700 hover:scale-105 active:scale-95 cursor-pointer"
               aria-label="Toggle Language"
+              title={i18n.language === 'ar' ? 'Switch to English' : 'التحويل إلى العربية'}
             >
-              <Globe size={18} />
-              <span className="text-sm font-bold uppercase">{i18n.language === 'ar' ? 'en' : 'ar'}</span>
+              <Globe size={18} className="text-blue-600 dark:text-blue-400" />
+              <span className="text-xs sm:text-sm font-bold hidden sm:inline">{t('nav_switch_lang')}</span>
             </button>
             
             {/* Mobile Menu Button */}
             <button
               onClick={() => setIsMobileMenuOpen(!isMobileMenuOpen)}
-              className="lg:hidden w-10 h-10 flex items-center justify-center rounded-xl bg-blue-50 dark:bg-blue-900/30 text-blue-600 dark:text-blue-400 transition-colors shadow-sm border border-blue-100 dark:border-blue-800/50"
+              className="lg:hidden w-10 h-10 flex items-center justify-center rounded-xl bg-blue-50 dark:bg-blue-900/30 text-blue-600 dark:text-blue-400 transition-colors shadow-sm border border-blue-100 dark:border-blue-800/50 active:scale-95"
               aria-label="Toggle Mobile Menu"
             >
-              {isMobileMenuOpen ? <X size={24} /> : <Menu size={24} />}
+              {isMobileMenuOpen ? <X size={22} /> : <Menu size={22} />}
             </button>
           </div>
         </div>
       </div>
 
-      {/* Mobile Menu Dropdown */}
+      {/* Mobile Menu Dropdown & Backdrop */}
       <AnimatePresence>
         {isMobileMenuOpen && (
-          <motion.div
-            initial={{ opacity: 0, y: -20, scale: 0.95 }}
-            animate={{ opacity: 1, y: 0, scale: 1 }}
-            exit={{ opacity: 0, y: -20, scale: 0.95 }}
-            transition={{ duration: 0.2, ease: 'easeOut' }}
-            className="lg:hidden absolute top-[85px] left-4 w-72 rounded-3xl border border-gray-200 dark:border-slate-800 bg-white/95 dark:bg-slate-900/95 backdrop-blur-xl overflow-hidden shadow-2xl z-50"
-          >
-            <div className="px-4 pt-2 pb-6 space-y-2 flex flex-col shadow-inner">
-              {navLinks.map((link) => (
-                <Link
-                  key={link.to}
-                  to={link.to}
-                  className="px-4 py-3 rounded-xl text-base font-bold text-gray-800 dark:text-gray-200 hover:bg-blue-50 dark:hover:bg-blue-900/30 hover:text-blue-600 dark:hover:text-blue-400 transition-all border border-transparent hover:border-blue-100 dark:hover:border-blue-800/50"
+          <>
+            <motion.div
+              initial={{ opacity: 0 }}
+              animate={{ opacity: 1 }}
+              exit={{ opacity: 0 }}
+              onClick={() => setIsMobileMenuOpen(false)}
+              className="lg:hidden fixed inset-0 bg-black/50 backdrop-blur-sm z-40"
+            />
+            <motion.div
+              initial={{ opacity: 0, y: -15, scale: 0.98 }}
+              animate={{ opacity: 1, y: 0, scale: 1 }}
+              exit={{ opacity: 0, y: -15, scale: 0.98 }}
+              transition={{ duration: 0.25, ease: 'easeOut' }}
+              className="lg:hidden fixed top-[85px] left-3 right-3 sm:left-auto sm:right-4 sm:w-80 rounded-3xl border border-gray-200 dark:border-slate-800 bg-white/95 dark:bg-slate-900/95 backdrop-blur-2xl overflow-hidden shadow-2xl z-50 max-h-[calc(100vh-100px)] overflow-y-auto"
+            >
+              <div className="p-4 space-y-1.5 flex flex-col">
+                {navLinks.map((link) => (
+                  <Link
+                    key={link.to}
+                    to={link.to}
+                    onClick={() => setIsMobileMenuOpen(false)}
+                    className="px-4 py-3 rounded-2xl text-base font-bold text-gray-800 dark:text-gray-200 hover:bg-blue-50 dark:hover:bg-blue-900/30 hover:text-blue-600 dark:hover:text-blue-400 transition-all border border-transparent hover:border-blue-100 dark:hover:border-blue-800/50 flex items-center justify-between"
+                  >
+                    <span>{link.label}</span>
+                    <span className="text-gray-400 text-xs font-normal">←</span>
+                  </Link>
+                ))}
+
+                {/* Mobile Language Switcher Button */}
+                <button
+                  onClick={() => {
+                    toggleLanguage();
+                    setIsMobileMenuOpen(false);
+                  }}
+                  className="w-full px-4 py-3 rounded-2xl text-base font-bold text-gray-800 dark:text-gray-200 hover:bg-blue-50 dark:hover:bg-blue-900/30 hover:text-blue-600 dark:hover:text-blue-400 transition-all border border-transparent flex items-center justify-between"
                 >
-                  {link.label}
-                </Link>
-              ))}
-              
-              {/* Optional: Add Auth buttons here for mobile later */}
-              <div className="pt-4 mt-2 border-t border-gray-100 dark:border-slate-800/50 flex flex-col gap-2">
-                {user ? (
-                  <>
-                    <div className="px-4 py-2 text-sm font-bold text-gray-500 dark:text-gray-400 text-center">
-                      مرحباً، {profile?.full_name || user.email}
-                    </div>
-                    <Link 
-                      to={profile?.role === 'admin' ? "/admin-dashboard" : "/dashboard"}
-                      onClick={(e) => {
-                        setIsMobileMenuOpen(false);
-                        const targetPath = profile?.role === 'admin' ? "/admin-dashboard" : "/dashboard";
-                        if (window.location.pathname === targetPath) {
-                          window.scrollTo({ top: 0, behavior: 'smooth' });
-                        }
-                      }}
-                      className="block w-full text-center px-4 py-3 rounded-xl bg-gradient-to-r from-blue-600 to-blue-800 text-white font-bold transition-all shadow-md active:scale-95"
-                    >
-                      {profile?.role === 'admin' ? t('nav_dashboard') : 'الملف الشخصي'}
-                    </Link>
-                    <Link 
-                      to="/settings"
-                      onClick={(e) => {
-                        setIsMobileMenuOpen(false);
-                        if (window.location.pathname === "/settings") {
-                          window.scrollTo({ top: 0, behavior: 'smooth' });
-                        }
-                      }}
-                      className="block w-full text-center px-4 py-3 rounded-xl bg-gray-100 dark:bg-slate-800 text-gray-800 dark:text-gray-200 font-bold transition-all shadow-sm active:scale-95"
-                    >
-                      إعدادات الحساب
-                    </Link>
-                    <button 
-                      onClick={handleLogout}
-                      className="block w-full text-center px-4 py-3 rounded-xl bg-red-100 dark:bg-red-900/30 text-red-600 dark:text-red-400 font-bold transition-all shadow-sm active:scale-95"
-                    >
-                      تسجيل الخروج
-                    </button>
-                  </>
-                ) : (
-                  <>
-                    <Link 
-                      to="/login"
-                      className="block w-full text-center px-4 py-3 rounded-xl bg-gradient-to-r from-blue-600 to-blue-800 text-white font-bold transition-all shadow-md active:scale-95"
-                    >
-                      {t('nav_login')}
-                    </Link>
-                    <Link 
-                      to="/register"
-                      className="block w-full text-center px-4 py-3 rounded-xl bg-gray-100 dark:bg-slate-800 text-gray-800 dark:text-gray-200 font-bold transition-all shadow-sm active:scale-95"
-                    >
-                      {t('nav_register')}
-                    </Link>
-                  </>
-                )}
+                  <div className="flex items-center gap-2">
+                    <Globe size={18} className="text-blue-600 dark:text-blue-400" />
+                    <span>{i18n.language === 'ar' ? 'English Language' : 'اللغة العربية'}</span>
+                  </div>
+                  <span className="text-xs bg-blue-100 dark:bg-blue-900/50 text-blue-700 dark:text-blue-300 px-2 py-0.5 rounded-full font-bold">
+                    {i18n.language === 'ar' ? 'EN' : 'عربي'}
+                  </span>
+                </button>
+                
+                {/* Auth section in mobile menu */}
+                <div className="pt-3 mt-2 border-t border-gray-100 dark:border-slate-800/60 flex flex-col gap-2">
+                  {user ? (
+                    <>
+                      <div className="px-3 py-2 text-xs font-bold text-gray-500 dark:text-gray-400 text-center bg-gray-50 dark:bg-slate-800/50 rounded-xl">
+                        {t('nav_welcome_prefix')}{profile?.full_name || user.email}
+                      </div>
+                      <Link 
+                        to={profile?.role === 'admin' ? "/admin-dashboard" : "/dashboard"}
+                        onClick={() => setIsMobileMenuOpen(false)}
+                        className="block w-full text-center px-4 py-3 rounded-2xl bg-gradient-to-r from-blue-600 to-indigo-600 text-white font-bold transition-all shadow-md active:scale-95 text-sm"
+                      >
+                        {profile?.role === 'admin' ? t('nav_dashboard') : t('nav_profile')}
+                      </Link>
+                      <Link 
+                        to="/settings"
+                        onClick={() => setIsMobileMenuOpen(false)}
+                        className="block w-full text-center px-4 py-3 rounded-2xl bg-gray-100 dark:bg-slate-800 text-gray-800 dark:text-gray-200 font-bold transition-all shadow-sm active:scale-95 text-sm"
+                      >
+                        {t('nav_settings')}
+                      </Link>
+                      <button 
+                        onClick={() => {
+                          setIsMobileMenuOpen(false);
+                          handleLogout();
+                        }}
+                        className="block w-full text-center px-4 py-3 rounded-2xl bg-red-100/80 dark:bg-red-900/30 text-red-600 dark:text-red-400 font-bold transition-all shadow-sm active:scale-95 text-sm cursor-pointer"
+                      >
+                        {t('nav_logout')}
+                      </button>
+                    </>
+                  ) : (
+                    <>
+                      <Link 
+                        to="/login"
+                        onClick={() => setIsMobileMenuOpen(false)}
+                        className="block w-full text-center px-4 py-3 rounded-2xl bg-gradient-to-r from-blue-600 to-indigo-600 text-white font-bold transition-all shadow-md active:scale-95 text-sm"
+                      >
+                        {t('nav_login')}
+                      </Link>
+                      <Link 
+                        to="/register"
+                        onClick={() => setIsMobileMenuOpen(false)}
+                        className="block w-full text-center px-4 py-3 rounded-2xl bg-gray-100 dark:bg-slate-800 text-gray-800 dark:text-gray-200 font-bold transition-all shadow-sm active:scale-95 text-sm"
+                      >
+                        {t('nav_register')}
+                      </Link>
+                    </>
+                  )}
+                </div>
               </div>
-            </div>
-          </motion.div>
+            </motion.div>
+          </>
         )}
       </AnimatePresence>
     </nav>

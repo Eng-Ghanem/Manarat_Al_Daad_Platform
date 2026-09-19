@@ -12,6 +12,8 @@ import ConfirmModal from '../components/ConfirmModal';
 import toast from 'react-hot-toast';
 
 export default function TakeQuiz() {
+  const { t, i18n } = useTranslation();
+  const isRTL = i18n.language === 'ar';
   const { id } = useParams();
   const navigate = useNavigate();
   const { user } = useAuth();
@@ -65,7 +67,7 @@ export default function TakeQuiz() {
         .single();
 
       if (submission) {
-        toast.error('لقد قمت بأداء هذا الامتحان مسبقاً.');
+        toast.error(isRTL ? 'لقد قمت بأداء هذا الامتحان مسبقاً.' : 'You have already taken this quiz.');
         navigate(`/quizzes/${id}/result`);
         return;
       }
@@ -135,7 +137,7 @@ export default function TakeQuiz() {
   };
 
   const handleAutoSubmit = async () => {
-    toast.error('انتهى الوقت! جاري تسليم الإجابات تلقائياً...', { duration: 4000 });
+    toast.error(isRTL ? 'انتهى الوقت! جاري تسليم الإجابات تلقائياً...' : 'Time is up! Submitting answers automatically...', { duration: 4000 });
     await submitQuiz();
   };
 
@@ -153,12 +155,12 @@ export default function TakeQuiz() {
         throw error;
       }
 
-      toast.success('تم تسليم الامتحان بنجاح!');
+      toast.success(isRTL ? 'تم تسليم الامتحان بنجاح!' : 'Quiz submitted successfully!');
       navigate(`/quizzes/${id}/result`);
 
     } catch (error) {
       console.error('Error submitting quiz:', error);
-      toast.error(error.message || 'حدث خطأ أثناء تسليم الامتحان');
+      toast.error(error.message || (isRTL ? 'حدث خطأ أثناء تسليم الامتحان' : 'An error occurred while submitting quiz'));
     } finally {
       setIsSubmitting(false);
       setSubmitModalOpen(false);
@@ -192,7 +194,9 @@ export default function TakeQuiz() {
         <div className="max-w-4xl mx-auto px-4 sm:px-6 lg:px-8 py-4 flex items-center justify-between">
           <div>
             <h1 className="text-lg font-bold text-gray-900 dark:text-white line-clamp-1">{quiz?.title}</h1>
-            <p className="text-sm text-gray-500 dark:text-gray-400">سؤال {currentQuestionIndex + 1} من {questions.length}</p>
+            <p className="text-sm text-gray-500 dark:text-gray-400">
+              {t('quiz_question_num', { current: currentQuestionIndex + 1, total: questions.length })}
+            </p>
           </div>
           
           {timeLeft !== null && (
@@ -238,7 +242,7 @@ export default function TakeQuiz() {
                     <button
                       key={optIndex}
                       onClick={() => handleSelectOption(currentQuestion.id, optIndex)}
-                      className={`w-full text-right p-5 rounded-2xl border-2 transition-all flex items-center gap-4 group ${
+                      className={`w-full rtl:text-right ltr:text-left p-5 rounded-2xl border-2 transition-all flex items-center gap-4 group ${
                         isSelected 
                           ? 'border-blue-500 bg-blue-50/50 dark:bg-blue-900/20 shadow-md' 
                           : 'border-gray-200 dark:border-slate-700 bg-white dark:bg-slate-800 hover:border-blue-300 dark:hover:border-blue-600 hover:bg-gray-50 dark:hover:bg-slate-700/50'
@@ -261,7 +265,7 @@ export default function TakeQuiz() {
                 <textarea
                   value={answers[currentQuestion.id] || ''}
                   onChange={(e) => handleSelectOption(currentQuestion.id, e.target.value)}
-                  placeholder="اكتب إجابتك هنا..."
+                  placeholder={t('quiz_essay_ph')}
                   rows={6}
                   className="w-full p-5 rounded-2xl border-2 border-gray-200 dark:border-slate-700 bg-white dark:bg-slate-800 focus:border-blue-500 focus:ring-2 focus:ring-blue-200 dark:focus:ring-blue-900 transition-all outline-none text-lg text-gray-900 dark:text-white resize-y"
                 />
@@ -277,9 +281,8 @@ export default function TakeQuiz() {
             disabled={currentQuestionIndex === 0}
             className="flex items-center gap-2 px-6 py-3 rounded-xl font-bold transition-all disabled:opacity-50 disabled:cursor-not-allowed bg-white dark:bg-slate-800 text-gray-700 dark:text-gray-300 border border-gray-200 dark:border-slate-700 hover:bg-gray-50 dark:hover:bg-slate-700 shadow-sm"
           >
-            <ChevronRight className="w-5 h-5 rtl:hidden" />
-            <ChevronLeft className="w-5 h-5 ltr:hidden" />
-            السابق
+            {isRTL ? <ChevronRight className="w-5 h-5" /> : <ChevronLeft className="w-5 h-5" />}
+            {t('quiz_prev')}
           </button>
 
           {currentQuestionIndex === questions.length - 1 ? (
@@ -287,17 +290,16 @@ export default function TakeQuiz() {
               onClick={() => setSubmitModalOpen(true)}
               className="flex items-center gap-2 px-8 py-3 bg-gradient-to-r from-green-500 to-emerald-600 hover:from-green-600 hover:to-emerald-700 text-white rounded-xl font-bold transition-all shadow-lg hover:shadow-xl active:scale-95"
             >
-              تسليم الامتحان
-              <Send className="w-5 h-5" />
+              {t('quiz_submit')}
+              <Send className={`w-5 h-5 ${isRTL ? '' : 'rotate-180'}`} />
             </button>
           ) : (
             <button
               onClick={handleNext}
               className="flex items-center gap-2 px-8 py-3 bg-blue-600 hover:bg-blue-700 text-white rounded-xl font-bold transition-all shadow-md active:scale-95"
             >
-              التالي
-              <ChevronLeft className="w-5 h-5 rtl:hidden" />
-              <ChevronRight className="w-5 h-5 ltr:hidden" />
+              {t('quiz_next')}
+              {isRTL ? <ChevronLeft className="w-5 h-5" /> : <ChevronRight className="w-5 h-5" />}
             </button>
           )}
         </div>
@@ -330,14 +332,14 @@ export default function TakeQuiz() {
         isOpen={submitModalOpen}
         onClose={() => setSubmitModalOpen(false)}
         onConfirm={submitQuiz}
-        title="تأكيد تسليم الامتحان"
+        title={t('quiz_confirm_submit_title')}
         message={
           answeredCount < questions.length 
-            ? `لقد أجبت على ${answeredCount} من أصل ${questions.length} أسئلة. هل أنت متأكد من تسليم الامتحان الآن؟`
-            : "هل أنت متأكد من مراجعة جميع إجاباتك ورغبتك في تسليم الامتحان؟"
+            ? (isRTL ? `لقد أجبت على ${answeredCount} من أصل ${questions.length} أسئلة. هل أنت متأكد من تسليم الامتحان الآن؟` : `You have answered ${answeredCount} of ${questions.length} questions. Are you sure you want to submit now?`)
+            : (isRTL ? "هل أنت متأكد من مراجعة جميع إجاباتك ورغبتك في تسليم الامتحان؟" : "Are you sure you have reviewed all your answers and wish to submit the quiz?")
         }
-        confirmText="نعم، سلم الامتحان"
-        cancelText="رجوع للمراجعة"
+        confirmText={t('quiz_submit')}
+        cancelText={t('quiz_prev')}
         type="primary"
         loading={isSubmitting}
       />

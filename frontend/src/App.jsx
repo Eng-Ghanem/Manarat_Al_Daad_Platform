@@ -8,7 +8,10 @@ import MainLayout from './components/layouts/MainLayout';
 import AdminRoute from './components/AdminRoute';
 import ProtectedRoute from './components/ProtectedRoute';
 import { AuthProvider } from './context/AuthContext';
+import { ReviewProvider } from './context/ReviewContext';
+import CompleteProfileModal from './components/auth/CompleteProfileModal';
 import { useTranslation } from 'react-i18next';
+
 
 // Lazy loaded pages for performance optimization
 const Welcome = lazy(() => import('./pages/Welcome'));
@@ -47,8 +50,25 @@ const TakeQuiz = lazy(() => import('./pages/TakeQuiz'));
 const QuizResult = lazy(() => import('./pages/QuizResult'));
 
 import ErrorBoundary from './components/ErrorBoundary';
+import ScrollToTop from './components/ScrollToTop';
 
-import CompleteProfileModal from './components/auth/CompleteProfileModal';
+import TopProgressBar from './components/TopProgressBar';
+
+// Preload high-priority pages on idle for instant navigation
+if (typeof window !== 'undefined') {
+  const preloadPages = () => {
+    import('./pages/Dashboard');
+    import('./pages/AdminDashboard');
+    import('./pages/FoundationCourses');
+    import('./pages/Certificates');
+    import('./pages/Grades');
+  };
+  if ('requestIdleCallback' in window) {
+    window.requestIdleCallback(preloadPages);
+  } else {
+    setTimeout(preloadPages, 1000);
+  }
+}
 
 function App() {
   const { i18n } = useTranslation();
@@ -61,16 +81,13 @@ function App() {
   return (
     <ErrorBoundary>
       <AuthProvider>
-        <CompleteProfileModal />
-        <Toaster position="top-center" reverseOrder={false} />
-        <Router>
+        <ReviewProvider>
+          <CompleteProfileModal />
+          <Toaster position="top-center" reverseOrder={false} />
+          <Router>
+          <ScrollToTop />
           <div className="min-h-[100dvh] bg-gray-50 dark:bg-slate-900 text-gray-900 dark:text-white transition-colors duration-300 overflow-x-hidden w-full flex flex-col">
-            <Suspense fallback={
-              <div className="min-h-screen flex flex-col items-center justify-center bg-gray-50 dark:bg-slate-900">
-                <Loader className="w-12 h-12 text-blue-600 animate-spin mb-4" />
-                <p className="text-gray-500 font-arabic font-bold animate-pulse">جاري التحميل...</p>
-              </div>
-            }>
+            <Suspense fallback={<TopProgressBar />}>
               <Routes>
                 {/* Main Platform Routes */}
                 <Route element={<MainLayout />}>
@@ -130,6 +147,7 @@ function App() {
             </Suspense>
           </div>
         </Router>
+        </ReviewProvider>
       </AuthProvider>
     </ErrorBoundary>
   );

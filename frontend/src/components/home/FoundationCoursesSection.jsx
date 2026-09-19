@@ -4,7 +4,7 @@ import { useTranslation } from 'react-i18next';
 import { BookOpen, ArrowLeft, ArrowRight, Clock } from 'lucide-react';
 import { useNavigate, Link } from 'react-router-dom';
 import { supabase } from '../../lib/supabase';
-import { getDirectImageUrl } from '../../utils/helpers';
+import { getDirectImageUrl, formatCourseTitle } from '../../utils/helpers';
 import FadeIn from '../FadeIn';
 
 export default function FoundationCoursesSection() {
@@ -93,7 +93,7 @@ export default function FoundationCoursesSection() {
                 <span>VIP Courses</span>
               </div>
               <h2 className="text-3xl md:text-4xl font-bold text-gray-900 dark:text-white font-arabic tracking-tight">
-                أحدث كورسات التأسيس
+                {t('fc_latest_courses')}
               </h2>
             </div>
             
@@ -101,7 +101,7 @@ export default function FoundationCoursesSection() {
               to="/courses"
               className="group flex items-center gap-2 mt-4 md:mt-0 text-blue-600 dark:text-blue-400 font-bold hover:text-blue-800 dark:hover:text-blue-300 transition-colors"
             >
-              عرض كل الكورسات
+              {t('fc_view_all_courses')}
               <ArrowLeft className={`w-5 h-5 transition-transform duration-300 ${isRTL ? 'group-hover:-translate-x-2' : 'group-hover:translate-x-2 rotate-180'}`} />
             </Link>
           </div>
@@ -131,8 +131,8 @@ export default function FoundationCoursesSection() {
                   <div className="absolute inset-0 bg-gradient-to-t from-black/50 to-transparent opacity-0 group-hover:opacity-100 transition-opacity"></div>
                   
                   {course.price === 0 && (
-                    <div className="absolute top-3 right-3 bg-green-500 text-white px-2 py-0.5 rounded-full text-xs font-bold">
-                      مجاني
+                    <div className={`absolute top-3 ${isRTL ? 'right-3' : 'left-3'} bg-green-500 text-white px-2 py-0.5 rounded-full text-xs font-bold`}>
+                      {t('fc_free')}
                     </div>
                   )}
                 </div>
@@ -140,18 +140,20 @@ export default function FoundationCoursesSection() {
                 {/* Content */}
                 <div className="flex-grow flex flex-col">
                   <h3 className="text-lg font-bold text-gray-900 dark:text-white mb-2 line-clamp-2 group-hover:text-gold-600 dark:group-hover:text-gold-400 transition-colors">
-                    {course.title}
+                    {formatCourseTitle(course.title)}
                   </h3>
                   
                   <div className="mt-auto pt-4 flex items-center justify-between">
                     <div className="flex flex-col">
                       {course.discounted_price ? (
                         <>
-                          <span className="text-xs text-gray-400 line-through font-bold">{course.price} ج.م</span>
-                          <span className="font-bold text-lg text-gold-600 dark:text-gold-400">{course.discounted_price} ج.م</span>
+                          <span className="text-xs text-gray-400 line-through font-bold">{course.price} {isRTL ? 'ج.م' : 'EGP'}</span>
+                          <span className="font-bold text-lg text-gold-600 dark:text-gold-400">{course.discounted_price} {isRTL ? 'ج.م' : 'EGP'}</span>
                         </>
                       ) : (
-                        <span className="font-bold text-lg text-gold-600 dark:text-gold-400">{course.price > 0 ? `${course.price} ج.م` : 'مجاناً'}</span>
+                        <span className="font-bold text-lg text-gold-600 dark:text-gold-400">
+                          {course.price > 0 ? `${course.price} ${isRTL ? 'ج.م' : 'EGP'}` : t('fc_free_badge')}
+                        </span>
                       )}
                     </div>
                     <div className="w-8 h-8 rounded-full bg-gold-50 dark:bg-slate-700 flex items-center justify-center group-hover:bg-gold-500 group-hover:text-white transition-colors text-gold-600 dark:text-gold-400">

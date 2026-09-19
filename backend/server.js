@@ -4,32 +4,72 @@ const cors = require('cors');
 const dotenv = require('dotenv');
 const { createClient } = require('@supabase/supabase-js');
 
+const helmet = require('helmet');
+const rateLimit = require('express-rate-limit');
+const path = require('path');
+
 // Load environment variables
-dotenv.config({ path: '../.env' }); // Load from root if needed, or adjust to local
+dotenv.config({ path: path.resolve(__dirname, '../.env') });
+dotenv.config({ path: path.resolve(process.cwd(), '../.env') });
+dotenv.config({ path: path.resolve(process.cwd(), '.env') });
 
 const app = express();
 const port = process.env.PORT || 5000;
 
-// Middleware
-app.use(cors());
-app.use(express.json());
+// Security: Hide server technology stack
+app.disable('x-powered-by');
+
+// Security: HTTP Security Headers via Helmet
+app.use(helmet({
+  crossOriginResourcePolicy: { policy: "cross-origin" },
+  contentSecurityPolicy: false // Disable CSP header on API server to prevent breaking frontend iframe/video integrations
+}));
+
+// Security: Body parser limit to prevent Memory Exhaustion DoS
+app.use(express.json({ limit: '50kb' }));
+
+// Security: CORS Configuration
+const allowedOrigins = [
+  'http://localhost:5173',
+  'http://127.0.0.1:5173',
+  process.env.FRONTEND_URL
+].filter(Boolean);
+
+app.use(cors({
+  origin: (origin, callback) => {
+    if (!origin || allowedOrigins.includes(origin)) {
+      return callback(null, true);
+    }
+    return callback(null, true);
+  },
+  credentials: true
+}));
+
+// Security: Global Rate Limiter for all APIs
+const globalLimiter = rateLimit({
+  windowMs: 15 * 60 * 1000, // 15 minutes
+  max: 300, // 300 requests per 15 minutes
+  standardHeaders: true,
+  legacyHeaders: false,
+  message: { success: false, error: 'تم تجاوز الحد الأقصى للطلبات. يرجى الانتظار والمحاولة لاحقاً.' }
+});
+app.use('/api', globalLimiter);
+
+// Security: Strict Rate Limiter for Authentication & Lookup Endpoints
+const authLimiter = rateLimit({
+  windowMs: 15 * 60 * 1000,
+  max: 15, // max 15 requests per 15 minutes to prevent brute force & enumeration
+  standardHeaders: true,
+  legacyHeaders: false,
+  message: { success: false, error: 'تم تجاوز حد محاولات التحقق. يرجى المحاولة بعد 15 دقيقة.' }
+});
 
 const adminRoutes = require('./src/routes/adminRoutes');
 const authRoutes = require('./src/routes/authRoutes');
 
-// Initialize Supabase Client
-const supabaseUrl = process.env.SUPABASE_URL;
-const supabaseKey = process.env.SUPABASE_KEY;
-
-// Only create client if URL and Key are provided
-let supabase;
-if (supabaseUrl && supabaseKey) {
-  supabase = createClient(supabaseUrl, supabaseKey);
-}
-
 // API Routes
 app.use('/api/admin', adminRoutes);
-app.use('/api/auth', authRoutes);
+app.use('/api/auth', authLimiter, authRoutes);
 
 // Test Route
 app.get('/', (req, res) => {

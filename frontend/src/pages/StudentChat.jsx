@@ -10,7 +10,7 @@ import ChatInput from '../components/ChatInput';
 export default function StudentChat() {
   const { t } = useTranslation();
   const { user, profile } = useAuth();
-  
+
   const [adminProfile, setAdminProfile] = useState(null);
   const [activeChat, setActiveChat] = useState(null); // { type: 'general' | 'private' }
   const [messages, setMessages] = useState([]);
@@ -22,6 +22,7 @@ export default function StudentChat() {
   const [fullscreenImage, setFullscreenImage] = useState(null);
   const [messageToDelete, setMessageToDelete] = useState(null);
   const messagesEndRef = useRef(null);
+  const messagesContainerRef = useRef(null);
 
   useEffect(() => {
     fetchAdmin();
@@ -79,10 +80,10 @@ export default function StudentChat() {
 
         if (event === 'INSERT') {
           const isForGeneral = activeChat.type === 'general' && newMsg.grade_level === profile.grade_level && !newMsg.receiver_id;
-          const isForPrivate = activeChat.type === 'private' && 
-            ((newMsg.sender_id === user.id && newMsg.receiver_id === adminProfile.id) || 
-             (newMsg.sender_id === adminProfile.id && newMsg.receiver_id === user.id));
-             
+          const isForPrivate = activeChat.type === 'private' &&
+            ((newMsg.sender_id === user.id && newMsg.receiver_id === adminProfile.id) ||
+              (newMsg.sender_id === adminProfile.id && newMsg.receiver_id === user.id));
+
           if (isForGeneral || isForPrivate) {
             supabase.from('profiles').select('full_name, role').eq('id', newMsg.sender_id).single()
               .then(({ data }) => {
@@ -104,8 +105,13 @@ export default function StudentChat() {
     scrollToBottom();
   }, [messages]);
 
-  const scrollToBottom = () => {
-    messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
+  const scrollToBottom = (behavior = 'smooth') => {
+    if (messagesContainerRef.current) {
+      messagesContainerRef.current.scrollTo({
+        top: messagesContainerRef.current.scrollHeight,
+        behavior
+      });
+    }
   };
 
   const fetchAdmin = async () => {
@@ -116,7 +122,7 @@ export default function StudentChat() {
         .eq('role', 'admin')
         .limit(1)
         .single();
-        
+
       if (error && error.code !== 'PGRST116') throw error;
       setAdminProfile(data);
     } catch (err) {
@@ -131,9 +137,9 @@ export default function StudentChat() {
         .select('sender_id, grade_level, receiver_id')
         .eq('is_read', false)
         .neq('sender_id', user.id);
-        
+
       if (error) throw error;
-      
+
       let generalCount = 0;
       let privateCount = 0;
 
@@ -153,6 +159,7 @@ export default function StudentChat() {
 
   const handleSelectChat = (type) => {
     setActiveChat({ type });
+    window.scrollTo({ top: 0, behavior: 'instant' });
     setUnreadCounts(prev => ({ ...prev, [type]: 0 }));
   };
 
@@ -166,7 +173,7 @@ export default function StudentChat() {
         adminId: adminProfile?.id
       });
       setMessages(data || []);
-      
+
       const unreadIds = data.filter(m => m.sender_id !== user.id && !m.is_read).map(m => m.id);
       if (unreadIds.length > 0) {
         await chatService.markAsRead(unreadIds);
@@ -250,9 +257,9 @@ export default function StudentChat() {
     return Math.abs(hash) % nameColors.length;
   };
   const getSenderName = (msg) => {
-    if (msg.sender_id === user.id) return profile?.full_name || 'طالب';
-    if (msg.sender?.role === 'admin' || msg.sender_id === adminProfile?.id) return adminProfile?.full_name || 'إدارة المنصة';
-    return msg.sender?.full_name || 'طالب';
+    if (msg.sender_id === user.id) return profile?.full_name || t('chat_student_default');
+    if (msg.sender?.role === 'admin' || msg.sender_id === adminProfile?.id) return adminProfile?.full_name || t('chat_platform_admin');
+    return msg.sender?.full_name || t('chat_student_default');
   };
   const isAdminSender = (msg) => msg.sender?.role === 'admin' || msg.sender_id === adminProfile?.id;
 
@@ -261,8 +268,8 @@ export default function StudentChat() {
       <div className="min-h-screen pt-24 pb-12 flex items-center justify-center bg-gray-50 dark:bg-slate-900">
         <div className="bg-white dark:bg-slate-800 p-8 rounded-3xl shadow-xl text-center max-w-md w-full mx-4 border border-gray-100 dark:border-slate-700">
           <ShieldAlert className="w-16 h-16 text-orange-500 mx-auto mb-4" />
-          <h2 className="text-2xl font-bold text-gray-900 dark:text-white mb-2">يرجى استكمال ملفك الشخصي</h2>
-          <p className="text-gray-500 dark:text-gray-400">يجب عليك تحديد صفك الدراسي أولاً لتتمكن من استخدام نظام الدردشة والتواصل مع زملائك.</p>
+          <h2 className="text-2xl font-bold text-gray-900 dark:text-white mb-2">{t('chat_complete_profile_warning')}</h2>
+          <p className="text-gray-500 dark:text-gray-400">{t('chat_complete_profile_desc', 'يجب عليك تحديد صفك الدراسي أولاً لتتمكن من استخدام نظام الدردشة والتواصل مع زملائك.')}</p>
         </div>
       </div>
     );
@@ -271,357 +278,355 @@ export default function StudentChat() {
   return (
     <>
       <div className="flex h-[calc(100vh-80px)] mt-20 max-w-7xl mx-auto rounded-3xl overflow-hidden shadow-2xl border border-gray-200 dark:border-slate-700 font-arabic relative z-10">
-        
-        {/* Sidebar */}
-        <div className={`w-full md:w-80 bg-white dark:bg-slate-900 border-l border-gray-200 dark:border-slate-800 flex flex-col shrink-0 transition-transform ${activeChat ? 'hidden md:flex' : 'flex'}`}>
-          <div className="p-6 border-b border-gray-100 dark:border-slate-800 bg-white/50 dark:bg-slate-900/50 backdrop-blur-md">
-            <h2 className="text-2xl font-bold font-arabic text-gray-900 dark:text-white flex items-center gap-2">
-              <MessageSquare className="w-6 h-6 text-blue-600 dark:text-blue-500" />
-              الرسائل
-            </h2>
-          </div>
 
-          <div className="flex-1 overflow-y-auto p-4 space-y-3">
-            <button
-              onClick={() => handleSelectChat('general')}
-              className={`w-full flex items-center justify-between gap-4 px-4 py-4 rounded-2xl transition-all relative ${activeChat?.type === 'general' ? 'bg-blue-600 shadow-lg shadow-blue-600/30 text-white scale-[1.02]' : 'bg-white dark:bg-slate-800 hover:bg-gray-100 dark:hover:bg-slate-700 text-gray-700 dark:text-gray-200 shadow-sm border border-gray-100 dark:border-slate-700'}`}
-            >
-              <div className="flex items-center gap-4">
-                <div className={`p-3 rounded-xl ${activeChat?.type === 'general' ? 'bg-white/20' : 'bg-blue-100 dark:bg-blue-900/50 text-blue-600 dark:text-blue-400'}`}>
-                  <Users className="w-6 h-6" />
-                </div>
-                <div className="text-right">
-                  <span className="block font-bold text-lg">المحادثة العامة</span>
-                  <span className={`block text-xs ${activeChat?.type === 'general' ? 'text-blue-100' : 'text-gray-500 dark:text-gray-400'}`}>
-                    {t(`grade_${profile.grade_level}`)}
-                  </span>
-                </div>
-              </div>
-              {Object.keys(unreadCounts).some(key => ['g1','g2','g3','g4','g5','g6','g7','g8','g9','g10','g11','g12'].includes(key)) && (
-                <span className="absolute left-4 w-3 h-3 bg-red-500 rounded-full animate-pulse shadow-[0_0_10px_rgba(239,68,68,0.6)]"></span>
-              )}
-            </button>
-
-            <button
-              onClick={() => handleSelectChat('private')}
-              className={`w-full flex items-center justify-between gap-4 px-4 py-4 rounded-2xl transition-all relative ${activeChat?.type === 'private' ? 'bg-purple-600 shadow-lg shadow-purple-600/30 text-white scale-[1.02]' : 'bg-white dark:bg-slate-800 hover:bg-gray-100 dark:hover:bg-slate-700 text-gray-700 dark:text-gray-200 shadow-sm border border-gray-100 dark:border-slate-700'}`}
-            >
-              <div className="flex items-center gap-4">
-                <div className={`p-3 rounded-xl ${activeChat?.type === 'private' ? 'bg-white/20' : 'bg-purple-100 dark:bg-purple-900/50 text-purple-600 dark:text-purple-400'}`}>
-                  <ShieldAlert className="w-6 h-6" />
-                </div>
-                <div className="text-right">
-                  <span className="block font-bold text-lg">الإدارة</span>
-                  <span className={`block text-xs ${activeChat?.type === 'private' ? 'text-purple-100' : 'text-gray-500 dark:text-gray-400'}`}>
-                    تواصل مباشر وخاص
-                  </span>
-                </div>
-              </div>
-              {unreadCounts.private > 0 && (
-                <span className="absolute left-4 w-3 h-3 bg-red-500 rounded-full animate-pulse shadow-[0_0_10px_rgba(239,68,68,0.6)]"></span>
-              )}
-            </button>
-          </div>
+      {/* Sidebar */}
+      <div className={`w-full md:w-80 bg-white dark:bg-slate-900 border-l border-gray-200 dark:border-slate-800 flex flex-col shrink-0 transition-transform ${activeChat ? 'hidden md:flex' : 'flex'}`}>
+        <div className="p-6 border-b border-gray-100 dark:border-slate-800 bg-white/50 dark:bg-slate-900/50 backdrop-blur-md">
+          <h2 className="text-2xl font-bold font-arabic text-gray-900 dark:text-white flex items-center gap-2">
+            <MessageSquare className="w-6 h-6 text-blue-600 dark:text-blue-500" />
+            {t('chat_sidebar_title')}
+          </h2>
         </div>
 
-        {/* Main Chat Area */}
-        <div className={`flex-1 w-full flex-col bg-[#eef0f3] dark:bg-slate-900 relative ${!activeChat ? 'hidden md:flex' : 'flex'}`}>
-          {activeChat ? (
-            <>
-              {/* Chat Header */}
-              <div className="h-20 px-4 sm:px-6 bg-white dark:bg-slate-800 border-b border-gray-200 dark:border-slate-700 flex items-center gap-3 sm:gap-4 z-10 shadow-sm shrink-0">
-                <button 
-                  onClick={() => setActiveChat(null)}
-                  className="md:hidden p-2 -mr-2 rounded-full text-gray-500 hover:bg-gray-100 dark:hover:bg-slate-700"
-                >
-                  <ArrowRight className="w-5 h-5" />
-                </button>
-                {activeChat.type === 'general' ? (
-                  <div className="w-10 h-10 sm:w-12 sm:h-12 rounded-full bg-blue-100 dark:bg-blue-900/50 flex items-center justify-center text-blue-600 dark:text-blue-400 shrink-0">
-                    <Users className="w-5 h-5 sm:w-6 sm:h-6" />
-                  </div>
-                ) : (
-                  <div className="w-10 h-10 sm:w-12 sm:h-12 rounded-full bg-gradient-to-tr from-purple-600 to-indigo-600 flex items-center justify-center text-white font-bold text-lg sm:text-xl shrink-0 shadow-md">
-                    أ
-                  </div>
-                )}
-                <div className="min-w-0">
-                  <h2 className="font-bold text-gray-900 dark:text-white text-lg sm:text-xl truncate">
-                    {activeChat.type === 'general' ? `المحادثة العامة - ${t(`grade_${profile.grade_level}`)}` : 'إدارة المنصة'}
-                  </h2>
-                  <p className="text-xs sm:text-sm text-gray-500 dark:text-gray-400 truncate">
-                    {activeChat.type === 'general' ? 'نقاشات مع زملائك والأستاذ' : 'رسائل خاصة ومباشرة'}
-                  </p>
-                </div>
+        <div className="flex-1 overflow-y-auto p-4 space-y-3">
+          <button
+            onClick={() => handleSelectChat('general')}
+            className={`w-full flex items-center justify-between gap-4 px-4 py-4 rounded-2xl transition-all relative ${activeChat?.type === 'general' ? 'bg-blue-600 shadow-lg shadow-blue-600/30 text-white scale-[1.02]' : 'bg-white dark:bg-slate-800 hover:bg-gray-100 dark:hover:bg-slate-700 text-gray-700 dark:text-gray-200 shadow-sm border border-gray-100 dark:border-slate-700'}`}
+          >
+            <div className="flex items-center gap-4">
+              <div className={`p-3 rounded-xl ${activeChat?.type === 'general' ? 'bg-white/20' : 'bg-blue-100 dark:bg-blue-900/50 text-blue-600 dark:text-blue-400'}`}>
+                <Users className="w-6 h-6" />
               </div>
-
-              {/* Messages */}
-              <div className="flex-1 overflow-y-auto p-4 sm:p-6 space-y-4" style={{ backgroundImage: 'url("https://www.transparenttextures.com/patterns/cubes.png")', backgroundBlendMode: 'overlay' }}>
-                {loading ? (
-                  <div className="flex justify-center py-10">
-                    <Loader className="w-8 h-8 animate-spin text-blue-500" />
-                  </div>
-                ) : (
-                  messages.map((msg, index) => {
-                    const isMe = msg.sender_id === user.id;
-                    const prevMsg = messages[index - 1];
-                    const nextMsg = messages[index + 1];
-                    const showAvatar = !isMe && (!nextMsg || nextMsg.sender_id !== msg.sender_id);
-                    const isFirstInGroup = index === 0 || prevMsg?.sender_id !== msg.sender_id;
-                    const isDeletable = (new Date() - new Date(msg.created_at)) < 60 * 60 * 1000;
-                    const colorIdx = getSenderColorIndex(msg.sender_id);
-                    const senderName = getSenderName(msg);
-                    const senderInitial = senderName.charAt(0);
-                    const isAdmin = isAdminSender(msg);
-                    
-                    return (
-                      <FadeIn key={msg.id} delay={index * 10} className={`flex items-end gap-2 ${
-                        isMe ? 'justify-end' : 'justify-start'
-                      } ${activeMessageOptions === msg.id ? 'relative z-50' : 'relative z-10'}`}>
-
-                        {/* Avatar for others (WhatsApp style - bottom aligned) */}
-                        {!isMe && (
-                          <div className="shrink-0 w-8 h-8 mb-0.5">
-                            {showAvatar ? (
-                              isAdmin ? (
-                                <div className="w-8 h-8 rounded-full bg-gradient-to-br from-slate-700 to-slate-900 flex items-center justify-center text-white shadow-md">
-                                  <Shield className="w-4 h-4" />
-                                </div>
-                              ) : (
-                                <div className={`w-8 h-8 rounded-full bg-gradient-to-br ${avatarColors[colorIdx]} flex items-center justify-center text-white font-bold text-sm shadow-md`}>
-                                  {senderInitial}
-                                </div>
-                              )
-                            ) : (
-                              <div className="w-8 h-8" />
-                            )}
-                          </div>
-                        )}
-
-                        <div className={`max-w-[68%] flex flex-col ${
-                          isMe ? 'items-end' : 'items-start'
-                        }`}>
-                          <div className={`rounded-2xl px-3 py-2 shadow-sm relative group transition-all ${
-                            activeMessageOptions === msg.id ? 'z-50' : 'z-10'
-                          } ${
-                            isMe 
-                              ? 'bg-blue-600 text-white rounded-tl-none' 
-                              : isAdmin
-                                ? 'bg-gradient-to-l from-purple-600 to-indigo-600 text-white rounded-tr-none shadow-md'
-                                : 'bg-white dark:bg-slate-800 text-gray-900 dark:text-white rounded-tr-none border border-gray-200 dark:border-slate-700'
-                          }`}>
-
-                            {/* Sender Name - Clean WhatsApp Style */}
-                            {isFirstInGroup && (() => {
-                              const nameColorClasses = [
-                                'text-rose-600 dark:text-rose-400', 'text-violet-600 dark:text-violet-400',
-                                'text-amber-600 dark:text-amber-400', 'text-emerald-600 dark:text-emerald-400',
-                                'text-sky-600 dark:text-sky-400', 'text-pink-600 dark:text-pink-400',
-                                'text-indigo-600 dark:text-indigo-400', 'text-teal-600 dark:text-teal-400',
-                                'text-orange-600 dark:text-orange-400', 'text-cyan-600 dark:text-cyan-400',
-                                'text-lime-600 dark:text-lime-400', 'text-fuchsia-600 dark:text-fuchsia-400',
-                              ];
-                              return (
-                                <div className="flex items-center gap-1.5 mb-1.5">
-                                  <span className={`text-[13px] font-extrabold tracking-wide font-arabic ${
-                                    isMe ? 'text-blue-200' : isAdmin ? 'text-purple-200' : nameColorClasses[colorIdx]
-                                  }`}>
-                                    {senderName}
-                                  </span>
-                                  {isMe && (
-                                    <span className="text-[10px] text-blue-300/70 bg-black/10 px-1.5 rounded-full">• أنت</span>
-                                  )}
-                                  {isAdmin && !isMe && (
-                                    <span className="text-[10px] text-purple-200/80 bg-black/10 px-1.5 rounded-full shadow-sm">• الإدارة</span>
-                                  )}
-                                </div>
-                              );
-                            })()}
-
-                            {msg.is_deleted ? (
-                              <div className={`flex items-center gap-2 text-sm italic py-1 ${isMe ? 'text-blue-200' : 'text-gray-400 dark:text-gray-500'}`}>
-                                <Ban className="w-3.5 h-3.5" />
-                                <span>{msg.deleted_by && msg.deleted_by !== msg.sender_id ? 'تم حذف هذه الرسالة بواسطة الإدارة' : 'تم حذف هذه الرسالة'}</span>
-                              </div>
-                            ) : (
-                              <>
-                                {/* Render Media */}
-                                {msg.media_url && (
-                                  <div className="mb-2">
-                                    {msg.media_type === 'image' && (
-                                      <button onClick={() => setFullscreenImage(msg.media_url)} className="block w-full text-right focus:outline-none">
-                                        <img src={msg.media_url} alt="Attachment" className="max-w-full max-h-60 rounded-xl mb-1 object-cover hover:opacity-90 transition-opacity" />
-                                      </button>
-                                    )}
-                                    {msg.media_type === 'video' && (
-                                      <video src={msg.media_url} controls className="max-w-full max-h-60 rounded-xl mb-1 bg-black" />
-                                    )}
-                                    {msg.media_type === 'audio' && (
-                                      <div className="w-64 max-w-full overflow-hidden rounded-full">
-                                        <audio src={msg.media_url} controls controlsList="nodownload noplaybackrate" className={`w-full h-10 ${isMe ? 'opacity-90' : ''}`} />
-                                      </div>
-                                    )}
-                                    {msg.media_type === 'document' && (
-                                      <a href={msg.media_url} className={`flex items-center gap-3 p-3 rounded-xl border transition-colors ${isMe ? 'bg-blue-700/50 border-blue-500 hover:bg-blue-700' : 'bg-gray-50 dark:bg-slate-700 border-gray-200 dark:border-slate-600 hover:bg-gray-100 dark:hover:bg-slate-600'}`}>
-                                        <div className={`w-10 h-10 rounded-lg flex items-center justify-center shrink-0 ${isMe ? 'bg-blue-500 text-white' : 'bg-purple-100 text-purple-600'}`}>
-                                          <FileText className="w-5 h-5" />
-                                        </div>
-                                        <div className="flex-1 min-w-0">
-                                          <p className={`text-sm font-bold truncate ${isMe ? 'text-white' : 'text-gray-900 dark:text-white'}`}>ملف مرفق</p>
-                                          <p className={`text-xs ${isMe ? 'text-blue-200' : 'text-gray-500 dark:text-gray-400'}`}>اضغط للفتح</p>
-                                        </div>
-                                      </a>
-                                    )}
-                                  </div>
-                                )}
-
-                                {editingMessageId === msg.id ? (
-                                  <div className="mt-1 flex flex-col gap-2">
-                                    <textarea
-                                      value={editingContent}
-                                      onChange={(e) => setEditingContent(e.target.value)}
-                                      className="w-full bg-white dark:bg-slate-900 border border-gray-300 dark:border-slate-600 rounded-lg p-2 text-sm text-gray-900 dark:text-white"
-                                      rows={2}
-                                    />
-                                    <div className="flex gap-2 justify-end">
-                                      <button
-                                        onClick={() => { setEditingMessageId(null); setEditingContent(''); }}
-                                        className="px-3 py-1 bg-gray-200 dark:bg-slate-700 text-gray-700 dark:text-gray-300 rounded text-xs hover:bg-gray-300 dark:hover:bg-slate-600"
-                                      >
-                                        إلغاء
-                                      </button>
-                                      <button
-                                        onClick={() => handleSaveEdit(msg.id)}
-                                        className="px-3 py-1 bg-blue-600 text-white rounded text-xs hover:bg-blue-700"
-                                      >
-                                        حفظ
-                                      </button>
-                                    </div>
-                                  </div>
-                                ) : (
-                                  msg.content && msg.media_type !== 'audio' && (
-                                    <p className="text-sm leading-relaxed break-words whitespace-pre-wrap">{msg.content}</p>
-                                  )
-                                )}
-                              </>
-                            )}
-
-                            {/* Timestamp + read receipt */}
-                            <div className={`flex items-center justify-end gap-1 mt-1 text-[10px] ${
-                              isMe ? 'text-blue-200' : isAdmin ? 'text-gray-400' : 'text-gray-400 dark:text-gray-500'
-                            }`} dir="ltr">
-                              {msg.is_edited && !msg.is_deleted && <span className="opacity-70">(معدلة)</span>}
-                              <span>{new Date(msg.created_at).toLocaleTimeString(t('locale'), { hour: '2-digit', minute: '2-digit' })}</span>
-                              {isMe && (
-                                msg.is_read ? <CheckCheck className="w-3.5 h-3.5 text-blue-200" /> : <Check className="w-3.5 h-3.5" />
-                              )}
-                            </div>
-
-                            {/* Options Button - Student controls OWN messages only within 1h */}
-                            {isMe && !msg.is_deleted && isDeletable && (
-                              <div className={`absolute top-1 left-1 transition-opacity ${activeMessageOptions === msg.id ? 'opacity-100' : 'opacity-0 group-hover:opacity-100'}`}>
-                                <button
-                                  onClick={() => setActiveMessageOptions(activeMessageOptions === msg.id ? null : msg.id)}
-                                  className="p-1 rounded-full text-blue-100 hover:text-white hover:bg-blue-700/50 transition-colors"
-                                  title="خيارات رسالتك"
-                                >
-                                  <MoreVertical className="w-3.5 h-3.5" />
-                                </button>
-                                
-                                {activeMessageOptions === msg.id && (
-                                  <div className="absolute left-0 mt-1 w-36 bg-white dark:bg-slate-800 rounded-xl shadow-2xl border border-gray-200 dark:border-slate-700 z-50 overflow-hidden">
-                                    {/* Edit - allowed for text messages or media WITH text (except audio) */}
-                                    {msg.media_type !== 'audio' && (msg.content || !msg.media_url) && (
-                                      <button
-                                        onClick={() => handleEditClick(msg)}
-                                        className="w-full flex items-center gap-2.5 px-4 py-2.5 text-sm text-gray-700 dark:text-gray-300 hover:bg-blue-50 dark:hover:bg-blue-900/20 hover:text-blue-600 dark:hover:text-blue-400 transition-colors"
-                                      >
-                                        <Pencil className="w-3.5 h-3.5" />
-                                        <span>تعديل</span>
-                                      </button>
-                                    )}
-                                    <button
-                                      onClick={() => handleDeleteMessage(msg.id)}
-                                      className="w-full flex items-center gap-2.5 px-4 py-2.5 text-sm text-red-600 hover:bg-red-50 dark:hover:bg-red-900/20 transition-colors border-t border-gray-100 dark:border-slate-700"
-                                    >
-                                      <Trash2 className="w-3.5 h-3.5" />
-                                      <span>حذف</span>
-                                    </button>
-                                  </div>
-                                )}
-                              </div>
-                            )}
-                          </div>
-                        </div>
-
-                        {/* Spacer for my messages (no avatar on right side) */}
-                        {isMe && <div className="w-8 shrink-0" />}
-                      </FadeIn>
-                    );
-                  })
-                )}
-                
-                {/* Click outside to close options */}
-                {activeMessageOptions && (
-                  <div 
-                    className="absolute inset-0 z-40"
-                    onClick={() => setActiveMessageOptions(null)}
-                  />
-                )}
-                <div ref={messagesEndRef} />
+              <div className="rtl:text-right ltr:text-left">
+                <span className="block font-bold text-lg">{t('chat_general_title')}</span>
+                <span className={`block text-xs ${activeChat?.type === 'general' ? 'text-blue-100' : 'text-gray-500 dark:text-gray-400'}`}>
+                  {t(`grade_${profile.grade_level}`)}
+                </span>
               </div>
-
-              {/* Input */}
-              {activeChat && (
-                <ChatInput onSendMessage={handleSendMessage} />
-              )}
-            </>
-          ) : (
-            <div className="flex-1 flex flex-col items-center justify-center opacity-50 p-6 text-center">
-              <MessageSquare className="w-24 h-24 mb-6 text-gray-400" />
-              <h2 className="text-3xl font-bold text-gray-500 font-arabic mb-2">مرحباً بك في الدردشة</h2>
-              <p className="text-gray-400 text-lg">اختر محادثة من القائمة الجانبية للبدء</p>
             </div>
-          )}
+            {Object.keys(unreadCounts).some(key => ['g1', 'g2', 'g3', 'g4', 'g5', 'g6', 'g7', 'g8', 'g9', 'g10', 'g11', 'g12'].includes(key)) && (
+              <span className="absolute left-4 w-3 h-3 bg-red-500 rounded-full animate-pulse shadow-[0_0_10px_rgba(239,68,68,0.6)]"></span>
+            )}
+          </button>
+
+          <button
+            onClick={() => handleSelectChat('private')}
+            className={`w-full flex items-center justify-between gap-4 px-4 py-4 rounded-2xl transition-all relative ${activeChat?.type === 'private' ? 'bg-purple-600 shadow-lg shadow-purple-600/30 text-white scale-[1.02]' : 'bg-white dark:bg-slate-800 hover:bg-gray-100 dark:hover:bg-slate-700 text-gray-700 dark:text-gray-200 shadow-sm border border-gray-100 dark:border-slate-700'}`}
+          >
+            <div className="flex items-center gap-4">
+              <div className={`p-3 rounded-xl ${activeChat?.type === 'private' ? 'bg-white/20' : 'bg-purple-100 dark:bg-purple-900/50 text-purple-600 dark:text-purple-400'}`}>
+                <ShieldAlert className="w-6 h-6" />
+              </div>
+              <div className="rtl:text-right ltr:text-left">
+                <span className="block font-bold text-lg">{t('chat_admin_sender')}</span>
+                <span className={`block text-xs ${activeChat?.type === 'private' ? 'text-purple-100' : 'text-gray-500 dark:text-gray-400'}`}>
+                  {t('chat_direct_communication')}
+                </span>
+              </div>
+            </div>
+            {unreadCounts.private > 0 && (
+              <span className="absolute left-4 w-3 h-3 bg-red-500 rounded-full animate-pulse shadow-[0_0_10px_rgba(239,68,68,0.6)]"></span>
+            )}
+          </button>
         </div>
       </div>
 
-      {/* Fullscreen Image Modal */}
-      {fullscreenImage && (
-        <div className="fixed inset-0 z-[100] bg-black/90 flex items-center justify-center p-4" onClick={() => setFullscreenImage(null)}>
-          <img src={fullscreenImage} alt="Fullscreen" className="max-w-full max-h-full object-contain" />
-          <button className="absolute top-4 right-4 text-white p-2 hover:bg-white/10 rounded-full transition-colors">
-            <X className="w-8 h-8" />
-          </button>
-        </div>
-      )}
+      {/* Main Chat Area */}
+      <div className={`flex-1 w-full flex-col bg-[#eef0f3] dark:bg-slate-900 relative ${!activeChat ? 'hidden md:flex' : 'flex'}`}>
+        {activeChat ? (
+          <>
+            {/* Chat Header */}
+            <div className="h-20 px-4 sm:px-6 bg-white dark:bg-slate-800 border-b border-gray-200 dark:border-slate-700 flex items-center gap-3 sm:gap-4 z-10 shadow-sm shrink-0">
+              <button
+                onClick={() => setActiveChat(null)}
+                className="md:hidden p-2 -mr-2 rounded-full text-gray-500 hover:bg-gray-100 dark:hover:bg-slate-700"
+              >
+                <ArrowRight className="w-5 h-5" />
+              </button>
+              {activeChat.type === 'general' ? (
+                <div className="w-10 h-10 sm:w-12 sm:h-12 rounded-full bg-blue-100 dark:bg-blue-900/50 flex items-center justify-center text-blue-600 dark:text-blue-400 shrink-0">
+                  <Users className="w-5 h-5 sm:w-6 sm:h-6" />
+                </div>
+              ) : (
+                <div className="w-10 h-10 sm:w-12 sm:h-12 rounded-full bg-gradient-to-tr from-purple-600 to-indigo-600 flex items-center justify-center text-white font-bold text-lg sm:text-xl shrink-0 shadow-md">
+                  أ
+                </div>
+              )}
+              <div className="min-w-0">
+                <h2 className="font-bold text-gray-900 dark:text-white text-lg sm:text-xl truncate">
+                  {activeChat.type === 'general' ? `${t('chat_general_title')} - ${t(`grade_${profile.grade_level}`)}` : t('chat_platform_admin')}
+                </h2>
+                <p className="text-xs sm:text-sm text-gray-500 dark:text-gray-400 truncate">
+                  {activeChat.type === 'general' ? t('chat_general_subtitle') : t('chat_private_subtitle')}
+                </p>
+              </div>
+            </div>
 
-      {/* Delete Confirmation Modal */}
-      {messageToDelete && (
-        <div className="fixed inset-0 z-[100] bg-black/60 flex items-center justify-center p-4">
-          <FadeIn className="bg-white dark:bg-slate-800 rounded-3xl p-6 max-w-sm w-full shadow-2xl border border-gray-100 dark:border-slate-700 text-center">
-            <div className="w-16 h-16 bg-red-100 dark:bg-red-900/30 rounded-full flex items-center justify-center mx-auto mb-4 text-red-500">
-              <Trash2 className="w-8 h-8" />
+            {/* Messages */}
+            <div ref={messagesContainerRef} className="flex-1 overflow-y-auto p-4 sm:p-6 space-y-4" style={{ backgroundImage: 'url("https://www.transparenttextures.com/patterns/cubes.png")', backgroundBlendMode: 'overlay' }}>
+              {loading ? (
+                <div className="flex justify-center py-10">
+                  <Loader className="w-8 h-8 animate-spin text-blue-500" />
+                </div>
+              ) : (
+                messages.map((msg, index) => {
+                  const isMe = msg.sender_id === user.id;
+                  const prevMsg = messages[index - 1];
+                  const nextMsg = messages[index + 1];
+                  const showAvatar = !isMe && (!nextMsg || nextMsg.sender_id !== msg.sender_id);
+                  const isFirstInGroup = index === 0 || prevMsg?.sender_id !== msg.sender_id;
+                  const isDeletable = (new Date() - new Date(msg.created_at)) < 60 * 60 * 1000;
+                  const colorIdx = getSenderColorIndex(msg.sender_id);
+                  const senderName = getSenderName(msg);
+                  const senderInitial = senderName.charAt(0);
+                  const isAdmin = isAdminSender(msg);
+
+                  return (
+                    <FadeIn key={msg.id} delay={index * 10} className={`flex items-end gap-2 ${isMe ? 'justify-end' : 'justify-start'
+                      } ${activeMessageOptions === msg.id ? 'relative z-50' : 'relative z-10'}`}>
+
+                      {/* Avatar for others (WhatsApp style - bottom aligned) */}
+                      {!isMe && (
+                        <div className="shrink-0 w-8 h-8 mb-0.5">
+                          {showAvatar ? (
+                            isAdmin ? (
+                              <div className="w-8 h-8 rounded-full bg-gradient-to-br from-slate-700 to-slate-900 flex items-center justify-center text-white shadow-md">
+                                <Shield className="w-4 h-4" />
+                              </div>
+                            ) : (
+                              <div className={`w-8 h-8 rounded-full bg-gradient-to-br ${avatarColors[colorIdx]} flex items-center justify-center text-white font-bold text-sm shadow-md`}>
+                                {senderInitial}
+                              </div>
+                            )
+                          ) : (
+                            <div className="w-8 h-8" />
+                          )}
+                        </div>
+                      )}
+
+                      <div className={`max-w-[68%] flex flex-col ${isMe ? 'items-end' : 'items-start'
+                        }`}>
+                        <div className={`rounded-2xl px-3 py-2 shadow-sm relative group transition-all ${activeMessageOptions === msg.id ? 'z-50' : 'z-10'
+                          } ${isMe
+                            ? 'bg-blue-600 text-white rounded-tl-none'
+                            : isAdmin
+                              ? 'bg-gradient-to-l from-purple-600 to-indigo-600 text-white rounded-tr-none shadow-md'
+                              : 'bg-white dark:bg-slate-800 text-gray-900 dark:text-white rounded-tr-none border border-gray-200 dark:border-slate-700'
+                          }`}>
+
+                          {/* Sender Name - Clean WhatsApp Style */}
+                          {isFirstInGroup && (() => {
+                            const nameColorClasses = [
+                              'text-rose-600 dark:text-rose-400', 'text-violet-600 dark:text-violet-400',
+                              'text-amber-600 dark:text-amber-400', 'text-emerald-600 dark:text-emerald-400',
+                              'text-sky-600 dark:text-sky-400', 'text-pink-600 dark:text-pink-400',
+                              'text-indigo-600 dark:text-indigo-400', 'text-teal-600 dark:text-teal-400',
+                              'text-orange-600 dark:text-orange-400', 'text-cyan-600 dark:text-cyan-400',
+                              'text-lime-600 dark:text-lime-400', 'text-fuchsia-600 dark:text-fuchsia-400',
+                            ];
+                            return (
+                              <div className="flex items-center gap-1.5 mb-1.5">
+                                <span className={`text-[13px] font-extrabold tracking-wide font-arabic ${isMe ? 'text-blue-200' : isAdmin ? 'text-purple-200' : nameColorClasses[colorIdx]
+                                  }`}>
+                                  {senderName}
+                                </span>
+                                {isMe && (
+                                  <span className="text-[10px] text-blue-300/70 bg-black/10 px-1.5 rounded-full">• {t('chat_you')}</span>
+                                )}
+                                {isAdmin && !isMe && (
+                                  <span className="text-[10px] text-purple-200/80 bg-black/10 px-1.5 rounded-full shadow-sm">• {t('chat_admin_sender')}</span>
+                                )}
+                              </div>
+                            );
+                          })()}
+
+                          {msg.is_deleted ? (
+                            <div className={`flex items-center gap-2 text-sm italic py-1 ${isMe ? 'text-blue-200' : 'text-gray-400 dark:text-gray-500'}`}>
+                              <Ban className="w-3.5 h-3.5" />
+                              <span>{t('chat_msg_deleted')}</span>
+                            </div>
+                          ) : (
+                            <>
+                              {/* Render Media */}
+                              {msg.media_url && (
+                                <div className="mb-2">
+                                  {msg.media_type === 'image' && (
+                                    <button onClick={() => setFullscreenImage(msg.media_url)} className="block w-full text-right focus:outline-none">
+                                      <img src={msg.media_url} alt="Attachment" className="max-w-full max-h-60 rounded-xl mb-1 object-cover hover:opacity-90 transition-opacity" />
+                                    </button>
+                                  )}
+                                  {msg.media_type === 'video' && (
+                                    <video src={msg.media_url} controls className="max-w-full max-h-60 rounded-xl mb-1 bg-black" />
+                                  )}
+                                  {msg.media_type === 'audio' && (
+                                    <div className="w-64 max-w-full overflow-hidden rounded-full">
+                                      <audio src={msg.media_url} controls controlsList="nodownload noplaybackrate" className={`w-full h-10 ${isMe ? 'opacity-90' : ''}`} />
+                                    </div>
+                                  )}
+                                  {msg.media_type === 'document' && (
+                                    <a href={msg.media_url} className={`flex items-center gap-3 p-3 rounded-xl border transition-colors ${isMe ? 'bg-blue-700/50 border-blue-500 hover:bg-blue-700' : 'bg-gray-50 dark:bg-slate-700 border-gray-200 dark:border-slate-600 hover:bg-gray-100 dark:hover:bg-slate-600'}`}>
+                                      <div className={`w-10 h-10 rounded-lg flex items-center justify-center shrink-0 ${isMe ? 'bg-blue-500 text-white' : 'bg-purple-100 text-purple-600'}`}>
+                                        <FileText className="w-5 h-5" />
+                                      </div>
+                                      <div className="flex-1 min-w-0">
+                                        <p className={`text-sm font-bold truncate ${isMe ? 'text-white' : 'text-gray-900 dark:text-white'}`}>{t('chat_attachment')}</p>
+                                        <p className={`text-xs ${isMe ? 'text-blue-200' : 'text-gray-500 dark:text-gray-400'}`}>{t('chat_click_to_open')}</p>
+                                      </div>
+                                    </a>
+                                  )}
+                                </div>
+                              )}
+
+                              {editingMessageId === msg.id ? (
+                                <div className="mt-1 flex flex-col gap-2">
+                                  <textarea
+                                    value={editingContent}
+                                    onChange={(e) => setEditingContent(e.target.value)}
+                                    className="w-full bg-white dark:bg-slate-900 border border-gray-300 dark:border-slate-600 rounded-lg p-2 text-sm text-gray-900 dark:text-white"
+                                    rows={2}
+                                  />
+                                  <div className="flex gap-2 justify-end">
+                                    <button
+                                      onClick={() => { setEditingMessageId(null); setEditingContent(''); }}
+                                      className="px-3 py-1 bg-gray-200 dark:bg-slate-700 text-gray-700 dark:text-gray-300 rounded text-xs hover:bg-gray-300 dark:hover:bg-slate-600"
+                                    >
+                                      {t('chat_cancel')}
+                                    </button>
+                                    <button
+                                      onClick={() => handleSaveEdit(msg.id)}
+                                      className="px-3 py-1 bg-blue-600 text-white rounded text-xs hover:bg-blue-700"
+                                    >
+                                      {t('chat_save')}
+                                    </button>
+                                  </div>
+                                </div>
+                              ) : (
+                                msg.content && msg.media_type !== 'audio' && (
+                                  <p className="text-sm leading-relaxed break-words whitespace-pre-wrap">{msg.content}</p>
+                                )
+                              )}
+                            </>
+                          )}
+
+                          {/* Timestamp + read receipt */}
+                          <div className={`flex items-center justify-end gap-1 mt-1 text-[10px] ${isMe ? 'text-blue-200' : isAdmin ? 'text-gray-400' : 'text-gray-400 dark:text-gray-500'
+                            }`} dir="ltr">
+                            {msg.is_edited && !msg.is_deleted && <span className="opacity-70">{t('chat_edited')}</span>}
+                            <span>{new Date(msg.created_at).toLocaleTimeString(t('locale'), { hour: '2-digit', minute: '2-digit' })}</span>
+                            {isMe && (
+                              msg.is_read ? <CheckCheck className="w-3.5 h-3.5 text-blue-200" /> : <Check className="w-3.5 h-3.5" />
+                            )}
+                          </div>
+
+                          {/* Options Button - Student controls OWN messages only within 1h */}
+                          {isMe && !msg.is_deleted && isDeletable && (
+                            <div className={`absolute top-1 ${isRTL ? 'left-1' : 'right-1'} transition-opacity ${activeMessageOptions === msg.id ? 'opacity-100' : 'opacity-0 group-hover:opacity-100'}`}>
+                              <button
+                                onClick={() => setActiveMessageOptions(activeMessageOptions === msg.id ? null : msg.id)}
+                                className="p-1 rounded-full text-blue-100 hover:text-white hover:bg-blue-700/50 transition-colors"
+                                title={t('chat_msg_options')}
+                              >
+                                <MoreVertical className="w-3.5 h-3.5" />
+                              </button>
+
+                              {activeMessageOptions === msg.id && (
+                                <div className={`absolute ${isRTL ? 'left-0' : 'right-0'} mt-1 w-36 bg-white dark:bg-slate-800 rounded-xl shadow-2xl border border-gray-200 dark:border-slate-700 z-50 overflow-hidden`}>
+                                  {/* Edit - allowed for text messages or media WITH text (except audio) */}
+                                  {msg.media_type !== 'audio' && (msg.content || !msg.media_url) && (
+                                    <button
+                                      onClick={() => handleEditClick(msg)}
+                                      className="w-full flex items-center gap-2.5 px-4 py-2.5 text-sm text-gray-700 dark:text-gray-300 hover:bg-blue-50 dark:hover:bg-blue-900/20 hover:text-blue-600 dark:hover:text-blue-400 transition-colors"
+                                    >
+                                      <Pencil className="w-3.5 h-3.5" />
+                                      <span>{t('chat_edit')}</span>
+                                    </button>
+                                  )}
+                                  <button
+                                    onClick={() => handleDeleteMessage(msg.id)}
+                                    className="w-full flex items-center gap-2.5 px-4 py-2.5 text-sm text-red-600 hover:bg-red-50 dark:hover:bg-red-900/20 transition-colors border-t border-gray-100 dark:border-slate-700"
+                                  >
+                                    <Trash2 className="w-3.5 h-3.5" />
+                                    <span>{t('chat_delete')}</span>
+                                  </button>
+                                </div>
+                              )}
+                            </div>
+                          )}
+                        </div>
+                      </div>
+
+                      {/* Spacer for my messages (no avatar on right side) */}
+                      {isMe && <div className="w-8 shrink-0" />}
+                    </FadeIn>
+                  );
+                })
+              )}
+
+              {/* Click outside to close options */}
+              {activeMessageOptions && (
+                <div
+                  className="absolute inset-0 z-40"
+                  onClick={() => setActiveMessageOptions(null)}
+                />
+              )}
+              <div ref={messagesEndRef} />
             </div>
-            <h3 className="text-xl font-bold text-gray-900 dark:text-white mb-2 font-arabic">حذف الرسالة</h3>
-            <p className="text-gray-500 dark:text-gray-400 mb-6">هل أنت متأكد من حذف هذه الرسالة نهائياً؟ لا يمكن التراجع عن هذا الإجراء.</p>
-            <div className="flex gap-3">
-              <button 
-                onClick={() => setMessageToDelete(null)}
-                className="flex-1 px-4 py-2.5 rounded-xl text-gray-700 dark:text-gray-300 bg-gray-100 dark:bg-slate-700 hover:bg-gray-200 dark:hover:bg-slate-600 font-bold transition-colors"
-              >
-                إلغاء
-              </button>
-              <button 
-                onClick={confirmDelete}
-                className="flex-1 px-4 py-2.5 rounded-xl text-white bg-red-600 hover:bg-red-700 font-bold transition-colors"
-              >
-                حذف
-              </button>
-            </div>
-          </FadeIn>
-        </div>
-      )}
+
+            {/* Input */}
+            {activeChat && (
+              <ChatInput onSendMessage={handleSendMessage} />
+            )}
+          </>
+        ) : (
+          <div className="flex-1 flex flex-col items-center justify-center opacity-50 p-6 text-center">
+            <MessageSquare className="w-24 h-24 mb-6 text-gray-400" />
+            <h2 className="text-3xl font-bold text-gray-500 font-arabic mb-2">{t('chat_welcome_title')}</h2>
+            <p className="text-gray-400 text-lg">{t('chat_welcome_desc')}</p>
+          </div>
+        )}
+      </div>
+    </div>
+
+      {/* Fullscreen Image Modal */ }
+  {
+    fullscreenImage && (
+      <div className="fixed inset-0 z-[100] bg-black/90 flex items-center justify-center p-4" onClick={() => setFullscreenImage(null)}>
+        <img src={fullscreenImage} alt="Fullscreen" className="max-w-full max-h-full object-contain" />
+        <button className="absolute top-4 right-4 text-white p-2 hover:bg-white/10 rounded-full transition-colors">
+          <X className="w-8 h-8" />
+        </button>
+      </div>
+    )
+  }
+
+  {/* Delete Confirmation Modal */ }
+  {
+    messageToDelete && (
+      <div className="fixed inset-0 z-[100] bg-black/60 flex items-center justify-center p-4">
+        <FadeIn className="bg-white dark:bg-slate-800 rounded-3xl p-6 max-w-sm w-full shadow-2xl border border-gray-100 dark:border-slate-700 text-center">
+          <div className="w-16 h-16 bg-red-100 dark:bg-red-900/30 rounded-full flex items-center justify-center mx-auto mb-4 text-red-500">
+            <Trash2 className="w-8 h-8" />
+          </div>
+          <h3 className="text-xl font-bold text-gray-900 dark:text-white mb-2 font-arabic">{t('chat_delete_msg_title')}</h3>
+          <p className="text-gray-500 dark:text-gray-400 mb-6">{t('chat_delete_msg_desc')}</p>
+          <div className="flex gap-3">
+            <button
+              onClick={() => setMessageToDelete(null)}
+              className="flex-1 px-4 py-2.5 rounded-xl text-gray-700 dark:text-gray-300 bg-gray-100 dark:bg-slate-700 hover:bg-gray-200 dark:hover:bg-slate-600 font-bold transition-colors"
+            >
+              {t('common_cancel')}
+            </button>
+            <button
+              onClick={confirmDelete}
+              className="flex-1 px-4 py-2.5 rounded-xl text-white bg-red-600 hover:bg-red-700 font-bold transition-colors"
+            >
+              {t('common_delete')}
+            </button>
+          </div>
+        </FadeIn>
+      </div>
+    )
+  }
     </>
   );
 }

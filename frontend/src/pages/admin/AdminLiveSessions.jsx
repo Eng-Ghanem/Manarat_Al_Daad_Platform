@@ -8,9 +8,11 @@ import { Link } from 'react-router-dom';
 import FadeIn from '../../components/FadeIn';
 import { supabase } from '../../lib/supabase';
 import ConfirmModal from '../../components/ConfirmModal';
+import { formatSessionTitle, formatSessionDesc, formatGradeName } from '../../utils/helpers';
 
 export default function AdminLiveSessions() {
-  const { t } = useTranslation();
+  const { t, i18n } = useTranslation();
+  const isRTL = i18n.language === 'ar';
   
   const [sessions, setSessions] = useState([]);
   const [loading, setLoading] = useState(true);
@@ -169,7 +171,7 @@ export default function AdminLiveSessions() {
       console.error('Error deleting session:', err);
       // Revert on error
       setSessions(previousSessions);
-      alert('حدث خطأ أثناء الحذف.');
+      alert(isRTL ? 'حدث خطأ أثناء الحذف.' : 'An error occurred while deleting.');
     }
   };
 
@@ -189,7 +191,7 @@ export default function AdminLiveSessions() {
       console.error('Error updating status:', err);
       // Revert if error
       setSessions(previousSessions);
-      alert('حدث خطأ أثناء تحديث حالة الحصة.');
+      alert(t('ls_update_status_error'));
     }
   };
 
@@ -229,12 +231,29 @@ export default function AdminLiveSessions() {
     return true;
   });
 
-  // Calculate statistics for the active tab
+  // Base sessions for statistics (filtered by stage, grade, and month, but NOT status)
+  const baseSessionsForStats = sessions.filter(s => {
+    if (activeTab !== 'all') {
+      if (!s.grade_level || !s.grade_level.startsWith(activeTab)) return false;
+    }
+    if (filterGrade !== 'all') {
+      if (s.grade_level !== filterGrade) return false;
+    }
+    if (filterMonth !== 'all') {
+      if (!s.start_time) return false;
+      const date = new Date(s.start_time);
+      const sMonth = `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, '0')}`;
+      if (sMonth !== filterMonth) return false;
+    }
+    return true;
+  });
+
+  // Calculate statistics for the active tab/month
   const stats = {
-    scheduled: filteredSessions.filter(s => !s.status || s.status === 'scheduled').length,
-    completed: filteredSessions.filter(s => s.status === 'completed').length,
-    canceled: filteredSessions.filter(s => s.status === 'canceled').length,
-    postponed: filteredSessions.filter(s => s.status === 'postponed').length
+    scheduled: baseSessionsForStats.filter(s => !s.status || s.status === 'scheduled').length,
+    completed: baseSessionsForStats.filter(s => s.status === 'completed').length,
+    canceled: baseSessionsForStats.filter(s => s.status === 'canceled').length,
+    postponed: baseSessionsForStats.filter(s => s.status === 'postponed').length
   };
 
   // Function to check if status can be changed
@@ -342,13 +361,13 @@ export default function AdminLiveSessions() {
             <div className="flex flex-col sm:flex-row gap-4 mb-6 bg-gray-50 dark:bg-slate-900/30 p-4 rounded-xl border border-gray-100 dark:border-slate-800">
               {activeTab !== 'all' && (
                 <div className="flex-1">
-                  <label className="block text-xs font-bold text-gray-500 dark:text-gray-400 mb-1 flex items-center gap-1"><Filter className="w-3 h-3" /> تصفية حسب الصف:</label>
+                  <label className="block text-xs font-bold text-gray-500 dark:text-gray-400 mb-1 flex items-center gap-1"><Filter className="w-3 h-3" /> {t('admin_filter_by_grade', 'تصفية حسب الصف:')}</label>
                   <select
                     value={filterGrade}
                     onChange={(e) => setFilterGrade(e.target.value)}
                     className="w-full px-4 py-2 rounded-lg bg-white dark:bg-slate-800 border border-gray-200 dark:border-slate-700 text-sm font-bold focus:ring-2 focus:ring-blue-500 text-gray-700 dark:text-gray-300"
                   >
-                    <option value="all">جميع صفوف المرحلة</option>
+                    <option value="all">{t('admin_all_grades_stage', 'جميع صفوف المرحلة')}</option>
                     {activeTab === 'primary' && (
                       <>
                         <option value="primary_1">{t('grade_primary_1')}</option>
@@ -378,13 +397,13 @@ export default function AdminLiveSessions() {
               )}
               
               <div className="flex-1">
-                <label className="block text-xs font-bold text-gray-500 dark:text-gray-400 mb-1 flex items-center gap-1"><Filter className="w-3 h-3" /> تصفية حسب الحالة:</label>
+                <label className="block text-xs font-bold text-gray-500 dark:text-gray-400 mb-1 flex items-center gap-1"><Filter className="w-3 h-3" /> {t('live_sessions_filter_status')}</label>
                 <select
                   value={filterStatus}
                   onChange={(e) => setFilterStatus(e.target.value)}
                   className="w-full px-4 py-2 rounded-lg bg-white dark:bg-slate-800 border border-gray-200 dark:border-slate-700 text-sm font-bold focus:ring-2 focus:ring-blue-500 text-gray-700 dark:text-gray-300"
                 >
-                  <option value="all">جميع الحالات</option>
+                  <option value="all">{t('live_sessions_all_statuses')}</option>
                   <option value="scheduled">{t('admin_status_scheduled')}</option>
                   <option value="completed">{t('admin_status_completed')}</option>
                   <option value="postponed">{t('admin_status_postponed')}</option>
@@ -393,13 +412,13 @@ export default function AdminLiveSessions() {
               </div>
 
               <div className="flex-1">
-                <label className="block text-xs font-bold text-gray-500 dark:text-gray-400 mb-1 flex items-center gap-1"><Calendar className="w-3 h-3" /> تصفية حسب الشهر:</label>
+                <label className="block text-xs font-bold text-gray-500 dark:text-gray-400 mb-1 flex items-center gap-1"><Calendar className="w-3 h-3" /> {t('live_sessions_filter_month')}</label>
                 <select
                   value={filterMonth}
                   onChange={(e) => setFilterMonth(e.target.value)}
                   className="w-full px-4 py-2 rounded-lg bg-white dark:bg-slate-800 border border-gray-200 dark:border-slate-700 text-sm font-bold focus:ring-2 focus:ring-blue-500 text-gray-700 dark:text-gray-300"
                 >
-                  <option value="all">جميع الشهور</option>
+                  <option value="all">{t('live_sessions_all_months')}</option>
                   {uniqueMonths.map(m => {
                     const [year, month] = m.split('-');
                     const date = new Date(year, month - 1);
@@ -410,31 +429,90 @@ export default function AdminLiveSessions() {
               </div>
             </div>
 
-            {/* Statistics */}
+            {/* Statistics - Clickable Quick Filters */}
             <div className="grid grid-cols-2 md:grid-cols-4 gap-4 mb-8">
-              <div className="bg-blue-50 dark:bg-blue-900/20 rounded-xl p-4 border border-blue-100 dark:border-blue-900/50">
-                <p className="text-blue-600 dark:text-blue-400 font-bold text-sm mb-1">{t('admin_status_scheduled')}</p>
-                <p className="text-2xl font-black text-gray-900 dark:text-white">{stats.scheduled}</p>
-              </div>
-              <div className="bg-green-50 dark:bg-green-900/20 rounded-xl p-4 border border-green-100 dark:border-green-900/50">
-                <p className="text-green-600 dark:text-green-400 font-bold text-sm mb-1">{t('admin_status_completed')}</p>
-                <p className="text-2xl font-black text-gray-900 dark:text-white">{stats.completed}</p>
-              </div>
-              <div className="bg-orange-50 dark:bg-orange-900/20 rounded-xl p-4 border border-orange-100 dark:border-orange-900/50">
-                <p className="text-orange-600 dark:text-orange-400 font-bold text-sm mb-1">{t('admin_status_postponed')}</p>
-                <p className="text-2xl font-black text-gray-900 dark:text-white">{stats.postponed}</p>
-              </div>
-              <div className="bg-red-50 dark:bg-red-900/20 rounded-xl p-4 border border-red-100 dark:border-red-900/50">
-                <p className="text-red-600 dark:text-red-400 font-bold text-sm mb-1">{t('admin_status_canceled')}</p>
-                <p className="text-2xl font-black text-gray-900 dark:text-white">{stats.canceled}</p>
-              </div>
+              <button
+                type="button"
+                onClick={() => setFilterStatus(filterStatus === 'scheduled' ? 'all' : 'scheduled')}
+                className={`rtl:text-right ltr:text-left p-4 rounded-xl border transition-all cursor-pointer ${
+                  filterStatus === 'scheduled'
+                    ? 'bg-blue-600 text-white border-blue-600 shadow-md ring-2 ring-blue-400'
+                    : 'bg-blue-50 hover:bg-blue-100/80 dark:bg-blue-900/20 dark:hover:bg-blue-900/30 border-blue-100 dark:border-blue-900/50'
+                }`}
+              >
+                <p className={`font-bold text-sm mb-1 ${filterStatus === 'scheduled' ? 'text-blue-100' : 'text-blue-600 dark:text-blue-400'}`}>{t('admin_status_scheduled')}</p>
+                <p className={`text-2xl font-black ${filterStatus === 'scheduled' ? 'text-white' : 'text-gray-900 dark:text-white'}`}>{stats.scheduled}</p>
+              </button>
+              <button
+                type="button"
+                onClick={() => setFilterStatus(filterStatus === 'completed' ? 'all' : 'completed')}
+                className={`rtl:text-right ltr:text-left p-4 rounded-xl border transition-all cursor-pointer ${
+                  filterStatus === 'completed'
+                    ? 'bg-green-600 text-white border-green-600 shadow-md ring-2 ring-green-400'
+                    : 'bg-green-50 hover:bg-green-100/80 dark:bg-green-900/20 dark:hover:bg-green-900/30 border-green-100 dark:border-green-900/50'
+                }`}
+              >
+                <p className={`font-bold text-sm mb-1 ${filterStatus === 'completed' ? 'text-green-100' : 'text-green-600 dark:text-green-400'}`}>{t('admin_status_completed')}</p>
+                <p className={`text-2xl font-black ${filterStatus === 'completed' ? 'text-white' : 'text-gray-900 dark:text-white'}`}>{stats.completed}</p>
+              </button>
+              <button
+                type="button"
+                onClick={() => setFilterStatus(filterStatus === 'postponed' ? 'all' : 'postponed')}
+                className={`rtl:text-right ltr:text-left p-4 rounded-xl border transition-all cursor-pointer ${
+                  filterStatus === 'postponed'
+                    ? 'bg-orange-600 text-white border-orange-600 shadow-md ring-2 ring-orange-400'
+                    : 'bg-orange-50 hover:bg-orange-100/80 dark:bg-orange-900/20 dark:hover:bg-orange-900/30 border-orange-100 dark:border-orange-900/50'
+                }`}
+              >
+                <p className={`font-bold text-sm mb-1 ${filterStatus === 'postponed' ? 'text-orange-100' : 'text-orange-600 dark:text-orange-400'}`}>{t('admin_status_postponed')}</p>
+                <p className={`text-2xl font-black ${filterStatus === 'postponed' ? 'text-white' : 'text-gray-900 dark:text-white'}`}>{stats.postponed}</p>
+              </button>
+              <button
+                type="button"
+                onClick={() => setFilterStatus(filterStatus === 'canceled' ? 'all' : 'canceled')}
+                className={`rtl:text-right ltr:text-left p-4 rounded-xl border transition-all cursor-pointer ${
+                  filterStatus === 'canceled'
+                    ? 'bg-red-600 text-white border-red-600 shadow-md ring-2 ring-red-400'
+                    : 'bg-red-50 hover:bg-red-100/80 dark:bg-red-900/20 dark:hover:bg-red-900/30 border-red-100 dark:border-red-900/50'
+                }`}
+              >
+                <p className={`font-bold text-sm mb-1 ${filterStatus === 'canceled' ? 'text-red-100' : 'text-red-600 dark:text-red-400'}`}>{t('admin_status_canceled')}</p>
+                <p className={`text-2xl font-black ${filterStatus === 'canceled' ? 'text-white' : 'text-gray-900 dark:text-white'}`}>{stats.canceled}</p>
+              </button>
+            </div>
+
+            {/* List Header */}
+            <div className="flex items-center justify-between mb-4 pb-3 border-b border-gray-100 dark:border-slate-700">
+              <h3 className="font-bold text-lg text-gray-900 dark:text-white flex items-center gap-2">
+                {filterStatus === 'scheduled' && t('ls_scheduled')}
+                {filterStatus === 'completed' && t('ls_completed')}
+                {filterStatus === 'postponed' && t('ls_postponed')}
+                {filterStatus === 'canceled' && t('ls_canceled')}
+                {filterStatus === 'all' && (isRTL ? 'جميع الحصص' : 'All Sessions')}
+                <span className="text-xs font-bold px-2.5 py-0.5 rounded-full bg-blue-100 dark:bg-blue-900/40 text-blue-700 dark:text-blue-300">
+                  {filteredSessions.length}
+                </span>
+              </h3>
+              {filterStatus !== 'all' && (
+                <button
+                  type="button"
+                  onClick={() => setFilterStatus('all')}
+                  className="text-xs font-bold text-blue-600 dark:text-blue-400 hover:underline cursor-pointer"
+                >
+                  {t('ls_view_all_statuses')}
+                </button>
+              )}
             </div>
 
             {filteredSessions.length === 0 ? (
               <div className="text-center py-16 bg-gray-50 dark:bg-slate-900/30 rounded-2xl border-2 border-dashed border-gray-200 dark:border-slate-700 mb-6">
                 <Video className="w-16 h-16 text-gray-300 dark:text-slate-600 mx-auto mb-4" />
-                <h3 className="text-xl font-bold text-gray-900 dark:text-white mb-2">{t('admin_no_sessions_found')}</h3>
-                <p className="text-gray-500 dark:text-gray-400">{t('admin_no_sessions_desc')}</p>
+                <h3 className="text-xl font-bold text-gray-900 dark:text-white mb-2">
+                  {filterStatus !== 'all' ? t('ls_no_filtered_sessions') : t('admin_no_sessions_found')}
+                </h3>
+                <p className="text-gray-500 dark:text-gray-400">
+                  {filterStatus !== 'all' ? t('ls_no_filtered_sessions_desc') : t('admin_no_sessions_desc')}
+                </p>
               </div>
             ) : (
               <div className="grid gap-6">
@@ -442,10 +520,10 @@ export default function AdminLiveSessions() {
                   <div key={session.id} className="flex flex-col lg:flex-row items-center justify-between p-6 rounded-2xl bg-gray-50 dark:bg-slate-900/50 border border-gray-100 dark:border-slate-700 hover:border-blue-300 transition-colors">
                     <div className="w-full lg:w-2/3">
                       <div className="flex items-center gap-3 mb-2">
-                        <h3 className="text-xl font-bold text-gray-900 dark:text-white">{session.title}</h3>
+                        <h3 className="text-xl font-bold text-gray-900 dark:text-white">{formatSessionTitle(session.title)}</h3>
                         {renderStatusBadge(session.status)}
                       </div>
-                      <p className="text-gray-600 dark:text-gray-400 mb-4">{session.description}</p>
+                      <p className="text-gray-600 dark:text-gray-400 mb-4">{formatSessionDesc(session.description)}</p>
                       
                       <div className="flex flex-wrap gap-4 text-sm">
                         <div className="flex items-center gap-1.5 text-gray-700 dark:text-gray-300 bg-white dark:bg-slate-800 px-4 py-2 rounded-xl shadow-sm border border-gray-100 dark:border-slate-700">
@@ -460,7 +538,7 @@ export default function AdminLiveSessions() {
                         </div>
                         <div className="flex items-center gap-1.5 text-gray-700 dark:text-gray-300 bg-white dark:bg-slate-800 px-4 py-2 rounded-xl shadow-sm border border-gray-100 dark:border-slate-700">
                           {session.grade_level ? (
-                            <><BookOpen className="w-4 h-4 text-green-600" /> {t(`grade_${session.grade_level}`)}</>
+                            <><BookOpen className="w-4 h-4 text-green-600" /> {formatGradeName(session.grade_level)}</>
                           ) : (
                             <><Users className="w-4 h-4 text-purple-600" /> {t('admin_general_for_all')}</>
                           )}
@@ -498,7 +576,7 @@ export default function AdminLiveSessions() {
                       {/* Status controls */}
                       {canChangeStatus(session.end_time) && (
                         <div className="flex flex-col sm:flex-row items-center sm:justify-end gap-2 w-full mt-4 bg-white dark:bg-slate-900 p-3 sm:p-0 rounded-xl sm:bg-transparent border border-gray-100 sm:border-none dark:border-slate-700 shadow-sm sm:shadow-none">
-                          <span className="text-sm text-gray-500 dark:text-gray-400 font-bold self-start sm:self-auto">تغيير الحالة:</span>
+                          <span className="text-sm text-gray-500 dark:text-gray-400 font-bold self-start sm:self-auto">{t('ls_change_status')}</span>
                           <select
                             value={session.status || 'scheduled'}
                             onChange={(e) => updateSessionStatus(session.id, e.target.value)}
@@ -652,7 +730,7 @@ export default function AdminLiveSessions() {
         onClose={() => setDeleteModal({ isOpen: false, id: null })}
         onConfirm={confirmDelete}
         title={t('admin_delete')}
-        message="هل أنت متأكد من حذف هذه الحصة؟"
+        message={t('ls_delete_confirm')}
         confirmText={t('admin_delete')}
         cancelText={t('admin_cancel')}
         isDanger={true}

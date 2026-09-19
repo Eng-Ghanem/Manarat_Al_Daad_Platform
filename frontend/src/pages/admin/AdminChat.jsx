@@ -8,7 +8,8 @@ import FadeIn from '../../components/FadeIn';
 import ChatInput from '../../components/ChatInput';
 
 export default function AdminChat() {
-  const { t } = useTranslation();
+  const { t, i18n } = useTranslation();
+  const isRTL = i18n.language === 'ar';
   const { user, profile } = useAuth();
 
   const [students, setStudents] = useState([]);
@@ -24,6 +25,7 @@ export default function AdminChat() {
   const [fullscreenImage, setFullscreenImage] = useState(null);
   const [messageToDelete, setMessageToDelete] = useState(null);
   const messagesEndRef = useRef(null);
+  const messagesContainerRef = useRef(null);
 
   const grades = [
     { id: 'primary_1', name: t('grade_primary_1') },
@@ -114,8 +116,13 @@ export default function AdminChat() {
     scrollToBottom();
   }, [messages]);
 
-  const scrollToBottom = () => {
-    messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
+  const scrollToBottom = (behavior = 'smooth') => {
+    if (messagesContainerRef.current) {
+      messagesContainerRef.current.scrollTo({
+        top: messagesContainerRef.current.scrollHeight,
+        behavior
+      });
+    }
   };
 
   const fetchStudents = async () => {
@@ -159,6 +166,7 @@ export default function AdminChat() {
 
   const handleSelectChat = (type, id, name) => {
     setActiveChat({ type, id, name });
+    window.scrollTo({ top: 0, behavior: 'instant' });
     setUnreadCounts(prev => {
       const newCounts = { ...prev };
       delete newCounts[id];
@@ -266,11 +274,11 @@ export default function AdminChat() {
     return Math.abs(hash) % nameColors.length;
   };
   const getSenderName = (msg) => {
-    if (msg.sender_id === user.id) return profile?.full_name || 'الإدارة';
-    return msg.sender?.full_name || 'مستخدم';
+    if (msg.sender_id === user.id) return profile?.full_name || t('chat_admin_sender');
+    return msg.sender?.full_name || t('chat_user');
   };
   const getSenderLabel = (msg) => {
-    if (msg.sender_id === user.id) return 'أنت';
+    if (msg.sender_id === user.id) return t('chat_you');
     return null;
   };
 
@@ -281,7 +289,7 @@ export default function AdminChat() {
       {/* Sidebar */}
       <div className={`w-full lg:w-80 bg-white dark:bg-slate-800 flex flex-col border-l border-gray-200 dark:border-slate-700 shrink-0 transition-transform ${activeChat ? 'hidden lg:flex' : 'flex'}`}>
         <div className="p-4 border-b border-gray-100 dark:border-slate-700 bg-white/50 dark:bg-slate-800/50 backdrop-blur-md">
-          <h2 className="text-xl font-bold font-arabic text-gray-900 dark:text-white mb-4">المحادثات</h2>
+          <h2 className="text-xl font-bold font-arabic text-gray-900 dark:text-white mb-4">{t('chat_sidebar_title')}</h2>
 
           {/* Tabs */}
           <div className="flex bg-gray-100 dark:bg-slate-900 rounded-xl p-1 mb-4 relative">
@@ -289,7 +297,7 @@ export default function AdminChat() {
               onClick={() => setSidebarTab('general')}
               className={`relative flex-1 py-2 text-sm font-bold rounded-lg transition-colors ${sidebarTab === 'general' ? 'bg-white dark:bg-slate-700 text-blue-600 dark:text-blue-400 shadow-sm' : 'text-gray-500 hover:text-gray-700 dark:hover:text-gray-300'}`}
             >
-              عامة
+              {t('chat_tab_general')}
               {Object.keys(unreadCounts).some(key => grades.some(g => g.id === key)) && (
                 <span className="absolute top-2 left-2 w-2 h-2 bg-red-500 rounded-full animate-pulse"></span>
               )}
@@ -298,7 +306,7 @@ export default function AdminChat() {
               onClick={() => setSidebarTab('private')}
               className={`relative flex-1 py-2 text-sm font-bold rounded-lg transition-colors ${sidebarTab === 'private' ? 'bg-white dark:bg-slate-700 text-blue-600 dark:text-blue-400 shadow-sm' : 'text-gray-500 hover:text-gray-700 dark:hover:text-gray-300'}`}
             >
-              خاصة
+              {t('chat_tab_private')}
               {Object.keys(unreadCounts).some(key => !grades.some(g => g.id === key)) && (
                 <span className="absolute top-2 left-2 w-2 h-2 bg-red-500 rounded-full animate-pulse"></span>
               )}
@@ -310,7 +318,7 @@ export default function AdminChat() {
               <Search className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-400 w-4 h-4" />
               <input
                 type="text"
-                placeholder="ابحث عن طالب..."
+                placeholder={t('chat_search_student_ph')}
                 value={searchQuery}
                 onChange={(e) => setSearchQuery(e.target.value)}
                 className="w-full pr-10 pl-4 py-2 bg-gray-50 dark:bg-slate-900 border border-gray-200 dark:border-slate-700 rounded-xl text-sm focus:ring-2 focus:ring-blue-500 outline-none text-gray-900 dark:text-white"
@@ -324,7 +332,7 @@ export default function AdminChat() {
             <div className="space-y-6">
               {/* Primary */}
               <div>
-                <h3 className="px-3 text-xs font-bold text-gray-400 dark:text-slate-500 mb-2 uppercase tracking-wider">المرحلة الابتدائية</h3>
+                <h3 className="px-3 text-xs font-bold text-gray-400 dark:text-slate-500 mb-2 uppercase tracking-wider">{t('chat_primary_stage')}</h3>
                 <div className="space-y-1">
                   {grades.filter(g => g.id.startsWith('primary')).map(grade => (
                     <button
@@ -348,7 +356,7 @@ export default function AdminChat() {
 
               {/* Preparatory */}
               <div>
-                <h3 className="px-3 text-xs font-bold text-gray-400 dark:text-slate-500 mb-2 uppercase tracking-wider">المرحلة الإعدادية</h3>
+                <h3 className="px-3 text-xs font-bold text-gray-400 dark:text-slate-500 mb-2 uppercase tracking-wider">{t('chat_prep_stage')}</h3>
                 <div className="space-y-1">
                   {grades.filter(g => g.id.startsWith('prep')).map(grade => (
                     <button
@@ -372,7 +380,7 @@ export default function AdminChat() {
 
               {/* Secondary */}
               <div>
-                <h3 className="px-3 text-xs font-bold text-gray-400 dark:text-slate-500 mb-2 uppercase tracking-wider">المرحلة الثانوية</h3>
+                <h3 className="px-3 text-xs font-bold text-gray-400 dark:text-slate-500 mb-2 uppercase tracking-wider">{t('chat_sec_stage')}</h3>
                 <div className="space-y-1">
                   {grades.filter(g => g.id.startsWith('sec')).map(grade => (
                     <button
@@ -402,14 +410,14 @@ export default function AdminChat() {
                 {filteredStudents.map(student => (
                   <button
                     key={student.id}
-                    onClick={() => handleSelectChat('private', student.id, student.full_name || 'طالب')}
+                    onClick={() => handleSelectChat('private', student.id, student.full_name || t('chat_student_default'))}
                     className={`w-full flex items-center gap-3 px-3 py-3 rounded-xl transition-colors relative ${activeChat?.id === student.id ? 'bg-blue-50 dark:bg-blue-900/40 text-blue-700 dark:text-blue-400' : 'hover:bg-gray-50 dark:hover:bg-slate-700/50 text-gray-700 dark:text-gray-300'}`}
                   >
                     <div className="w-8 h-8 rounded-full bg-gradient-to-tr from-blue-600 to-indigo-600 flex items-center justify-center text-white font-bold text-sm shrink-0">
                       {student.full_name?.charAt(0) || <UserIcon className="w-4 h-4" />}
                     </div>
-                    <div className="text-right flex-1 min-w-0 pr-2">
-                      <h4 className="font-bold text-sm truncate">{student.full_name || 'بدون اسم'}</h4>
+                    <div className="rtl:text-right ltr:text-left flex-1 min-w-0 pr-2">
+                      <h4 className="font-bold text-sm truncate">{student.full_name || t('chat_nameless_default')}</h4>
                       {student.grade_level && <p className="text-xs opacity-70 truncate">{t(`grade_${student.grade_level}`)}</p>}
                     </div>
                     {unreadCounts[student.id] > 0 && (
@@ -418,7 +426,7 @@ export default function AdminChat() {
                   </button>
                 ))}
                 {filteredStudents.length === 0 && (
-                  <p className="text-center text-gray-500 dark:text-gray-400 text-sm py-4">لا يوجد طلاب مطابقين</p>
+                  <p className="text-center text-gray-500 dark:text-gray-400 text-sm py-4">{t('chat_no_matching_students')}</p>
                 )}
               </div>
             </div>
@@ -450,13 +458,13 @@ export default function AdminChat() {
               <div>
                 <h2 className="font-bold text-gray-900 dark:text-white text-lg">{activeChat.name}</h2>
                 <p className="text-xs text-gray-500 dark:text-gray-400">
-                  {activeChat.type === 'general' ? 'محادثة عامة لكل طلاب الصف' : 'محادثة خاصة'}
+                  {activeChat.type === 'general' ? t('chat_general_desc') : t('chat_private_desc')}
                 </p>
               </div>
             </div>
 
             {/* Messages */}
-            <div className="flex-1 overflow-y-auto p-6 space-y-4" style={{ backgroundImage: 'url("https://www.transparenttextures.com/patterns/cubes.png")', backgroundBlendMode: 'overlay' }}>
+            <div ref={messagesContainerRef} className="flex-1 overflow-y-auto p-6 space-y-4" style={{ backgroundImage: 'url("https://www.transparenttextures.com/patterns/cubes.png")', backgroundBlendMode: 'overlay' }}>
               {loading ? (
                 <div className="flex justify-center py-10">
                   <Loader className="w-8 h-8 animate-spin text-blue-500" />
@@ -516,7 +524,7 @@ export default function AdminChat() {
                                   {senderName}
                                 </span>
                                 {isMe && (
-                                  <span className="text-[10px] text-purple-200/80 bg-black/10 px-1.5 rounded-full shadow-sm">• الإدارة</span>
+                                  <span className="text-[10px] text-purple-200/80 bg-black/10 px-1.5 rounded-full shadow-sm">• {t('chat_admin_sender')}</span>
                                 )}
                               </div>
                             );
@@ -525,7 +533,7 @@ export default function AdminChat() {
                           {msg.is_deleted ? (
                             <div className={`flex items-center gap-2 text-sm italic py-1 ${isMe ? 'text-blue-200' : 'text-gray-400 dark:text-gray-500'}`}>
                               <Ban className="w-3.5 h-3.5" />
-                              <span>{msg.deleted_by && msg.deleted_by !== msg.sender_id ? 'تم حذف هذه الرسالة بواسطة الإدارة' : 'تم حذف هذه الرسالة'}</span>
+                              <span>{msg.deleted_by && msg.deleted_by !== msg.sender_id ? t('chat_msg_deleted_admin') : t('chat_msg_deleted')}</span>
                             </div>
                           ) : (
                             <>
@@ -551,8 +559,8 @@ export default function AdminChat() {
                                         <FileText className="w-5 h-5" />
                                       </div>
                                       <div className="flex-1 min-w-0">
-                                        <p className={`text-sm font-bold truncate ${isMe ? 'text-white' : 'text-gray-900 dark:text-white'}`}>ملف مرفق</p>
-                                        <p className={`text-xs ${isMe ? 'text-blue-200' : 'text-gray-500 dark:text-gray-400'}`}>اضغط للفتح</p>
+                                        <p className={`text-sm font-bold truncate ${isMe ? 'text-white' : 'text-gray-900 dark:text-white'}`}>{t('chat_attachment')}</p>
+                                        <p className={`text-xs ${isMe ? 'text-blue-200' : 'text-gray-500 dark:text-gray-400'}`}>{t('chat_click_to_open')}</p>
                                       </div>
                                     </a>
                                   )}
@@ -572,13 +580,13 @@ export default function AdminChat() {
                                       onClick={() => { setEditingMessageId(null); setEditingContent(''); }}
                                       className="px-3 py-1 bg-gray-200 dark:bg-slate-700 text-gray-700 dark:text-gray-300 rounded text-xs hover:bg-gray-300 dark:hover:bg-slate-600"
                                     >
-                                      إلغاء
+                                      {t('chat_cancel')}
                                     </button>
                                     <button
                                       onClick={() => handleSaveEdit(msg.id)}
                                       className="px-3 py-1 bg-blue-600 text-white rounded text-xs hover:bg-blue-700"
                                     >
-                                      حفظ
+                                      {t('chat_save')}
                                     </button>
                                   </div>
                                 </div>
@@ -592,7 +600,7 @@ export default function AdminChat() {
 
                           {/* Timestamp + read receipt */}
                           <div className={`flex items-center justify-end gap-1 mt-1 text-[10px] ${isMe ? 'text-blue-200' : 'text-gray-400 dark:text-gray-500'}`} dir="ltr">
-                            {msg.is_edited && !msg.is_deleted && <span className="opacity-70">(معدلة)</span>}
+                            {msg.is_edited && !msg.is_deleted && <span className="opacity-70">{t('chat_edited')}</span>}
                             <span>{new Date(msg.created_at).toLocaleTimeString(t('locale'), { hour: '2-digit', minute: '2-digit' })}</span>
                             {isMe && (
                               msg.is_read ? <CheckCheck className="w-3.5 h-3.5 text-blue-200" /> : <Check className="w-3.5 h-3.5" />
@@ -601,17 +609,17 @@ export default function AdminChat() {
 
                           {/* Options Button - Admin controls ALL messages within 1h */}
                           {!msg.is_deleted && isDeletable && (
-                            <div className={`absolute top-1 ${isMe ? 'left-1' : 'right-1'} transition-opacity ${activeMessageOptions === msg.id ? 'opacity-100' : 'opacity-0 group-hover:opacity-100'}`}>
+                            <div className={`absolute top-1 ${isMe ? (isRTL ? 'left-1' : 'right-1') : (isRTL ? 'right-1' : 'left-1')} transition-opacity ${activeMessageOptions === msg.id ? 'opacity-100' : 'opacity-0 group-hover:opacity-100'}`}>
                               <button
                                 onClick={() => setActiveMessageOptions(activeMessageOptions === msg.id ? null : msg.id)}
                                 className={`p-1 rounded-full transition-colors ${isMe ? 'text-blue-100 hover:text-white hover:bg-blue-700/50' : 'text-gray-400 hover:text-gray-700 dark:hover:text-gray-200 hover:bg-gray-100 dark:hover:bg-slate-700'}`}
-                                title="خيارات الرسالة"
+                                title={t('chat_msg_options')}
                               >
                                 <MoreVertical className="w-3.5 h-3.5" />
                               </button>
 
                               {activeMessageOptions === msg.id && (
-                                <div className={`absolute mt-1 w-36 bg-white dark:bg-slate-800 rounded-xl shadow-2xl border border-gray-200 dark:border-slate-700 z-50 overflow-hidden ${isMe ? 'left-0' : 'right-0'}`}>
+                                <div className={`absolute mt-1 w-36 bg-white dark:bg-slate-800 rounded-xl shadow-2xl border border-gray-200 dark:border-slate-700 z-50 overflow-hidden ${isMe ? (isRTL ? 'left-0' : 'right-0') : (isRTL ? 'right-0' : 'left-0')}`}>
                                   {/* Edit - allowed only for MY text messages or media WITH text (except audio) */}
                                   {isMe && msg.media_type !== 'audio' && (msg.content || !msg.media_url) && (
                                     <button
@@ -619,8 +627,8 @@ export default function AdminChat() {
                                       className="w-full flex items-center gap-2.5 px-4 py-2.5 text-sm text-gray-700 dark:text-gray-300 hover:bg-blue-50 dark:hover:bg-blue-900/20 hover:text-blue-600 dark:hover:text-blue-400 transition-colors"
                                     >
                                       <Pencil className="w-3.5 h-3.5" />
-                                      <span>تعديل</span>
-                                      {!isMe && <span className="mr-auto text-[10px] text-orange-400 font-bold">إدارة</span>}
+                                      <span>{t('chat_edit')}</span>
+                                      {!isMe && <span className={`mr-auto text-[10px] text-orange-400 font-bold`}>{t('chat_admin_sender')}</span>}
                                     </button>
                                   )}
                                   <button
@@ -628,8 +636,8 @@ export default function AdminChat() {
                                     className="w-full flex items-center gap-2.5 px-4 py-2.5 text-sm text-red-600 hover:bg-red-50 dark:hover:bg-red-900/20 transition-colors border-t border-gray-100 dark:border-slate-700"
                                   >
                                     <Trash2 className="w-3.5 h-3.5" />
-                                    <span>حذف</span>
-                                    {!isMe && <span className="mr-auto text-[10px] text-orange-400 font-bold">إدارة</span>}
+                                    <span>{t('chat_delete')}</span>
+                                    {!isMe && <span className={`mr-auto text-[10px] text-orange-400 font-bold`}>{t('chat_admin_sender')}</span>}
                                   </button>
                                 </div>
                               )}
@@ -661,7 +669,7 @@ export default function AdminChat() {
         ) : (
           <div className="flex-1 flex flex-col items-center justify-center opacity-50">
             <MessageSquare className="w-20 h-20 mb-4 text-gray-400" />
-            <h2 className="text-2xl font-bold text-gray-500">اختر محادثة للبدء</h2>
+            <h2 className="text-2xl font-bold text-gray-500">{t('chat_select_to_start')}</h2>
           </div>
         )}
       </div>
@@ -684,20 +692,20 @@ export default function AdminChat() {
             <div className="w-16 h-16 bg-red-100 dark:bg-red-900/30 rounded-full flex items-center justify-center mx-auto mb-4 text-red-500">
               <Trash2 className="w-8 h-8" />
             </div>
-            <h3 className="text-xl font-bold text-gray-900 dark:text-white mb-2 font-arabic">حذف الرسالة</h3>
-            <p className="text-gray-500 dark:text-gray-400 mb-6">هل أنت متأكد من حذف هذه الرسالة نهائياً؟ لا يمكن التراجع عن هذا الإجراء.</p>
+            <h3 className="text-xl font-bold text-gray-900 dark:text-white mb-2 font-arabic">{t('chat_delete_msg_title')}</h3>
+            <p className="text-gray-500 dark:text-gray-400 mb-6">{t('chat_delete_msg_desc')}</p>
             <div className="flex gap-3">
               <button
                 onClick={() => setMessageToDelete(null)}
                 className="flex-1 px-4 py-2.5 rounded-xl text-gray-700 dark:text-gray-300 bg-gray-100 dark:bg-slate-700 hover:bg-gray-200 dark:hover:bg-slate-600 font-bold transition-colors"
               >
-                إلغاء
+                {t('common_cancel')}
               </button>
               <button
                 onClick={confirmDelete}
                 className="flex-1 px-4 py-2.5 rounded-xl text-white bg-red-600 hover:bg-red-700 font-bold transition-colors"
               >
-                حذف
+                {t('common_delete')}
               </button>
             </div>
           </FadeIn>

@@ -8,10 +8,12 @@ import {
 import { supabase } from '../lib/supabase';
 import { useAuth } from '../context/AuthContext';
 import FadeIn from '../components/FadeIn';
+import { formatQuizTitle, formatCourseTitle, formatGradeName } from '../utils/helpers';
 
 export default function StudentQuizzes() {
   const { profile } = useAuth();
-  const { t } = useTranslation();
+  const { t, i18n } = useTranslation();
+  const isRTL = i18n.language === 'ar';
   
   const [quizzes, setQuizzes] = useState([]);
   const [loading, setLoading] = useState(true);
@@ -128,19 +130,19 @@ export default function StudentQuizzes() {
         
         {/* Header */}
         <FadeIn>
-          <div className="bg-white dark:bg-slate-800 rounded-3xl p-8 shadow-sm border border-gray-100 dark:border-slate-700/50 mb-8 flex flex-col md:flex-row items-center justify-between gap-6 relative overflow-hidden">
+          <div className="bg-white dark:bg-slate-800 rounded-3xl p-5 sm:p-8 shadow-sm border border-gray-100 dark:border-slate-700/50 mb-8 flex flex-col md:flex-row items-center justify-between gap-6 relative overflow-hidden">
             <div className="absolute top-0 right-0 w-64 h-64 bg-pink-500/10 blur-[80px] rounded-full pointer-events-none"></div>
             
-            <div className="flex items-center gap-6 relative z-10">
-              <div className="w-20 h-20 rounded-full bg-pink-100 dark:bg-pink-900/50 flex items-center justify-center border-4 border-white dark:border-slate-700 shadow-md">
-                <ClipboardList className="w-10 h-10 text-pink-600 dark:text-pink-400" />
+            <div className="flex items-center gap-4 sm:gap-6 relative z-10 w-full sm:w-auto">
+              <div className="w-14 h-14 sm:w-20 sm:h-20 rounded-2xl sm:rounded-full bg-pink-100 dark:bg-pink-900/50 flex items-center justify-center border-2 sm:border-4 border-white dark:border-slate-700 shadow-md shrink-0">
+                <ClipboardList className="w-7 h-7 sm:w-10 sm:h-10 text-pink-600 dark:text-pink-400" />
               </div>
               <div>
-                <h1 className="text-3xl font-extrabold text-gray-900 dark:text-white tracking-tight mb-2">
-                  الامتحانات
+                <h1 className="text-2xl sm:text-3xl font-extrabold text-gray-900 dark:text-white tracking-tight mb-1 sm:mb-2">
+                  {t('student_quizzes_title')}
                 </h1>
-                <p className="text-gray-500 dark:text-gray-400">
-                  اختبر معلوماتك وتابع تقدمك الدراسي
+                <p className="text-sm sm:text-base text-gray-500 dark:text-gray-400">
+                  {t('student_quizzes_subtitle')}
                 </p>
               </div>
             </div>
@@ -158,7 +160,7 @@ export default function StudentQuizzes() {
                   : 'text-gray-600 dark:text-gray-400 hover:bg-gray-50 dark:hover:bg-slate-700/50'
               }`}
             >
-              الامتحانات المتاحة
+              {t('student_quizzes_tab_available')}
               {availableQuizzes.length > 0 && activeTab !== 'available' && (
                 <span className="ml-2 inline-flex items-center justify-center w-5 h-5 rounded-full bg-red-500 text-white text-xs">
                   {availableQuizzes.length}
@@ -173,19 +175,19 @@ export default function StudentQuizzes() {
                   : 'text-gray-600 dark:text-gray-400 hover:bg-gray-50 dark:hover:bg-slate-700/50'
               }`}
             >
-              الامتحانات المنجزة
+              {t('student_quizzes_tab_completed')}
             </button>
           </div>
 
           <div className="relative w-full md:w-72">
             <input
               type="text"
-              placeholder="ابحث عن امتحان..."
+              placeholder={t('quiz_search_ph')}
               value={searchQuery}
               onChange={(e) => setSearchQuery(e.target.value)}
-              className="w-full pl-10 pr-12 py-3 bg-white dark:bg-slate-800 border border-gray-200 dark:border-slate-700 rounded-xl focus:ring-2 focus:ring-blue-500 outline-none text-gray-900 dark:text-white"
+              className={`w-full ${isRTL ? 'pl-10 pr-12' : 'pr-10 pl-12'} py-3 bg-white dark:bg-slate-800 border border-gray-200 dark:border-slate-700 rounded-xl focus:ring-2 focus:ring-blue-500 outline-none text-gray-900 dark:text-white`}
             />
-            <Search className="absolute right-4 top-1/2 -translate-y-1/2 text-gray-400 w-5 h-5" />
+            <Search className={`absolute ${isRTL ? 'right-4' : 'left-4'} top-1/2 -translate-y-1/2 text-gray-400 w-5 h-5`} />
           </div>
         </div>
 
@@ -200,14 +202,12 @@ export default function StudentQuizzes() {
               {activeTab === 'available' ? (
                 <>
                   <CheckCircle className="w-20 h-20 text-green-400 dark:text-green-500 mx-auto mb-4" />
-                  <h3 className="text-2xl font-bold text-gray-900 dark:text-white mb-2">أنت رائع!</h3>
-                  <p className="text-gray-500 dark:text-gray-400">لقد أتممت جميع الامتحانات المتاحة لك حالياً.</p>
+                  <h3 className="text-2xl font-bold text-gray-900 dark:text-white mb-2">{t('quiz_all_completed_title')}</h3>
                 </>
               ) : (
                 <>
                   <AlertCircle className="w-20 h-20 text-gray-300 dark:text-slate-600 mx-auto mb-4" />
-                  <h3 className="text-2xl font-bold text-gray-900 dark:text-white mb-2">لا توجد إنجازات بعد</h3>
-                  <p className="text-gray-500 dark:text-gray-400">قم بأداء الامتحانات المتاحة لتظهر نتائجك هنا.</p>
+                  <h3 className="text-2xl font-bold text-gray-900 dark:text-white mb-2">{t('quiz_no_achievements_title')}</h3>
                 </>
               )}
             </div>
@@ -219,17 +219,17 @@ export default function StudentQuizzes() {
                 <div className="bg-white dark:bg-slate-800 rounded-3xl p-6 shadow-sm border border-gray-100 dark:border-slate-700/50 hover:shadow-md transition-shadow group flex flex-col h-full relative overflow-hidden">
                   
                   {activeTab === 'completed' && quiz.submission && (
-                    <div className="absolute -left-10 top-6 rotate-[-45deg] bg-green-500 text-white font-bold text-xs py-1 px-10 shadow-md">
-                      تم التسليم
+                    <div className={`absolute ${isRTL ? '-left-10 rotate-[-45deg]' : '-right-10 rotate-[45deg]'} top-6 bg-green-500 text-white font-bold text-xs py-1 px-10 shadow-md`}>
+                      {t('quiz_submitted_badge')}
                     </div>
                   )}
 
                   <div className="mb-4">
                     <span className="inline-block px-3 py-1 bg-gray-100 dark:bg-slate-700 text-gray-600 dark:text-gray-300 rounded-full text-xs font-bold mb-3">
-                      {quiz.course?.title || quiz.grade_level || 'عام'}
+                      {quiz.course?.title ? formatCourseTitle(quiz.course.title) : (quiz.grade_level ? formatGradeName(quiz.grade_level) : t('quiz_general_target'))}
                     </span>
                     <h3 className="text-xl font-bold text-gray-900 dark:text-white line-clamp-2">
-                      {quiz.title}
+                      {formatQuizTitle(quiz.title)}
                     </h3>
                     {quiz.description && (
                       <p className="text-sm text-gray-500 dark:text-gray-400 mt-2 line-clamp-2">
@@ -241,16 +241,16 @@ export default function StudentQuizzes() {
                   <div className="mt-auto space-y-3 mb-6">
                     <div className="flex items-center gap-2 text-sm text-gray-600 dark:text-gray-400">
                       <ClipboardList className="w-4 h-4 text-pink-500" />
-                      <span>{quiz.questionCount} سؤال</span>
+                      <span>{quiz.questionCount} {t('quiz_questions_unit')}</span>
                     </div>
                     <div className="flex items-center gap-2 text-sm text-gray-600 dark:text-gray-400">
                       <Clock className="w-4 h-4 text-blue-500" />
-                      <span>{quiz.duration_minutes ? `${quiz.duration_minutes} دقيقة` : 'بدون وقت محدد'}</span>
+                      <span>{quiz.duration_minutes ? `${quiz.duration_minutes} ${t('quiz_minutes_unit')}` : t('quiz_no_timer')}</span>
                     </div>
                     
                     {activeTab === 'completed' && quiz.submission && (
                       <div className="flex items-center justify-between p-3 bg-gray-50 dark:bg-slate-900 rounded-xl mt-4">
-                        <span className="text-sm font-bold text-gray-600 dark:text-gray-400">النتيجة:</span>
+                        <span className="text-sm font-bold text-gray-600 dark:text-gray-400">{t('quiz_score_label')}</span>
                         <div className="font-bold text-lg">
                           <span className={quiz.submission.score / quiz.submission.total_marks >= 0.5 ? 'text-green-600' : 'text-red-600'}>
                             {quiz.submission.score}
@@ -268,7 +268,7 @@ export default function StudentQuizzes() {
                       className="flex items-center justify-center gap-2 w-full py-3 bg-blue-50 dark:bg-blue-900/20 hover:bg-blue-600 text-blue-600 hover:text-white dark:text-blue-400 rounded-xl font-bold transition-colors group-hover:shadow-md"
                     >
                       <PlayCircle className="w-5 h-5" />
-                      بدأ الامتحان
+                      {t('quiz_start_btn')}
                     </Link>
                   ) : (
                     <Link 
@@ -276,7 +276,7 @@ export default function StudentQuizzes() {
                       className="flex items-center justify-center gap-2 w-full py-3 bg-gray-100 dark:bg-slate-700 hover:bg-gray-200 dark:hover:bg-slate-600 text-gray-700 dark:text-gray-200 rounded-xl font-bold transition-colors group-hover:shadow-md"
                     >
                       <CheckCircle className="w-5 h-5 text-green-500" />
-                      عرض تفاصيل النتيجة
+                      {t('quiz_view_result_btn')}
                     </Link>
                   )}
                 </div>

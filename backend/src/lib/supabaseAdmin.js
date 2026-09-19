@@ -1,7 +1,13 @@
+require('dns').setDefaultResultOrder('ipv4first');
 const { createClient } = require('@supabase/supabase-js');
 const dotenv = require('dotenv');
+const path = require('path');
 
-dotenv.config({ path: '../../.env' }); // Load from root
+// Load environment variables from project root (.env)
+dotenv.config({ path: path.resolve(__dirname, '../../../.env') });
+// Fallback if launched from backend directory or another location
+dotenv.config({ path: path.resolve(process.cwd(), '../.env') });
+dotenv.config({ path: path.resolve(process.cwd(), '.env') });
 
 const supabaseUrl = process.env.SUPABASE_URL;
 const supabaseServiceKey = process.env.SUPABASE_SERVICE_ROLE_KEY;

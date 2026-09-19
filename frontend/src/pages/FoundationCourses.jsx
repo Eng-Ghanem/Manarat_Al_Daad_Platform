@@ -1,23 +1,62 @@
 import { useState, useEffect } from 'react';
 import { motion } from 'framer-motion';
 import { useTranslation } from 'react-i18next';
-import { BookOpen, PenTool, Sparkles, Library, ArrowLeft, ArrowRight, PlayCircle, Loader, Clock } from 'lucide-react';
+import { BookOpen, PenTool, Sparkles, Library, ArrowLeft, ArrowRight, PlayCircle, Loader, Clock, CheckCircle2, ShieldCheck } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
 import { supabase } from '../lib/supabase';
-import { getDirectImageUrl } from '../utils/helpers';
+import { getDirectImageUrl, calculateSubscriptionStatus, formatCourseTitle, formatCourseDescription } from '../utils/helpers';
 import BackButton from '../components/BackButton';
+import { useAuth } from '../context/AuthContext';
+import { getCache, setCache } from '../utils/appCache';
 
 export default function FoundationCourses() {
   const { t, i18n } = useTranslation();
   const navigate = useNavigate();
   const isRTL = i18n.language === 'ar';
+  const { user, profile } = useAuth();
+  const isAdmin = profile?.role === 'admin' || profile?.role === 'teacher';
 
-  const [courses, setCourses] = useState([]);
-  const [loading, setLoading] = useState(true);
+  const cachedCourses = getCache('foundation_courses');
+  const [courses, setCourses] = useState(cachedCourses || []);
+  const [loading, setLoading] = useState(!cachedCourses);
+  const [userSubsMap, setUserSubsMap] = useState(() => {
+    return user ? (getCache(`user_subs_${user.id}`) || {}) : {};
+  });
 
   useEffect(() => {
     fetchCourses();
   }, []);
+
+  useEffect(() => {
+    if (user) {
+      fetchUserSubscriptions();
+    } else {
+      setUserSubsMap({});
+    }
+  }, [user]);
+
+  const fetchUserSubscriptions = async () => {
+    try {
+      const { data } = await supabase
+        .from('subscriptions')
+        .select('*')
+        .eq('user_id', user.id)
+        .order('created_at', { ascending: false });
+
+      if (data) {
+        const map = {};
+        for (const sub of data) {
+          if (!map[sub.course_id] || (sub.status === 'active' && map[sub.course_id].status !== 'active')) {
+            map[sub.course_id] = sub;
+          }
+        }
+        setUserSubsMap(map);
+        setCache(`user_subs_${user.id}`, map, 300);
+      }
+    } catch (e) {
+      console.error('Error fetching user subscriptions:', e);
+    }
+  };
 
   const fetchCourses = async () => {
     try {
@@ -29,7 +68,9 @@ export default function FoundationCourses() {
         .order('created_at', { ascending: false });
 
       if (error) throw error;
-      setCourses(data || []);
+      const validCourses = data || [];
+      setCourses(validCourses);
+      setCache('foundation_courses', validCourses, 300);
     } catch (err) {
       console.error('Error fetching courses:', err);
     } finally {
@@ -92,8 +133,8 @@ export default function FoundationCourses() {
         ) : courses.length === 0 ? (
           <div className="text-center py-20">
             <BookOpen className="w-20 h-20 text-gray-300 dark:text-slate-700 mx-auto mb-6" />
-            <h2 className="text-2xl font-bold text-gray-900 dark:text-white mb-4">لا توجد كورسات متاحة حالياً</h2>
-            <p className="text-gray-500 dark:text-gray-400">تابعنا قريباً، سيتم إضافة أقوى الكورسات هنا.</p>
+            <h2 className="text-2xl font-bold text-gray-900 dark:text-white mb-4">{t('fc_no_courses_title')}</h2>
+            <p className="text-gray-500 dark:text-gray-400">{t('fc_no_courses_desc')}</p>
           </div>
         ) : (
           /* Courses Grid */
@@ -103,68 +144,120 @@ export default function FoundationCourses() {
             animate="show"
             className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-8 lg:gap-12"
           >
-            {courses.map((course) => (
-              <motion.div
-                key={course.id}
-                variants={itemVariants}
-                whileHover={{ y: -10 }}
-                onClick={() => navigate(`/course/${course.id}`)}
-                className={`group cursor-pointer relative bg-white dark:bg-slate-800/80 backdrop-blur-xl border border-gray-100 dark:border-slate-700 rounded-[2.5rem] p-6 transition-all duration-500 flex flex-col h-full hover:shadow-2xl hover:border-blue-200 dark:hover:border-blue-800 overflow-hidden`}
-              >
-                {/* Image / Thumbnail */}
-                <div className="relative w-full h-48 rounded-3xl overflow-hidden mb-6 bg-slate-100 dark:bg-slate-700/50">
-                  {course.image_url ? (
-                    <img src={getDirectImageUrl(course.image_url)} alt={course.title} className="w-full h-full object-cover transition-transform duration-700 group-hover:scale-110" />
-                  ) : (
-                    <div className="w-full h-full flex items-center justify-center">
-                      <BookOpen className="w-16 h-16 text-gray-300 dark:text-slate-500" />
-                    </div>
-                  )}
-                  <div className="absolute inset-0 bg-gradient-to-t from-black/60 to-transparent opacity-0 group-hover:opacity-100 transition-opacity duration-300"></div>
-                  
-                  {course.price === 0 && (
-                    <div className="absolute top-4 right-4 bg-green-500 text-white px-3 py-1 rounded-full text-xs font-bold shadow-lg">
-                      مجاني
-                    </div>
-                  )}
-                </div>
+            {courses.map((course) => {
+              const userSub = userSubsMap[course.id];
+              const subStatus = (!isAdmin && userSub) ? calculateSubscriptionStatus(userSub, course.access_duration_days) : null;
 
-                {/* Content */}
-                <div className="flex-grow flex flex-col">
-                  <h2 className="text-xl font-bold text-gray-900 dark:text-white mb-3 leading-tight group-hover:text-blue-600 dark:group-hover:text-blue-400 transition-colors line-clamp-2">
-                    {course.title}
-                  </h2>
-                  <p className="text-sm text-gray-500 dark:text-gray-400 leading-relaxed font-medium mb-6 line-clamp-3">
-                    {course.description || "لا يوجد وصف حالياً."}
-                  </p>
-                  
-                  <div className="mt-auto flex items-center justify-between mb-4">
-                    <div className="flex flex-col">
-                      {course.discounted_price ? (
-                        <>
-                          <span className="text-sm text-gray-400 dark:text-gray-500 line-through font-bold mb-0.5">{course.price} ج.م</span>
-                          <span className="font-bold text-xl text-blue-600 dark:text-blue-400">{course.discounted_price} ج.م</span>
-                        </>
-                      ) : (
-                        <span className="font-bold text-xl text-blue-600 dark:text-blue-400">{course.price > 0 ? `${course.price} ج.م` : 'مجاناً'}</span>
-                      )}
-                    </div>
-                    <div className="w-10 h-10 rounded-full bg-blue-50 dark:bg-slate-700 flex items-center justify-center group-hover:bg-blue-600 group-hover:text-white transition-colors text-blue-600 dark:text-blue-400">
-                      {isRTL ? <ArrowLeft className="w-5 h-5" /> : <ArrowRight className="w-5 h-5" />}
-                    </div>
-                  </div>
-                  
-                  {course.access_duration_days && (
-                    <div className="pt-3 border-t border-gray-100 dark:border-slate-700">
-                      <p className="text-xs font-bold text-orange-600 dark:text-orange-400 flex items-center gap-1.5">
+              return (
+                <motion.div
+                  key={course.id}
+                  variants={itemVariants}
+                  whileHover={{ y: -10 }}
+                  onClick={() => navigate(`/course/${course.id}`)}
+                  className={`group cursor-pointer relative bg-white dark:bg-slate-800/80 backdrop-blur-xl border border-gray-100 dark:border-slate-700 rounded-[2.5rem] p-6 transition-all duration-500 flex flex-col h-full hover:shadow-2xl hover:border-blue-200 dark:hover:border-blue-800 overflow-hidden`}
+                >
+                  {/* Image / Thumbnail */}
+                  <div className="relative w-full h-48 rounded-3xl overflow-hidden mb-6 bg-slate-100 dark:bg-slate-700/50">
+                    {course.image_url ? (
+                      <img src={getDirectImageUrl(course.image_url)} alt={course.title} className="w-full h-full object-cover transition-transform duration-700 group-hover:scale-110" />
+                    ) : (
+                      <div className="w-full h-full flex items-center justify-center">
+                        <BookOpen className="w-16 h-16 text-gray-300 dark:text-slate-500" />
+                      </div>
+                    )}
+                    <div className="absolute inset-0 bg-gradient-to-t from-black/60 to-transparent opacity-0 group-hover:opacity-100 transition-opacity duration-300"></div>
+                    
+                    {isAdmin ? (
+                      <div className={`absolute top-4 ${isRTL ? 'right-4' : 'left-4'} bg-gradient-to-r from-purple-600 to-indigo-600 text-white px-3 py-1 rounded-full text-xs font-bold shadow-lg flex items-center gap-1.5`}>
+                        <ShieldCheck className="w-3.5 h-3.5" />
+                        {t('fc_admin_preview')}
+                      </div>
+                    ) : subStatus?.isActive ? (
+                      <div className={`absolute top-4 ${isRTL ? 'right-4' : 'left-4'} bg-emerald-500 text-white px-3 py-1 rounded-full text-xs font-bold shadow-lg flex items-center gap-1.5`}>
+                        <CheckCircle2 className="w-3.5 h-3.5" />
+                        {t('fc_subscribed')}
+                      </div>
+                    ) : subStatus?.isExpired ? (
+                      <div className={`absolute top-4 ${isRTL ? 'right-4' : 'left-4'} bg-red-500 text-white px-3 py-1 rounded-full text-xs font-bold shadow-lg flex items-center gap-1.5`}>
                         <Clock className="w-3.5 h-3.5" />
-                        صلاحية الكورس: {course.access_duration_days} يوم
-                      </p>
+                        {t('fc_expired')}
+                      </div>
+                    ) : course.price === 0 ? (
+                      <div className={`absolute top-4 ${isRTL ? 'right-4' : 'left-4'} bg-green-500 text-white px-3 py-1 rounded-full text-xs font-bold shadow-lg`}>
+                        {t('fc_free')}
+                      </div>
+                    ) : null}
+                  </div>
+
+                  {/* Content */}
+                  <div className="flex-grow flex flex-col">
+                    <h2 className="text-xl font-bold text-gray-900 dark:text-white mb-3 leading-tight group-hover:text-blue-600 dark:group-hover:text-blue-400 transition-colors line-clamp-2">
+                      {formatCourseTitle(course.title)}
+                    </h2>
+                    <p className="text-sm text-gray-500 dark:text-gray-400 leading-relaxed font-medium mb-6 line-clamp-3">
+                      {formatCourseDescription(course.description, course.title) || t('fc_no_desc')}
+                    </p>
+                    
+                    <div className="mt-auto flex items-center justify-between mb-4">
+                      <div className="flex flex-col">
+                        {course.discounted_price ? (
+                          <>
+                            <span className="text-sm text-gray-400 dark:text-gray-500 line-through font-bold mb-0.5">{course.price} {isRTL ? 'ج.م' : 'EGP'}</span>
+                            <span className="font-bold text-xl text-blue-600 dark:text-blue-400">{course.discounted_price} {isRTL ? 'ج.م' : 'EGP'}</span>
+                          </>
+                        ) : (
+                          <span className="font-bold text-xl text-blue-600 dark:text-blue-400">{course.price > 0 ? `${course.price} ${isRTL ? 'ج.م' : 'EGP'}` : t('fc_free_badge')}</span>
+                        )}
+                      </div>
+                      <div className="w-10 h-10 rounded-full bg-blue-50 dark:bg-slate-700 flex items-center justify-center group-hover:bg-blue-600 group-hover:text-white transition-colors text-blue-600 dark:text-blue-400">
+                        {isRTL ? <ArrowLeft className="w-5 h-5" /> : <ArrowRight className="w-5 h-5" />}
+                      </div>
                     </div>
-                  )}
-                </div>
-              </motion.div>
-            ))}
+                    
+                    {isAdmin ? (
+                      <div className="pt-3 border-t border-gray-100 dark:border-slate-700 flex items-center justify-between">
+                        <p className="text-xs font-bold text-indigo-600 dark:text-indigo-400 flex items-center gap-1.5">
+                          <Clock className="w-3.5 h-3.5" />
+                          {course.access_duration_days ? `${t('fc_student_access')}: ${t('duration_days', { count: course.access_duration_days })}` : t('fc_open_access')}
+                        </p>
+                        <span className="text-xs font-bold text-indigo-600 dark:text-indigo-400">{t('fc_preview_admin_btn')} {isRTL ? '←' : '→'}</span>
+                      </div>
+                    ) : subStatus?.isActive ? (
+                      <div className="pt-3 border-t border-gray-100 dark:border-slate-700 flex items-center justify-between">
+                        <p className="text-xs font-bold text-emerald-600 dark:text-emerald-400 flex items-center gap-1.5">
+                          <CheckCircle2 className="w-3.5 h-3.5" />
+                          {subStatus.statusText}
+                        </p>
+                        <span className="text-xs font-bold text-blue-600 dark:text-blue-400">{t('fc_continue_course_btn')} {isRTL ? '←' : '→'}</span>
+                      </div>
+                    ) : subStatus?.isExpired ? (
+                      <div className="pt-3 border-t border-gray-100 dark:border-slate-700 flex items-center justify-between">
+                        <p className="text-xs font-bold text-red-600 dark:text-red-400 flex items-center gap-1.5">
+                          <Clock className="w-3.5 h-3.5" />
+                          {t('fc_expired')} ({t('duration_days', { count: course.access_duration_days })})
+                        </p>
+                        <span 
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            navigate(`/checkout/${course.id}`);
+                          }}
+                          className="text-xs font-bold text-blue-600 dark:text-blue-400 underline hover:text-blue-700 transition-colors"
+                        >
+                          {t('fc_renew_sub_btn')} {isRTL ? '←' : '→'}
+                        </span>
+                      </div>
+                    ) : course.access_duration_days ? (
+                      <div className="pt-3 border-t border-gray-100 dark:border-slate-700">
+                        <p className="text-xs font-bold text-orange-600 dark:text-orange-400 flex items-center gap-1.5">
+                          <Clock className="w-3.5 h-3.5" />
+                          {t('fc_course_duration')}: {t('duration_days', { count: course.access_duration_days })}
+                        </p>
+                      </div>
+                    ) : null}
+                  </div>
+                </motion.div>
+              );
+            })}
           </motion.div>
         )}
       </div>

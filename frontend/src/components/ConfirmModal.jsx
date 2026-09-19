@@ -1,20 +1,24 @@
 import { motion, AnimatePresence } from 'framer-motion';
+import { useTranslation } from 'react-i18next';
 import { AlertTriangle, Trash2 } from 'lucide-react';
 
-export default function ConfirmModal({ 
+export default function ConfirmModal({
   isOpen, 
   onClose, 
   onConfirm, 
   title, 
   message, 
-  confirmText = 'تأكيد', 
-  cancelText = 'إلغاء', 
+  confirmText, 
+  cancelText, 
   isDanger = false 
 }) {
+  const { t } = useTranslation();
+  const cText = confirmText || t('common_confirm') || 'تأكيد';
+  const canText = cancelText || t('common_cancel') || 'إلغاء';
   return (
     <AnimatePresence>
       {isOpen && (
-        <div className="fixed inset-0 z-[100] flex items-center justify-center px-4" dir="rtl">
+        <div className="fixed inset-0 z-[100] flex items-center justify-center px-4" >
           <motion.div
             initial={{ opacity: 0 }}
             animate={{ opacity: 1 }}
@@ -59,7 +63,7 @@ export default function ConfirmModal({
                   onClick={onClose}
                   className="flex-1 px-6 py-3.5 rounded-2xl font-bold font-arabic text-gray-700 dark:text-gray-300 bg-gray-100 dark:bg-slate-700 hover:bg-gray-200 dark:hover:bg-slate-600 transition-colors shadow-sm"
                 >
-                  {cancelText}
+                  {canText}
                 </button>
                 <button
                   onClick={onConfirm}
@@ -69,7 +73,7 @@ export default function ConfirmModal({
                       : 'bg-gradient-to-r from-blue-600 to-blue-500 hover:from-blue-700 hover:to-blue-600 shadow-blue-500/30'
                   }`}
                 >
-                  {confirmText}
+                  {cText}
                 </button>
               </div>
             </div>

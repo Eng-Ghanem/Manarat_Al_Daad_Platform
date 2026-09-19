@@ -1,8 +1,11 @@
 import React, { useState, useRef, useEffect } from 'react';
+import { useTranslation } from 'react-i18next';
 import { Send, Paperclip, Mic, Square, X, Image as ImageIcon, FileText, Loader } from 'lucide-react';
 import { chatService } from '../lib/chatService';
 
 export default function ChatInput({ onSendMessage }) {
+  const { t, i18n } = useTranslation();
+  const isRTL = i18n.language === 'ar';
   const [message, setMessage] = useState('');
   const [isRecording, setIsRecording] = useState(false);
   const [recordingTime, setRecordingTime] = useState(0);
@@ -76,7 +79,7 @@ export default function ChatInput({ onSendMessage }) {
       }, 1000);
     } catch (err) {
       console.error('Error accessing microphone:', err);
-      alert('تعذر الوصول إلى الميكروفون. تأكد من إعطاء الصلاحيات.');
+      alert(t('chat_mic_permission_denied'));
     }
   };
 
@@ -124,7 +127,7 @@ export default function ChatInput({ onSendMessage }) {
       clearMedia();
     } catch (err) {
       console.error('Submit error:', err);
-      alert('حدث خطأ أثناء الإرسال: ' + (err.message || 'يرجى المحاولة مرة أخرى.'));
+      alert(t('chat_send_error'));
     } finally {
       setIsUploading(false);
     }
@@ -195,7 +198,7 @@ export default function ChatInput({ onSendMessage }) {
           <div className="flex items-center gap-3 text-red-600 dark:text-red-400">
             <span className="w-3 h-3 rounded-full bg-red-600 animate-pulse"></span>
             <span className="font-bold font-mono text-lg tracking-wider">{formatTime(recordingTime)}</span>
-            <span className="text-sm">جاري التسجيل...</span>
+            <span className="text-sm">{t('chat_recording')}</span>
           </div>
           <button
             type="button"
@@ -203,7 +206,7 @@ export default function ChatInput({ onSendMessage }) {
             className="p-3 bg-red-600 hover:bg-red-700 text-white rounded-xl shadow-md transition-colors flex items-center gap-2"
           >
             <Square className="w-5 h-5 fill-current" />
-            <span className="font-bold text-sm">إيقاف</span>
+            <span className="font-bold text-sm">{t('chat_stop')}</span>
           </button>
         </div>
       )}
@@ -223,7 +226,7 @@ export default function ChatInput({ onSendMessage }) {
             </button>
             
             {showAttachMenu && (
-              <div className="absolute bottom-14 right-0 bg-white dark:bg-slate-800 rounded-2xl shadow-2xl border border-gray-100 dark:border-slate-700 py-2 w-48 flex flex-col overflow-hidden animate-in fade-in slide-in-from-bottom-2">
+              <div className={`absolute bottom-14 ${isRTL ? 'right-0' : 'left-0'} bg-white dark:bg-slate-800 rounded-2xl shadow-2xl border border-gray-100 dark:border-slate-700 py-2 w-48 flex flex-col overflow-hidden animate-in fade-in slide-in-from-bottom-2`}>
                 <button
                   type="button"
                   onClick={() => { fileInputRef.current.accept = "image/*,video/*"; fileInputRef.current.click(); }}
@@ -232,7 +235,7 @@ export default function ChatInput({ onSendMessage }) {
                   <div className="w-8 h-8 rounded-full bg-blue-100 dark:bg-blue-900/50 flex items-center justify-center text-blue-600 dark:text-blue-400">
                     <ImageIcon className="w-4 h-4" />
                   </div>
-                  <span className="font-bold text-sm">صورة / فيديو</span>
+                  <span className="font-bold text-sm">{t('chat_attach_media')}</span>
                 </button>
                 <button
                   type="button"
@@ -242,7 +245,7 @@ export default function ChatInput({ onSendMessage }) {
                   <div className="w-8 h-8 rounded-full bg-purple-100 dark:bg-purple-900/50 flex items-center justify-center text-purple-600 dark:text-purple-400">
                     <FileText className="w-4 h-4" />
                   </div>
-                  <span className="font-bold text-sm">مستند</span>
+                  <span className="font-bold text-sm">{t('chat_attach_doc')}</span>
                 </button>
               </div>
             )}
@@ -260,7 +263,7 @@ export default function ChatInput({ onSendMessage }) {
             <textarea
               value={message}
               onChange={(e) => setMessage(e.target.value)}
-              placeholder="اكتب رسالتك هنا..."
+              placeholder={t('chat_input_ph')}
               className="w-full max-h-32 min-h-[48px] bg-transparent border-none focus:ring-0 text-gray-900 dark:text-white placeholder-gray-500 resize-none py-3.5 px-5 text-sm sm:text-base leading-relaxed"
               rows={1}
               disabled={isUploading}

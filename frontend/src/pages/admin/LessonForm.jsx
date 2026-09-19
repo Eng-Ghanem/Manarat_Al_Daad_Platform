@@ -1,11 +1,13 @@
 import { useState, useEffect, useRef } from 'react';
 import { useNavigate, useParams } from 'react-router-dom';
+import { useTranslation } from 'react-i18next';
 import { supabase } from '../../lib/supabase';
 import { BookOpen, Video, Save, ArrowRight, Loader, FileText, Link as LinkIcon, UploadCloud, FileType2 } from 'lucide-react';
 import FadeIn from '../../components/FadeIn';
 import BackButton from '../../components/BackButton';
 
 export default function LessonForm() {
+  const { t } = useTranslation();
   const navigate = useNavigate();
   const { courseId, lessonId } = useParams();
   const isEditing = Boolean(lessonId);
@@ -140,7 +142,7 @@ export default function LessonForm() {
               </div>
               <div>
                 <h1 className="text-2xl font-bold font-arabic text-gray-900 dark:text-white">
-                  {isEditing ? 'تعديل بيانات الدرس' : 'إضافة درس جديد'}
+                  {isEditing ? t('admin_lesson_form_title_edit') : t('admin_lesson_form_title_new')}
                 </h1>
                 <p className="text-gray-500 dark:text-gray-400">أدخل عنوان الدرس ورابط الفيديو وملف الـ PDF.</p>
               </div>
@@ -155,7 +157,7 @@ export default function LessonForm() {
             <form onSubmit={handleSubmit} className="space-y-6">
               
               <div>
-                <label className="block text-sm font-bold text-gray-700 dark:text-gray-300 mb-2">عنوان الدرس *</label>
+                <label className="block text-sm font-bold text-gray-700 dark:text-gray-300 mb-2">{t('admin_lesson_label_title')}</label>
                 <input
                   type="text"
                   name="title"
@@ -168,7 +170,7 @@ export default function LessonForm() {
               </div>
 
               <div>
-                <label className="block text-sm font-bold text-gray-700 dark:text-gray-300 mb-2">وصف الدرس (اختياري)</label>
+                <label className="block text-sm font-bold text-gray-700 dark:text-gray-300 mb-2">{t('admin_lesson_label_desc')} (اختياري)</label>
                 <div className="relative">
                   <div className="absolute inset-y-0 right-0 pr-4 pt-3 pointer-events-none text-gray-400">
                     <FileText className="w-5 h-5" />

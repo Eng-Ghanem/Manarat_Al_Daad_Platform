@@ -91,18 +91,18 @@ export default function Footer() {
 
           {/* Support / Quick Help */}
           <div>
-            <h3 className="text-white font-bold text-lg mb-6">دعم فني ومساعدة</h3>
+            <h3 className="text-white font-bold text-lg mb-6">{t('footer_support_title')}</h3>
             <p className="text-slate-400 text-sm mb-4 leading-relaxed">
-              نحن هنا لمساعدتك في أي وقت. إذا واجهتك أي مشكلة أثناء استخدام المنصة، أو لديك استفسار بخصوص الاشتراكات، لا تتردد في التواصل معنا.
+              {t('footer_support_desc')}
             </p>
             <div className="flex flex-col gap-3">
               <a 
                 href="https://wa.me/201033511516" 
                 target="_blank" 
-                rel="noreferrer"
+                rel="noopener noreferrer"
                 className="w-full flex items-center justify-center gap-2 px-4 py-3 rounded-xl bg-green-600 hover:bg-green-700 text-white font-bold transition-colors text-sm"
               >
-                تواصل معنا عبر واتساب
+                {t('footer_whatsapp_btn')}
               </a>
             </div>
           </div>

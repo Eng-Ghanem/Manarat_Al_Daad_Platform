@@ -51,6 +51,11 @@ export const AuthProvider = ({ children }) => {
       if (error) {
         console.error('Error fetching profile:', error);
       } else {
+        // Platform Admins & Teachers should NEVER accumulate student XP or be ranked with students
+        if ((data.role === 'admin' || data.role === 'teacher') && data.xp_points > 0) {
+          supabase.from('profiles').update({ xp_points: 0 }).eq('id', userId).then(() => {});
+          data.xp_points = 0;
+        }
         setProfile(data);
       }
     } catch (error) {

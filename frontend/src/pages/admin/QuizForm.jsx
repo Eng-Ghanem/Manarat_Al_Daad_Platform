@@ -13,7 +13,8 @@ export default function QuizForm() {
   const { id } = useParams();
   const isEditing = !!id;
   const navigate = useNavigate();
-  const { t } = useTranslation();
+  const { t, i18n } = useTranslation();
+  const isRTL = i18n.language === 'ar';
 
   const [loading, setLoading] = useState(false);
   const [fetching, setFetching] = useState(isEditing);
@@ -223,7 +224,7 @@ export default function QuizForm() {
               <ArrowRight className="w-5 h-5 rtl:rotate-0 ltr:rotate-180" />
             </button>
             <h1 className="text-xl font-bold text-gray-900 dark:text-white">
-              {isEditing ? 'تعديل امتحان' : 'إنشاء امتحان جديد'}
+              {isEditing ? (isRTL ? 'تعديل امتحان' : 'Edit Quiz') : (isRTL ? 'إنشاء امتحان جديد' : 'Create New Quiz')}
             </h1>
           </div>
           <button
@@ -232,7 +233,7 @@ export default function QuizForm() {
             className="flex items-center gap-2 px-6 py-2.5 bg-blue-600 hover:bg-blue-700 disabled:bg-blue-400 disabled:cursor-not-allowed text-white rounded-xl font-bold transition-all shadow-md"
           >
             {loading ? <div className="w-5 h-5 border-2 border-white border-t-transparent rounded-full animate-spin"></div> : <Save className="w-5 h-5" />}
-            حفظ الامتحان
+            {isRTL ? 'حفظ الامتحان' : 'Save Quiz'}
           </button>
         </div>
       </div>
@@ -244,63 +245,63 @@ export default function QuizForm() {
           <div className="bg-white dark:bg-slate-800 rounded-3xl p-6 md:p-8 shadow-sm border border-gray-100 dark:border-slate-700">
             <div className="flex items-center gap-3 mb-6 pb-4 border-b border-gray-100 dark:border-slate-700">
               <Settings className="w-6 h-6 text-blue-500" />
-              <h2 className="text-xl font-bold text-gray-900 dark:text-white">إعدادات الامتحان</h2>
+              <h2 className="text-xl font-bold text-gray-900 dark:text-white">{isRTL ? 'إعدادات الامتحان' : 'Quiz Settings'}</h2>
             </div>
             
             <div className="space-y-5">
               <div>
-                <label className="block text-sm font-bold text-gray-700 dark:text-gray-300 mb-1">عنوان الامتحان *</label>
+                <label className="block text-sm font-bold text-gray-700 dark:text-gray-300 mb-1">{isRTL ? 'عنوان الامتحان *' : 'Quiz Title *'}</label>
                 <input
                   type="text"
                   value={quizData.title}
                   onChange={e => setQuizData({...quizData, title: e.target.value})}
                   className="w-full px-4 py-3 bg-gray-50 dark:bg-slate-900 border border-gray-200 dark:border-slate-700 rounded-xl focus:ring-2 focus:ring-blue-500 outline-none text-gray-900 dark:text-white"
-                  placeholder="مثال: امتحان الشهر الأول - لغة عربية"
+                  placeholder={isRTL ? 'مثال: امتحان الشهر الأول - لغة عربية' : 'e.g. First Month Exam - Arabic'}
                 />
               </div>
 
               <div>
-                <label className="block text-sm font-bold text-gray-700 dark:text-gray-300 mb-1">الوصف (اختياري)</label>
+                <label className="block text-sm font-bold text-gray-700 dark:text-gray-300 mb-1">{isRTL ? 'الوصف (اختياري)' : 'Description (optional)'}</label>
                 <textarea
                   value={quizData.description}
                   onChange={e => setQuizData({...quizData, description: e.target.value})}
                   className="w-full px-4 py-3 bg-gray-50 dark:bg-slate-900 border border-gray-200 dark:border-slate-700 rounded-xl focus:ring-2 focus:ring-blue-500 outline-none text-gray-900 dark:text-white"
                   rows="3"
-                  placeholder="اكتب تعليمات أو وصف للامتحان..."
+                  placeholder={isRTL ? 'اكتب تعليمات أو وصف للامتحان...' : 'Write instructions or description for the quiz...'}
                 />
               </div>
 
               <div className="grid grid-cols-1 md:grid-cols-2 gap-5">
                 <div>
-                  <label className="block text-sm font-bold text-gray-700 dark:text-gray-300 mb-1">استهداف الصف الدراسي (اختياري)</label>
+                  <label className="block text-sm font-bold text-gray-700 dark:text-gray-300 mb-1">{isRTL ? 'استهداف الصف الدراسي (اختياري)' : 'Target Grade (optional)'}</label>
                   <select
                     value={quizData.grade_level}
                     onChange={e => setQuizData({...quizData, grade_level: e.target.value})}
                     className="w-full px-4 py-3 bg-gray-50 dark:bg-slate-900 border border-gray-200 dark:border-slate-700 rounded-xl outline-none text-gray-900 dark:text-white"
                   >
-                    <option value="">-- للجميع --</option>
-                    <option value="الصف الأول الابتدائي">الصف الأول الابتدائي</option>
-                    <option value="الصف الثاني الابتدائي">الصف الثاني الابتدائي</option>
-                    <option value="الصف الثالث الابتدائي">الصف الثالث الابتدائي</option>
-                    <option value="الصف الرابع الابتدائي">الصف الرابع الابتدائي</option>
-                    <option value="الصف الخامس الابتدائي">الصف الخامس الابتدائي</option>
-                    <option value="الصف السادس الابتدائي">الصف السادس الابتدائي</option>
-                    <option value="الصف الأول الإعدادي">الصف الأول الإعدادي</option>
-                    <option value="الصف الثاني الإعدادي">الصف الثاني الإعدادي</option>
-                    <option value="الصف الثالث الإعدادي">الصف الثالث الإعدادي</option>
-                    <option value="الصف الأول الثانوي">الصف الأول الثانوي</option>
-                    <option value="الصف الثاني الثانوي">الصف الثاني الثانوي</option>
-                    <option value="الصف الثالث الثانوي">الصف الثالث الثانوي</option>
+                    <option value="">{isRTL ? '-- للجميع --' : '-- For Everyone --'}</option>
+                    <option value="الصف الأول الابتدائي">{t('grade_primary_1')}</option>
+                    <option value="الصف الثاني الابتدائي">{t('grade_primary_2')}</option>
+                    <option value="الصف الثالث الابتدائي">{t('grade_primary_3')}</option>
+                    <option value="الصف الرابع الابتدائي">{t('grade_primary_4')}</option>
+                    <option value="الصف الخامس الابتدائي">{t('grade_primary_5')}</option>
+                    <option value="الصف السادس الابتدائي">{t('grade_primary_6')}</option>
+                    <option value="الصف الأول الإعدادي">{t('grade_prep_1')}</option>
+                    <option value="الصف الثاني الإعدادي">{t('grade_prep_2')}</option>
+                    <option value="الصف الثالث الإعدادي">{t('grade_prep_3')}</option>
+                    <option value="الصف الأول الثانوي">{t('grade_sec_1')}</option>
+                    <option value="الصف الثاني الثانوي">{t('grade_sec_2')}</option>
+                    <option value="الصف الثالث الثانوي">{t('grade_sec_3')}</option>
                   </select>
                 </div>
                 <div>
-                  <label className="block text-sm font-bold text-gray-700 dark:text-gray-300 mb-1">ارتباط بكورس (اختياري)</label>
+                  <label className="block text-sm font-bold text-gray-700 dark:text-gray-300 mb-1">{isRTL ? 'ارتباط بكورس (اختياري)' : 'Link to Course (optional)'}</label>
                   <select
                     value={quizData.course_id}
                     onChange={e => setQuizData({...quizData, course_id: e.target.value})}
                     className="w-full px-4 py-3 bg-gray-50 dark:bg-slate-900 border border-gray-200 dark:border-slate-700 rounded-xl outline-none text-gray-900 dark:text-white"
                   >
-                    <option value="">-- بدون كورس (امتحان عام) --</option>
+                    <option value="">{isRTL ? '-- بدون كورس (امتحان عام) --' : '-- No Course (General Quiz) --'}</option>
                     {courses.map(c => (
                       <option key={c.id} value={c.id}>{c.title} ({c.grade_level})</option>
                     ))}
@@ -310,14 +311,14 @@ export default function QuizForm() {
 
               <div className="grid grid-cols-1 md:grid-cols-2 gap-5">
                 <div>
-                  <label className="block text-sm font-bold text-gray-700 dark:text-gray-300 mb-1">المدة الزمنية (بالدقائق)</label>
+                  <label className="block text-sm font-bold text-gray-700 dark:text-gray-300 mb-1">{isRTL ? 'المدة الزمنية (بالدقائق)' : 'Duration (minutes)'}</label>
                   <input
                     type="number"
                     min="1"
                     value={quizData.duration_minutes}
                     onChange={e => setQuizData({...quizData, duration_minutes: e.target.value})}
                     className="w-full px-4 py-3 bg-gray-50 dark:bg-slate-900 border border-gray-200 dark:border-slate-700 rounded-xl outline-none text-gray-900 dark:text-white"
-                    placeholder="اتركه فارغاً لامتحان مفتوح الوقت"
+                    placeholder={isRTL ? 'اتركه فارغاً لامتحان مفتوح الوقت' : 'Leave blank for unlimited time'}
                   />
                 </div>
                 
@@ -327,10 +328,10 @@ export default function QuizForm() {
                     className="flex items-center cursor-pointer p-3 bg-gray-50 dark:bg-slate-900 border border-gray-200 dark:border-slate-700 rounded-xl w-full gap-3 select-none"
                   >
                     <div className={`w-12 h-6 rounded-full transition-colors relative flex items-center shrink-0 ${quizData.is_published ? 'bg-blue-600' : 'bg-gray-300 dark:bg-gray-600'}`}>
-                      <div className={`absolute w-5 h-5 bg-white rounded-full shadow-md transition-all duration-300 ${quizData.is_published ? 'left-1' : 'right-1'}`}></div>
+                      <div className={`absolute w-5 h-5 bg-white rounded-full shadow-md transition-all duration-300 ${quizData.is_published ? (isRTL ? 'left-1' : 'right-1') : (isRTL ? 'right-1' : 'left-1')}`}></div>
                     </div>
                     <span className="text-sm font-bold text-gray-900 dark:text-white">
-                      نشر الامتحان فوراً للطلاب
+                      {t('quiz_form_publish_now')}
                     </span>
                   </div>
                 </div>
@@ -345,19 +346,19 @@ export default function QuizForm() {
           <div className="flex items-center justify-between">
             <h2 className="text-2xl font-bold text-gray-900 dark:text-white flex items-center gap-2">
               <HelpCircle className="w-6 h-6 text-pink-500" />
-              الأسئلة ({questions.length})
+              {isRTL ? 'الأسئلة' : 'Questions'} ({questions.length})
             </h2>
           </div>
 
           {questions.map((q, qIndex) => (
             <FadeIn key={q.id} delay={qIndex * 50}>
               <div className="bg-white dark:bg-slate-800 rounded-3xl p-6 shadow-sm border border-gray-100 dark:border-slate-700 relative overflow-hidden group">
-                <div className="absolute top-0 right-0 w-2 h-full bg-blue-500"></div>
+                <div className={`absolute top-0 ${isRTL ? 'right-0' : 'left-0'} w-2 h-full bg-blue-500`}></div>
                 
                 <div className="flex justify-between items-start mb-4">
                   <div className="flex items-center gap-2 text-blue-600 dark:text-blue-400 font-bold">
                     <GripVertical className="w-5 h-5 text-gray-400 cursor-move" />
-                    السؤال {qIndex + 1}
+                    {isRTL ? `السؤال ${qIndex + 1}` : `Question ${qIndex + 1}`}
                   </div>
                   <button 
                     onClick={() => handleRemoveQuestion(qIndex)}
@@ -374,7 +375,7 @@ export default function QuizForm() {
                         type="text"
                         value={q.text}
                         onChange={e => handleQuestionChange(qIndex, 'text', e.target.value)}
-                        placeholder="اكتب السؤال هنا..."
+                        placeholder={isRTL ? 'اكتب السؤال هنا...' : 'Type question here...'}
                         className="w-full px-4 py-3 text-lg font-bold bg-gray-50 dark:bg-slate-900 border border-gray-200 dark:border-slate-700 rounded-xl focus:ring-2 focus:ring-blue-500 outline-none text-gray-900 dark:text-white"
                       />
                     </div>
@@ -384,8 +385,8 @@ export default function QuizForm() {
                         onChange={e => handleQuestionChange(qIndex, 'type', e.target.value)}
                         className="w-full px-4 py-3 bg-gray-50 dark:bg-slate-900 border border-gray-200 dark:border-slate-700 rounded-xl focus:ring-2 focus:ring-blue-500 outline-none text-gray-900 dark:text-white font-bold h-full"
                       >
-                        <option value="multiple_choice">اختياري</option>
-                        <option value="essay">مقالي</option>
+                        <option value="multiple_choice">{isRTL ? 'اختياري' : 'Multiple Choice'}</option>
+                        <option value="essay">{isRTL ? 'مقالي' : 'Essay'}</option>
                       </select>
                     </div>
                   </div>
@@ -416,7 +417,7 @@ export default function QuizForm() {
                             type="text"
                             value={opt}
                             onChange={e => handleOptionChange(qIndex, optIndex, e.target.value)}
-                            placeholder={`الخيار ${optIndex + 1}`}
+                            placeholder={isRTL ? `الخيار ${optIndex + 1}` : `Option ${optIndex + 1}`}
                             className="flex-1 bg-transparent outline-none text-gray-900 dark:text-white placeholder-gray-400"
                           />
                         </div>
@@ -425,13 +426,13 @@ export default function QuizForm() {
                   ) : (
                     <div className="mt-4 p-5 bg-gray-50 dark:bg-slate-900 rounded-xl border border-gray-200 dark:border-slate-700 text-center">
                       <p className="text-gray-500 dark:text-gray-400 font-bold">
-                        سيظهر للطلاب مربع نص لكتابة إجابتهم المقالية.
+                        {isRTL ? 'سيظهر للطلاب مربع نص لكتابة إجابتهم المقالية.' : 'Students will see a text box to write their essay answer.'}
                       </p>
                     </div>
                   )}
 
                   <div className="mt-4 pt-4 border-t border-gray-100 dark:border-slate-700 flex items-center gap-4 w-48">
-                    <label className="text-sm font-bold text-gray-600 dark:text-gray-400 shrink-0">درجة السؤال:</label>
+                    <label className="text-sm font-bold text-gray-600 dark:text-gray-400 shrink-0">{isRTL ? 'درجة السؤال:' : 'Question Mark:'}</label>
                     <input
                       type="number"
                       min="1"
@@ -451,7 +452,7 @@ export default function QuizForm() {
             className="w-full py-4 border-2 border-dashed border-gray-300 dark:border-slate-600 text-gray-500 dark:text-gray-400 font-bold rounded-3xl hover:border-blue-500 hover:text-blue-500 hover:bg-blue-50 dark:hover:bg-slate-800 transition-all flex items-center justify-center gap-2"
           >
             <Plus className="w-6 h-6" />
-            إضافة سؤال جديد
+            {isRTL ? 'إضافة سؤال جديد' : 'Add New Question'}
           </button>
         </div>
       </div>

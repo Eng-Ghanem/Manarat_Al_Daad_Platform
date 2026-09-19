@@ -82,10 +82,10 @@ export default function HeroSection() {
                     }}
                   />
                   {/* Floating Badge */}
-                  <div className="absolute -bottom-6 -right-6 rtl:right-auto rtl:-left-6 bg-white dark:bg-slate-800 p-4 rounded-2xl shadow-xl border border-gray-100 dark:border-slate-700 animate-bounce" style={{animationDuration: '3s'}}>
-                    <div className="flex items-center gap-3">
-                      <div className="w-12 h-12 rounded-full bg-gold-100 dark:bg-gold-900/30 flex items-center justify-center">
-                        <span className="text-gold-600 dark:text-gold-400 font-bold text-xl">+10</span>
+                  <div className="absolute -bottom-4 right-1 rtl:right-auto rtl:left-1 sm:-bottom-6 sm:-right-6 sm:rtl:right-auto sm:rtl:-left-6 bg-white dark:bg-slate-800 p-3 sm:p-4 rounded-2xl shadow-xl border border-gray-100 dark:border-slate-700 animate-bounce" style={{animationDuration: '3s'}}>
+                    <div className="flex items-center gap-2.5 sm:gap-3">
+                      <div className="w-10 h-10 sm:w-12 sm:h-12 rounded-full bg-gold-100 dark:bg-gold-900/30 flex items-center justify-center">
+                        <span className="text-gold-600 dark:text-gold-400 font-bold text-lg sm:text-xl">+10</span>
                       </div>
                       <div className="flex flex-col">
                         <span className="text-gray-900 dark:text-white font-bold text-sm leading-tight">{t('years_of')}</span>

@@ -9,9 +9,11 @@ import { supabase } from '../../lib/supabase';
 import FadeIn from '../../components/FadeIn';
 import ConfirmModal from '../../components/ConfirmModal';
 import toast from 'react-hot-toast';
+import { formatGradeName, formatQuizTitle, formatCourseTitle } from '../../utils/helpers';
 
 export default function AdminQuizzes() {
-  const { t } = useTranslation();
+  const { t, i18n } = useTranslation();
+  const isRTL = i18n.language === 'ar';
   const navigate = useNavigate();
   const [quizzes, setQuizzes] = useState([]);
   const [loading, setLoading] = useState(true);
@@ -100,8 +102,8 @@ export default function AdminQuizzes() {
                 <ClipboardList className="w-8 h-8" />
               </div>
               <div>
-                <h1 className="text-3xl font-bold text-gray-900 dark:text-white font-arabic">إدارة الامتحانات</h1>
-                <p className="text-gray-500 dark:text-gray-400 mt-1">إضافة وتقييم امتحانات الطلاب</p>
+                <h1 className="text-3xl font-bold text-gray-900 dark:text-white font-arabic">{t('admin_quizzes_title')}</h1>
+                <p className="text-gray-500 dark:text-gray-400 mt-1">{t('admin_quizzes_subtitle')}</p>
               </div>
             </div>
             
@@ -110,7 +112,7 @@ export default function AdminQuizzes() {
               className="flex items-center justify-center gap-2 px-6 py-3 bg-blue-600 hover:bg-blue-700 text-white rounded-xl font-bold transition-all shadow-md hover:shadow-lg active:scale-95"
             >
               <Plus className="w-5 h-5" />
-              إضافة امتحان جديد
+              {t('quiz_add_new')}
             </Link>
           </div>
         </div>
@@ -121,12 +123,12 @@ export default function AdminQuizzes() {
         <div className="relative mb-8 max-w-md">
           <input
             type="text"
-            placeholder="ابحث عن امتحان باسمه، بالصف، أو الكورس..."
+            placeholder={t('common_search')}
             value={searchQuery}
             onChange={(e) => setSearchQuery(e.target.value)}
-            className="w-full pl-10 pr-12 py-3 bg-white dark:bg-slate-800 border border-gray-200 dark:border-slate-700 rounded-xl focus:ring-2 focus:ring-blue-500 focus:border-transparent outline-none text-gray-900 dark:text-white"
+            className={`w-full ${isRTL ? 'pl-10 pr-12' : 'pr-10 pl-12'} py-3 bg-white dark:bg-slate-800 border border-gray-200 dark:border-slate-700 rounded-xl focus:ring-2 focus:ring-blue-500 focus:border-transparent outline-none text-gray-900 dark:text-white`}
           />
-          <Search className="absolute right-4 top-1/2 -translate-y-1/2 text-gray-400 w-5 h-5" />
+          <Search className={`absolute ${isRTL ? 'right-4' : 'left-4'} top-1/2 -translate-y-1/2 text-gray-400 w-5 h-5`} />
         </div>
 
         {/* Quizzes Grid */}
@@ -137,11 +139,11 @@ export default function AdminQuizzes() {
         ) : filteredQuizzes.length === 0 ? (
           <div className="bg-white dark:bg-slate-800 rounded-3xl p-12 text-center shadow-sm border border-gray-100 dark:border-slate-700">
             <ClipboardList className="w-20 h-20 text-gray-300 dark:text-slate-600 mx-auto mb-4" />
-            <h3 className="text-2xl font-bold text-gray-900 dark:text-white mb-2">لا توجد امتحانات</h3>
-            <p className="text-gray-500 dark:text-gray-400 mb-6">قم بإضافة أول امتحان ليبدأ الطلاب في الاختبار.</p>
+            <h3 className="text-2xl font-bold text-gray-900 dark:text-white mb-2">{t('student_quizzes_no_available')}</h3>
+            <p className="text-gray-500 dark:text-gray-400 mb-6">{isRTL ? 'قم بإضافة أول امتحان ليبدأ الطلاب في الاختبار.' : 'Add your first quiz so students can start testing.'}</p>
             <Link to="/admin-dashboard/quizzes/new" className="inline-flex items-center gap-2 px-6 py-3 bg-blue-600 hover:bg-blue-700 text-white rounded-xl font-bold transition-colors">
               <Plus className="w-5 h-5" />
-              إنشاء امتحان
+              {t('quiz_create_btn')}
             </Link>
           </div>
         ) : (
@@ -149,47 +151,46 @@ export default function AdminQuizzes() {
             {filteredQuizzes.map((quiz, index) => (
               <FadeIn key={quiz.id} delay={index * 50}>
                 <div className="bg-white dark:bg-slate-800 rounded-2xl shadow-sm border border-gray-100 dark:border-slate-700 overflow-hidden hover:shadow-md transition-shadow group">
-                  <div className="p-6 relative">
-                    {/* Status Badge */}
-                    <div className="absolute top-6 left-6">
+                  <div className="p-6">
+                    {/* Status & Title Header */}
+                    <div className="flex items-start justify-between gap-3 mb-3">
+                      <h3 className="text-xl font-bold text-gray-900 dark:text-white line-clamp-2">
+                        {formatQuizTitle(quiz.title)}
+                      </h3>
                       {quiz.is_published ? (
-                        <span className="px-3 py-1 bg-green-100 dark:bg-green-900/30 text-green-700 dark:text-green-400 rounded-full text-xs font-bold flex items-center gap-1">
-                          <CheckCircle className="w-3 h-3" /> منشور
+                        <span className="px-3 py-1 bg-green-100 dark:bg-green-900/30 text-green-700 dark:text-green-400 rounded-full text-xs font-bold flex items-center gap-1 shrink-0">
+                          <CheckCircle className="w-3 h-3" /> {t('quiz_status_published')}
                         </span>
                       ) : (
-                        <span className="px-3 py-1 bg-gray-100 dark:bg-slate-700 text-gray-600 dark:text-gray-300 rounded-full text-xs font-bold flex items-center gap-1">
-                          <XCircle className="w-3 h-3" /> مسودة
+                        <span className="px-3 py-1 bg-gray-100 dark:bg-slate-700 text-gray-600 dark:text-gray-300 rounded-full text-xs font-bold flex items-center gap-1 shrink-0">
+                          <XCircle className="w-3 h-3" /> {t('quiz_status_draft')}
                         </span>
                       )}
                     </div>
-
-                    <h3 className="text-xl font-bold text-gray-900 dark:text-white mb-2 ml-16 line-clamp-2">
-                      {quiz.title}
-                    </h3>
                     
                     <div className="space-y-2 mt-4">
                       <div className="flex justify-between text-sm">
-                        <span className="text-gray-500 dark:text-gray-400">الاستهداف:</span>
+                        <span className="text-gray-500 dark:text-gray-400">{t('quiz_target_label')}</span>
                         <span className="font-bold text-gray-900 dark:text-white bg-gray-100 dark:bg-slate-700 px-2 py-0.5 rounded">
-                          {quiz.course?.title || quiz.grade_level || 'الجميع'}
+                          {quiz.course?.title ? formatCourseTitle(quiz.course.title) : (quiz.grade_level ? formatGradeName(quiz.grade_level) : (isRTL ? 'الجميع' : 'All'))}
                         </span>
                       </div>
                       <div className="flex justify-between text-sm">
-                        <span className="text-gray-500 dark:text-gray-400">عدد الأسئلة:</span>
-                        <span className="font-bold text-gray-900 dark:text-white">{quiz.questions?.[0]?.count || 0} أسئلة</span>
+                        <span className="text-gray-500 dark:text-gray-400">{t('quiz_q_count_label')}</span>
+                        <span className="font-bold text-gray-900 dark:text-white">{quiz.questions?.[0]?.count || 0} {t('quiz_questions_unit')}</span>
                       </div>
                       <div className="flex justify-between text-sm">
-                        <span className="text-gray-500 dark:text-gray-400">وقت الامتحان:</span>
+                        <span className="text-gray-500 dark:text-gray-400">{t('quiz_time_label')}</span>
                         <span className="font-bold text-gray-900 dark:text-white flex items-center gap-1">
                           {quiz.duration_minutes ? (
-                            <><Clock className="w-3 h-3" /> {quiz.duration_minutes} دقيقة</>
-                          ) : 'مفتوح'}
+                            <><Clock className="w-3 h-3" /> {quiz.duration_minutes} {t('quiz_minutes_unit')}</>
+                          ) : (isRTL ? 'مفتوح' : 'Unlimited')}
                         </span>
                       </div>
                       <div className="flex justify-between text-sm">
-                        <span className="text-gray-500 dark:text-gray-400">عمليات التسليم:</span>
+                        <span className="text-gray-500 dark:text-gray-400">{t('quiz_submissions_label')}</span>
                         <span className="font-bold text-blue-600 dark:text-blue-400 flex items-center gap-1">
-                          <Users className="w-3 h-3" /> {quiz.submissions?.[0]?.count || 0} طالب
+                          <Users className="w-3 h-3" /> {quiz.submissions?.[0]?.count || 0} {t('chat_student_default')}
                         </span>
                       </div>
                     </div>
@@ -205,13 +206,13 @@ export default function AdminQuizzes() {
                           : 'border-green-200 text-green-700 bg-green-50 hover:bg-green-100 dark:border-green-800 dark:bg-green-900/20 dark:text-green-400 dark:hover:bg-green-900/40'
                       }`}
                     >
-                      {quiz.is_published ? 'إلغاء النشر' : 'نشر للطلاب'}
+                      {quiz.is_published ? t('quiz_unpublish') : t('quiz_publish')}
                     </button>
                     
                     <Link 
                       to={`/admin-dashboard/quizzes/${quiz.id}/submissions`}
                       className="p-2 text-blue-600 bg-blue-50 hover:bg-blue-100 dark:bg-blue-900/30 dark:hover:bg-blue-900/50 dark:text-blue-400 rounded-lg transition-colors"
-                      title="عرض الإجابات"
+                      title={t('admin_quizzes_btn_submissions')}
                     >
                       <Eye className="w-5 h-5" />
                     </Link>
@@ -219,7 +220,7 @@ export default function AdminQuizzes() {
                     <Link 
                       to={`/admin-dashboard/quizzes/${quiz.id}/edit`}
                       className="p-2 text-gray-600 hover:bg-gray-200 dark:text-gray-400 dark:hover:bg-slate-700 rounded-lg transition-colors"
-                      title="تعديل"
+                      title={t('common_edit')}
                     >
                       <Edit className="w-5 h-5" />
                     </Link>
@@ -227,7 +228,7 @@ export default function AdminQuizzes() {
                     <button 
                       onClick={() => setDeleteModal({ isOpen: true, quizId: quiz.id })}
                       className="p-2 text-red-600 hover:bg-red-50 dark:text-red-400 dark:hover:bg-red-900/30 rounded-lg transition-colors"
-                      title="حذف"
+                      title={t('common_delete')}
                     >
                       <Trash2 className="w-5 h-5" />
                     </button>
@@ -243,10 +244,10 @@ export default function AdminQuizzes() {
         isOpen={deleteModal.isOpen}
         onClose={() => setDeleteModal({ isOpen: false, quizId: null })}
         onConfirm={handleDelete}
-        title="حذف الامتحان"
-        message="هل أنت متأكد من رغبتك في حذف هذا الامتحان؟ سيتم حذف جميع أسئلته ونتائج الطلاب المرتبطة به. لا يمكن التراجع عن هذا الإجراء."
-        confirmText="حذف نهائياً"
-        cancelText="إلغاء"
+        title={t('admin_quizzes_delete_title')}
+        message={t('quiz_delete_confirm')}
+        confirmText={t('common_delete')}
+        cancelText={t('common_cancel')}
         type="danger"
       />
     </div>

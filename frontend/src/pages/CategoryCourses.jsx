@@ -1,28 +1,71 @@
 import { useState, useEffect } from 'react';
 import { motion } from 'framer-motion';
 import { useTranslation } from 'react-i18next';
-import { BookOpen, PenTool, Sparkles, Library, ArrowLeft, ArrowRight, PlayCircle, Loader, Clock } from 'lucide-react';
+import { BookOpen, PenTool, Sparkles, Library, ArrowLeft, ArrowRight, PlayCircle, Loader, Clock, CheckCircle2, ShieldCheck } from 'lucide-react';
 import { useParams, useNavigate } from 'react-router-dom';
 import { supabase } from '../lib/supabase';
-import { getDirectImageUrl } from '../utils/helpers';
+import { getDirectImageUrl, calculateSubscriptionStatus, formatCourseTitle, formatCourseDescription } from '../utils/helpers';
 import BackButton from '../components/BackButton';
+import { useAuth } from '../context/AuthContext';
+import { getCache, setCache } from '../utils/appCache';
 
 export default function CategoryCourses() {
   const { categoryId } = useParams();
   const { t, i18n } = useTranslation();
   const navigate = useNavigate();
   const isRTL = i18n.language === 'ar';
+  const { user, profile } = useAuth();
+  const isAdmin = profile?.role === 'admin' || profile?.role === 'teacher';
 
-  const [courses, setCourses] = useState([]);
-  const [loading, setLoading] = useState(true);
+  const cachedCourses = getCache(`category_courses_${categoryId}`);
+  const [courses, setCourses] = useState(cachedCourses || []);
+  const [loading, setLoading] = useState(!cachedCourses);
+  const [userSubsMap, setUserSubsMap] = useState(() => {
+    return user ? (getCache(`user_subs_${user.id}`) || {}) : {};
+  });
 
   useEffect(() => {
+    const cached = getCache(`category_courses_${categoryId}`);
+    if (cached) {
+      setCourses(cached);
+      setLoading(false);
+    }
     fetchCourses();
   }, [categoryId]);
 
+  useEffect(() => {
+    if (user) {
+      fetchUserSubscriptions();
+    } else {
+      setUserSubsMap({});
+    }
+  }, [user]);
+
+  const fetchUserSubscriptions = async () => {
+    try {
+      const { data } = await supabase
+        .from('subscriptions')
+        .select('*')
+        .eq('user_id', user.id)
+        .order('created_at', { ascending: false });
+
+      if (data) {
+        const map = {};
+        for (const sub of data) {
+          if (!map[sub.course_id] || (sub.status === 'active' && map[sub.course_id].status !== 'active')) {
+            map[sub.course_id] = sub;
+          }
+        }
+        setUserSubsMap(map);
+        setCache(`user_subs_${user.id}`, map, 300);
+      }
+    } catch (e) {
+      console.error('Error fetching user subscriptions:', e);
+    }
+  };
+
   const fetchCourses = async () => {
     try {
-      setLoading(true);
       const { data, error } = await supabase
         .from('courses')
         .select('*')
@@ -31,7 +74,9 @@ export default function CategoryCourses() {
         .order('created_at', { ascending: false });
 
       if (error) throw error;
-      setCourses(data || []);
+      const validCourses = data || [];
+      setCourses(validCourses);
+      setCache(`category_courses_${categoryId}`, validCourses, 300);
     } catch (err) {
       console.error('Error fetching courses:', err);
     } finally {
@@ -42,21 +87,26 @@ export default function CategoryCourses() {
   const getCategoryDetails = (id) => {
     if (!id || id === 'كورسات-تأسيسية') {
       return {
-        title: 'كورسات التأسيس الشاملة',
-        desc: 'ابنِ أساساً لغوياً متيناً في النحو والإملاء والبلاغة مع الأستاذ السيد غريب.',
-        badge: 'كورسات تأسيسية'
+        title: isRTL ? 'كورسات التأسيس الشاملة' : 'Comprehensive Foundation Courses',
+        desc: isRTL ? 'ابنِ أساساً لغوياً متيناً في النحو والإملاء والبلاغة مع الأستاذ السيد غريب.' : 'Build a strong Arabic linguistic foundation in grammar, spelling, and rhetoric with Mr. Sayed Gharieb.',
+        badge: isRTL ? 'كورسات تأسيسية' : 'Foundation Courses'
       };
     }
 
     const parts = id.split('-');
 
-    const stageMap = {
+    const stageMapAr = {
       'primary': 'الابتدائي',
       'prep': 'الإعدادي',
       'sec': 'الثانوي'
     };
+    const stageMapEn = {
+      'primary': 'Primary',
+      'prep': 'Prep',
+      'sec': 'Secondary'
+    };
 
-    const gradeMap = {
+    const gradeMapAr = {
       '1': 'الأول',
       '2': 'الثاني',
       '3': 'الثالث',
@@ -64,24 +114,48 @@ export default function CategoryCourses() {
       '5': 'الخامس',
       '6': 'السادس'
     };
+    const gradeMapEn = {
+      '1': '1',
+      '2': '2',
+      '3': '3',
+      '4': '4',
+      '5': '5',
+      '6': '6'
+    };
 
-    let title = 'كورسات المنصة';
-    let desc = 'مجموعة من أفضل الكورسات لضمان تفوقك.';
-    let badge = 'الصفوف الدراسية';
+    let title = t('cat_courses_title');
+    let desc = t('cat_courses_desc');
+    let badge = t('cat_courses_badge');
 
     if (parts.length >= 2) {
-      const stage = stageMap[parts[0]] || '';
-      const grade = gradeMap[parts[1]] || '';
+      if (isRTL) {
+        const stage = stageMapAr[parts[0]] || '';
+        const grade = gradeMapAr[parts[1]] || '';
 
-      title = `الصف ${grade} ${stage}`;
-      desc = `مجموعة من الكورسات المخصصة لطلاب الصف ${grade} ${stage} لضمان التفوق والنجاح`;
+        title = `الصف ${grade} ${stage}`;
+        desc = `مجموعة من الكورسات المخصصة لطلاب الصف ${grade} ${stage} لضمان التفوق والنجاح`;
 
-      if (parts.length >= 4 && parts[2] === 'term') {
-        const term = parts[3] === '1' ? 'الأول' : 'الثاني';
-        title += ` - الترم ${term}`;
-        desc += ` في الفصل الدراسي ${term}.`;
+        if (parts.length >= 4 && parts[2] === 'term') {
+          const term = parts[3] === '1' ? 'الأول' : 'الثاني';
+          title += ` - الترم ${term}`;
+          desc += ` في الفصل الدراسي ${term}.`;
+        } else {
+          desc += `.`;
+        }
       } else {
-        desc += `.`;
+        const stage = stageMapEn[parts[0]] || parts[0];
+        const grade = gradeMapEn[parts[1]] || parts[1];
+
+        title = `${stage} ${grade}`;
+        desc = `Selected courses tailored for ${stage} ${grade} students to ensure academic excellence`;
+
+        if (parts.length >= 4 && parts[2] === 'term') {
+          const term = parts[3] === '1' ? 'Term 1' : 'Term 2';
+          title += ` - ${term}`;
+          desc += ` in ${term}.`;
+        } else {
+          desc += `.`;
+        }
       }
     }
 
@@ -131,10 +205,10 @@ export default function CategoryCourses() {
             <Sparkles className="w-4 h-4 text-gold-500" />
           </div>
 
-          <h1 className="text-4xl md:text-5xl lg:text-6xl font-extrabold text-blue-900 dark:text-blue-400 mb-6 leading-tight font-arabic drop-shadow-sm">
+          <h1 className="text-2xl sm:text-4xl md:text-5xl lg:text-6xl font-extrabold text-blue-900 dark:text-blue-400 mb-4 sm:mb-6 leading-tight font-arabic drop-shadow-sm px-2">
             {categoryDetails.title}
           </h1>
-          <p className="text-xl text-gray-600 dark:text-gray-300 max-w-2xl mx-auto leading-relaxed">
+          <p className="text-base sm:text-xl text-gray-600 dark:text-gray-300 max-w-2xl mx-auto leading-relaxed px-2">
             {categoryDetails.desc}
           </p>
         </motion.div>
@@ -146,8 +220,12 @@ export default function CategoryCourses() {
         ) : courses.length === 0 ? (
           <div className="text-center py-20">
             <BookOpen className="w-20 h-20 text-gray-300 dark:text-slate-700 mx-auto mb-6" />
-            <h2 className="text-2xl font-bold text-gray-900 dark:text-white mb-4">لا توجد كورسات متاحة حالياً</h2>
-            <p className="text-gray-500 dark:text-gray-400">تابعنا قريباً، سيتم إضافة أقوى الكورسات هنا.</p>
+            <h2 className="text-2xl font-bold text-gray-900 dark:text-white mb-4">
+              {isRTL ? "لا توجد كورسات متاحة حالياً" : "No courses available currently"}
+            </h2>
+            <p className="text-gray-500 dark:text-gray-400">
+              {isRTL ? "تابعنا قريباً، سيتم إضافة أقوى الكورسات هنا." : "Stay tuned, new courses will be added here soon."}
+            </p>
           </div>
         ) : (
           /* Courses Grid */
@@ -155,70 +233,126 @@ export default function CategoryCourses() {
             variants={containerVariants}
             initial="hidden"
             animate="show"
-            className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-8 lg:gap-12"
+            className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6 lg:gap-12"
           >
-            {courses.map((course) => (
-              <motion.div
-                key={course.id}
-                variants={itemVariants}
-                whileHover={{ y: -10 }}
-                onClick={() => navigate(`/course/${course.id}`)}
-                className={`group cursor-pointer relative bg-white dark:bg-slate-800/80 backdrop-blur-xl border border-gray-100 dark:border-slate-700 rounded-[2.5rem] p-6 transition-all duration-500 flex flex-col h-full hover:shadow-2xl hover:border-blue-200 dark:hover:border-blue-800 overflow-hidden`}
-              >
-                {/* Image / Thumbnail */}
-                <div className="relative w-full h-48 rounded-3xl overflow-hidden mb-6 bg-slate-100 dark:bg-slate-700/50">
-                  {course.image_url ? (
-                    <img src={getDirectImageUrl(course.image_url)} alt={course.title} className="w-full h-full object-cover transition-transform duration-700 group-hover:scale-110" />
-                  ) : (
-                    <div className="w-full h-full flex items-center justify-center">
-                      <BookOpen className="w-16 h-16 text-gray-300 dark:text-slate-500" />
-                    </div>
-                  )}
-                  <div className="absolute inset-0 bg-gradient-to-t from-black/60 to-transparent opacity-0 group-hover:opacity-100 transition-opacity duration-300"></div>
+            {courses.map((course) => {
+              const userSub = userSubsMap[course.id];
+              const subStatus = (!isAdmin && userSub) ? calculateSubscriptionStatus(userSub, course.access_duration_days) : null;
 
-                  {course.price === 0 && (
-                    <div className="absolute top-4 right-4 bg-green-500 text-white px-3 py-1 rounded-full text-xs font-bold shadow-lg">
-                      مجاني
-                    </div>
-                  )}
-                </div>
+              return (
+                <motion.div
+                  key={course.id}
+                  variants={itemVariants}
+                  whileHover={{ y: -10 }}
+                  onClick={() => navigate(`/course/${course.id}`)}
+                  className={`group cursor-pointer relative bg-white dark:bg-slate-800/80 backdrop-blur-xl border border-gray-100 dark:border-slate-700 rounded-3xl sm:rounded-[2.5rem] p-4 sm:p-6 transition-all duration-500 flex flex-col h-full hover:shadow-2xl hover:border-blue-200 dark:hover:border-blue-800 overflow-hidden`}
+                >
+                  {/* Image / Thumbnail */}
+                  <div className="relative w-full h-48 rounded-3xl overflow-hidden mb-6 bg-slate-100 dark:bg-slate-700/50">
+                    {course.image_url ? (
+                      <img src={getDirectImageUrl(course.image_url)} alt={course.title} className="w-full h-full object-cover transition-transform duration-700 group-hover:scale-110" />
+                    ) : (
+                      <div className="w-full h-full flex items-center justify-center">
+                        <BookOpen className="w-16 h-16 text-gray-300 dark:text-slate-500" />
+                      </div>
+                    )}
+                    <div className="absolute inset-0 bg-gradient-to-t from-black/60 to-transparent opacity-0 group-hover:opacity-100 transition-opacity duration-300"></div>
 
-                {/* Content */}
-                <div className="flex-grow flex flex-col">
-                  <h2 className="text-xl font-bold text-gray-900 dark:text-white mb-3 leading-tight group-hover:text-blue-600 dark:group-hover:text-blue-400 transition-colors line-clamp-2">
-                    {course.title}
-                  </h2>
-                  <p className="text-sm text-gray-500 dark:text-gray-400 leading-relaxed font-medium mb-6 line-clamp-3">
-                    {course.description || "لا يوجد وصف حالياً."}
-                  </p>
-
-                  <div className="mt-auto flex items-center justify-between mb-4">
-                    <div className="flex flex-col">
-                      {course.discounted_price ? (
-                        <>
-                          <span className="text-sm text-gray-400 dark:text-gray-500 line-through font-bold mb-0.5">{course.price} ج.م</span>
-                          <span className="font-bold text-xl text-blue-600 dark:text-blue-400">{course.discounted_price} ج.م</span>
-                        </>
-                      ) : (
-                        <span className="font-bold text-xl text-blue-600 dark:text-blue-400">{course.price > 0 ? `${course.price} ج.م` : 'مجاناً'}</span>
-                      )}
-                    </div>
-                    <div className="w-10 h-10 rounded-full bg-blue-50 dark:bg-slate-700 flex items-center justify-center group-hover:bg-blue-600 group-hover:text-white transition-colors text-blue-600 dark:text-blue-400">
-                      {isRTL ? <ArrowLeft className="w-5 h-5" /> : <ArrowRight className="w-5 h-5" />}
-                    </div>
+                    {isAdmin ? (
+                      <div className="absolute top-4 right-4 bg-gradient-to-r from-purple-600 to-indigo-600 text-white px-3 py-1 rounded-full text-xs font-bold shadow-lg flex items-center gap-1.5">
+                        <ShieldCheck className="w-3.5 h-3.5" />
+                        {isRTL ? "صلاحية الإدارة" : "Admin Access"}
+                      </div>
+                    ) : subStatus?.isActive ? (
+                      <div className="absolute top-4 right-4 bg-emerald-500 text-white px-3 py-1 rounded-full text-xs font-bold shadow-lg flex items-center gap-1.5">
+                        <CheckCircle2 className="w-3.5 h-3.5" />
+                        {isRTL ? "مشترك" : "Subscribed"}
+                      </div>
+                    ) : subStatus?.isExpired ? (
+                      <div className="absolute top-4 right-4 bg-red-500 text-white px-3 py-1 rounded-full text-xs font-bold shadow-lg flex items-center gap-1.5">
+                        <Clock className="w-3.5 h-3.5" />
+                        {isRTL ? "انتهت الصلاحية" : "Expired"}
+                      </div>
+                    ) : course.price === 0 ? (
+                      <div className="absolute top-4 right-4 bg-green-500 text-white px-3 py-1 rounded-full text-xs font-bold shadow-lg">
+                        {isRTL ? "مجاني" : "Free"}
+                      </div>
+                    ) : null}
                   </div>
 
-                  {course.access_duration_days && (
-                    <div className="pt-3 border-t border-gray-100 dark:border-slate-700">
-                      <p className="text-xs font-bold text-orange-600 dark:text-orange-400 flex items-center gap-1.5">
-                        <Clock className="w-3.5 h-3.5" />
-                        صلاحية الكورس: {course.access_duration_days} يوم
-                      </p>
+                  {/* Content */}
+                  <div className="flex-grow flex flex-col">
+                    <h2 className="text-xl font-bold text-gray-900 dark:text-white mb-3 leading-tight group-hover:text-blue-600 dark:group-hover:text-blue-400 transition-colors line-clamp-2">
+                      {formatCourseTitle(course.title)}
+                    </h2>
+                    <p className="text-sm text-gray-500 dark:text-gray-400 leading-relaxed font-medium mb-6 line-clamp-3">
+                      {formatCourseDescription(course.description, course.title) || (isRTL ? "لا يوجد وصف حالياً." : "No description available.")}
+                    </p>
+
+                    <div className="mt-auto flex items-center justify-between mb-4">
+                      <div className="flex flex-col">
+                        {course.discounted_price ? (
+                          <>
+                            <span className="text-sm text-gray-400 dark:text-gray-500 line-through font-bold mb-0.5">{course.price} {isRTL ? "ج.م" : "EGP"}</span>
+                            <span className="font-bold text-xl text-blue-600 dark:text-blue-400">{course.discounted_price} {isRTL ? "ج.م" : "EGP"}</span>
+                          </>
+                        ) : (
+                          <span className="font-bold text-xl text-blue-600 dark:text-blue-400">{course.price > 0 ? `${course.price} ${isRTL ? "ج.م" : "EGP"}` : (isRTL ? "مجاناً" : "Free")}</span>
+                        )}
+                      </div>
+                      <div className="w-10 h-10 rounded-full bg-blue-50 dark:bg-slate-700 flex items-center justify-center group-hover:bg-blue-600 group-hover:text-white transition-colors text-blue-600 dark:text-blue-400">
+                        {isRTL ? <ArrowLeft className="w-5 h-5" /> : <ArrowRight className="w-5 h-5" />}
+                      </div>
                     </div>
-                  )}
-                </div>
-              </motion.div>
-            ))}
+
+                    {isAdmin ? (
+                      <div className="pt-3 border-t border-gray-100 dark:border-slate-700 flex items-center justify-between">
+                        <p className="text-xs font-bold text-indigo-600 dark:text-indigo-400 flex items-center gap-1.5">
+                          <Clock className="w-3.5 h-3.5" />
+                          {course.access_duration_days ? (isRTL ? `صلاحية الطالب: ${course.access_duration_days} يوم` : `Student Access: ${course.access_duration_days} days`) : (isRTL ? 'وصول مفتوح للطلاب' : 'Open access for students')}
+                        </p>
+                        <span className="text-xs font-bold text-indigo-600 dark:text-indigo-400">
+                          {isRTL ? "معاينة وإدارة ←" : "Preview & Manage →"}
+                        </span>
+                      </div>
+                    ) : subStatus?.isActive ? (
+                      <div className="pt-3 border-t border-gray-100 dark:border-slate-700 flex items-center justify-between">
+                        <p className="text-xs font-bold text-emerald-600 dark:text-emerald-400 flex items-center gap-1.5">
+                          <CheckCircle2 className="w-3.5 h-3.5" />
+                          {subStatus.statusText}
+                        </p>
+                        <span className="text-xs font-bold text-blue-600 dark:text-blue-400">
+                          {isRTL ? "متابعة الكورس ←" : "Continue Course →"}
+                        </span>
+                      </div>
+                    ) : subStatus?.isExpired ? (
+                      <div className="pt-3 border-t border-gray-100 dark:border-slate-700 flex items-center justify-between">
+                        <p className="text-xs font-bold text-red-600 dark:text-red-400 flex items-center gap-1.5">
+                          <Clock className="w-3.5 h-3.5" />
+                          {isRTL ? `انتهت الصلاحية (${course.access_duration_days} يوم)` : `Expired (${course.access_duration_days} days)`}
+                        </p>
+                        <span 
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            navigate(`/checkout/${course.id}`);
+                          }}
+                          className="text-xs font-bold text-blue-600 dark:text-blue-400 underline hover:text-blue-700 transition-colors"
+                        >
+                          {isRTL ? "تجديد الاشتراك ←" : "Renew Subscription →"}
+                        </span>
+                      </div>
+                    ) : course.access_duration_days ? (
+                      <div className="pt-3 border-t border-gray-100 dark:border-slate-700">
+                        <p className="text-xs font-bold text-orange-600 dark:text-orange-400 flex items-center gap-1.5">
+                          <Clock className="w-3.5 h-3.5" />
+                          {isRTL ? `صلاحية الكورس: ${course.access_duration_days} يوم` : `Course Validity: ${course.access_duration_days} days`}
+                        </p>
+                      </div>
+                    ) : null}
+                  </div>
+                </motion.div>
+              );
+            })}
           </motion.div>
         )}
       </div>

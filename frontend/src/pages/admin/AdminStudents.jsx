@@ -11,7 +11,7 @@ import { supabase } from '../../lib/supabase';
 const apiUrl = import.meta.env.VITE_API_URL || 'http://localhost:5000';
 
 export default function AdminStudents() {
-  const { t } = useTranslation();
+  const { t, i18n } = useTranslation();
   
   const [students, setStudents] = useState([]);
   const [loading, setLoading] = useState(true);
@@ -44,22 +44,26 @@ export default function AdminStudents() {
   const [showEditPassword, setShowEditPassword] = useState(false);
 
   const translateGrade = (grade) => {
-    const grades = {
-      'primary_1': 'الصف الأول الابتدائي',
-      'primary_2': 'الصف الثاني الابتدائي',
-      'primary_3': 'الصف الثالث الابتدائي',
-      'primary_4': 'الصف الرابع الابتدائي',
-      'primary_5': 'الصف الخامس الابتدائي',
-      'primary_6': 'الصف السادس الابتدائي',
-      'prep_1': 'الصف الأول الإعدادي',
-      'prep_2': 'الصف الثاني الإعدادي',
-      'prep_3': 'الصف الثالث الإعدادي',
-      'sec_1': 'الصف الأول الثانوي',
-      'sec_2': 'الصف الثاني الثانوي',
-      'sec_3': 'الصف الثالث الثانوي'
-    };
-    return grades[grade] || grade;
+    if (!grade) return '';
+    const key = `grade_${grade}`;
+    const translated = t(key);
+    return translated !== key ? translated : grade;
   };
+
+  const gradeOptions = [
+    { value: 'primary_1', label: t('grade_primary_1') },
+    { value: 'primary_2', label: t('grade_primary_2') },
+    { value: 'primary_3', label: t('grade_primary_3') },
+    { value: 'primary_4', label: t('grade_primary_4') },
+    { value: 'primary_5', label: t('grade_primary_5') },
+    { value: 'primary_6', label: t('grade_primary_6') },
+    { value: 'prep_1', label: t('grade_prep_1') },
+    { value: 'prep_2', label: t('grade_prep_2') },
+    { value: 'prep_3', label: t('grade_prep_3') },
+    { value: 'sec_1', label: t('grade_sec_1') },
+    { value: 'sec_2', label: t('grade_sec_2') },
+    { value: 'sec_3', label: t('grade_sec_3') },
+  ];
 
   // Delete Modal State
   const [deleteConfig, setDeleteConfig] = useState({ isOpen: false, studentId: null, studentName: '' });
@@ -199,17 +203,17 @@ export default function AdminStudents() {
             <div className="flex flex-col md:flex-row items-start md:items-center justify-between gap-6">
               <div className="flex items-center gap-5">
                 <Link to="/admin-dashboard" className="w-12 h-12 rounded-xl bg-white/10 text-white flex items-center justify-center hover:bg-white/20 transition-colors backdrop-blur-md border border-white/10">
-                  <ArrowRight className="w-6 h-6" />
+                  <ArrowRight className="w-6 h-6 rtl:rotate-0 ltr:rotate-180" />
                 </Link>
                 <div className="w-16 h-16 rounded-2xl bg-white/10 backdrop-blur-md flex items-center justify-center border border-white/20 shadow-[0_0_15px_rgba(255,255,255,0.1)]">
                   <Users className="w-8 h-8 text-blue-300" />
                 </div>
                 <div>
                   <h1 className="text-4xl font-extrabold text-white font-arabic tracking-tight mb-2">
-                    إدارة الطلاب
+                    {t('admin_students_title')}
                   </h1>
                   <p className="text-blue-200/80 font-medium text-lg">
-                    عرض وحذف وإضافة حسابات الطلاب يدوياً.
+                    {t('admin_students_desc')}
                   </p>
                 </div>
               </div>
@@ -225,13 +229,13 @@ export default function AdminStudents() {
             {/* Toolbar */}
             <div className="p-6 border-b border-gray-100 dark:border-slate-700 bg-gray-50/50 dark:bg-slate-800/50 flex flex-col md:flex-row justify-between items-center gap-4">
               <div className="relative w-full md:w-96">
-                <div className="absolute inset-y-0 right-0 pr-4 flex items-center pointer-events-none">
+                <div className="absolute inset-y-0 rtl:right-0 rtl:pr-4 ltr:left-0 ltr:pl-4 flex items-center pointer-events-none">
                   <Search className="h-5 w-5 text-gray-400" />
                 </div>
                 <input
                   type="text"
-                  className="block w-full pr-11 py-3 bg-white dark:bg-slate-900 border border-gray-200 dark:border-slate-700 rounded-xl focus:ring-2 focus:ring-blue-500 focus:border-blue-500 transition-colors text-gray-900 dark:text-white"
-                  placeholder="ابحث بالاسم، الإيميل، أو رقم الهاتف..."
+                  className="block w-full rtl:pr-11 rtl:pl-4 ltr:pl-11 ltr:pr-4 py-3 bg-white dark:bg-slate-900 border border-gray-200 dark:border-slate-700 rounded-xl focus:ring-2 focus:ring-blue-500 focus:border-blue-500 transition-colors text-gray-900 dark:text-white"
+                  placeholder={t('admin_students_search_ph')}
                   value={searchQuery}
                   onChange={(e) => setSearchQuery(e.target.value)}
                 />
@@ -242,7 +246,7 @@ export default function AdminStudents() {
                 className="w-full md:w-auto bg-blue-600 hover:bg-blue-700 text-white px-6 py-3 rounded-xl font-bold flex items-center justify-center gap-2 transition-all shadow-md shadow-blue-500/20 hover:shadow-blue-500/40"
               >
                 <UserPlus className="w-5 h-5" />
-                إضافة طالب جديد
+                {t('admin_students_btn_add')}
               </button>
             </div>
 
@@ -256,20 +260,20 @@ export default function AdminStudents() {
                 <div className="w-20 h-20 bg-gray-100 dark:bg-slate-700 rounded-full flex items-center justify-center mx-auto mb-4">
                   <Users className="w-10 h-10 text-gray-400" />
                 </div>
-                <h3 className="text-xl font-bold text-gray-900 dark:text-white mb-2">لا يوجد طلاب</h3>
-                <p className="text-gray-500 dark:text-gray-400">لم يتم العثور على أي طلاب مطابقين لبحثك.</p>
+                <h3 className="text-xl font-bold text-gray-900 dark:text-white mb-2">{t('admin_students_no_students')}</h3>
+                
               </div>
             ) : (
               <div className="overflow-x-auto">
-                <table className="w-full text-right border-collapse">
+                <table className="w-full rtl:text-right ltr:text-left border-collapse">
                   <thead className="bg-white dark:bg-slate-800 border-b border-gray-100 dark:border-slate-700">
                     <tr className="text-gray-500 dark:text-gray-400 text-sm font-bold">
-                      <th className="py-4 px-6">اسم الطالب</th>
-                      <th className="py-4 px-6">الصف الدراسي</th>
-                      <th className="py-4 px-6">البريد الإلكتروني</th>
-                      <th className="py-4 px-6">رقم الهاتف</th>
-                      <th className="py-4 px-6">تاريخ التسجيل</th>
-                      <th className="py-4 px-6 text-center">إجراءات</th>
+                      <th className="py-4 px-6">{t('admin_students_th_student')}</th>
+                      <th className="py-4 px-6">{t('admin_students_th_grade')}</th>
+                      <th className="py-4 px-6">{t('admin_students_email_label')}</th>
+                      <th className="py-4 px-6">{t('admin_students_th_phone')}</th>
+                      <th className="py-4 px-6">{t('admin_students_th_reg_date')}</th>
+                      <th className="py-4 px-6 text-center">{t('admin_students_th_actions')}</th>
                     </tr>
                   </thead>
                   <tbody>
@@ -278,13 +282,13 @@ export default function AdminStudents() {
                         <td className="py-4 px-6">
                           <div className="flex items-center gap-3">
                             <div className="w-10 h-10 rounded-full bg-blue-100 dark:bg-blue-900/30 text-blue-600 dark:text-blue-400 flex items-center justify-center font-bold">
-                              {student.full_name ? student.full_name.charAt(0) : 'ط'}
+                              {student.full_name ? student.full_name.charAt(0) : 'S'}
                             </div>
-                            <span className="font-bold text-gray-900 dark:text-white">{student.full_name || 'طالب مجهول'}</span>
+                            <span className="font-bold text-gray-900 dark:text-white">{student.full_name || t('admin_students_unknown')}</span>
                           </div>
                         </td>
                         <td className="py-4 px-6 text-sm text-gray-600 dark:text-gray-300">
-                          {translateGrade(student.grade_level) || 'غير محدد'}
+                          {translateGrade(student.grade_level) || '-'}
                         </td>
                         <td className="py-4 px-6">
                           <div className="flex items-center gap-2 text-sm text-gray-600 dark:text-gray-300">
@@ -299,7 +303,7 @@ export default function AdminStudents() {
                           </div>
                         </td>
                         <td className="py-4 px-6 text-gray-500 dark:text-gray-400 text-sm">
-                          {new Date(student.created_at).toLocaleDateString('ar-EG')}
+                          {new Date(student.created_at).toLocaleDateString(i18n.language === 'en' ? 'en-US' : 'ar-EG')}
                         </td>
                         <td className="py-4 px-6">
                           <div className="flex items-center justify-center gap-2">
@@ -316,14 +320,14 @@ export default function AdminStudents() {
                                 setIsEditModalOpen(true);
                               }}
                               className="w-9 h-9 rounded-lg flex items-center justify-center text-blue-500 hover:bg-blue-50 dark:hover:bg-blue-900/20 hover:text-blue-600 transition-colors"
-                              title="تعديل الطالب"
+                              title={t('common_edit')}
                             >
                               <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M15.232 5.232l3.536 3.536m-2.036-5.036a2.5 2.5 0 113.536 3.536L6.5 21.036H3v-3.572L16.732 3.732z"></path></svg>
                             </button>
                             <button
                               onClick={() => setDeleteConfig({ isOpen: true, studentId: student.id, studentName: student.full_name })}
                               className="w-9 h-9 rounded-lg flex items-center justify-center text-red-500 hover:bg-red-50 dark:hover:bg-red-900/20 hover:text-red-600 transition-colors"
-                              title="حذف الطالب"
+                              title={t('common_delete')}
                             >
                               <Trash2 className="w-5 h-5" />
                             </button>
@@ -347,7 +351,7 @@ export default function AdminStudents() {
             <div className="px-6 py-4 border-b border-gray-100 dark:border-slate-700 flex justify-between items-center bg-gray-50/50 dark:bg-slate-800/50">
               <h3 className="text-xl font-bold text-gray-900 dark:text-white flex items-center gap-2">
                 <UserPlus className="w-5 h-5 text-blue-600" />
-                إضافة طالب جديد
+                {t('admin_students_modal_add_title')}
               </h3>
               <button 
                 onClick={() => setIsAddModalOpen(false)}
@@ -368,7 +372,7 @@ export default function AdminStudents() {
               
               <div className="space-y-4">
                 <div>
-                  <label className="block text-sm font-bold text-gray-700 dark:text-gray-300 mb-1">الاسم الكامل</label>
+                  <label className="block text-sm font-bold text-gray-700 dark:text-gray-300 mb-1">{t('admin_students_name_label')}</label>
                   <input
                     required
                     type="text"
@@ -378,7 +382,7 @@ export default function AdminStudents() {
                   />
                 </div>
                 <div>
-                  <label className="block text-sm font-bold text-gray-700 dark:text-gray-300 mb-1">البريد الإلكتروني</label>
+                  <label className="block text-sm font-bold text-gray-700 dark:text-gray-300 mb-1">{t('admin_students_email_label')}</label>
                   <input
                     required
                     type="email"
@@ -389,12 +393,12 @@ export default function AdminStudents() {
                   />
                 </div>
                 <div>
-                  <label className="block text-sm font-bold text-gray-700 dark:text-gray-300 mb-1">رقم الهاتف</label>
+                  <label className="block text-sm font-bold text-gray-700 dark:text-gray-300 mb-1">{t('admin_students_phone_label')}</label>
                   <input
                     required
                     type="tel"
                     pattern="[0-9]{11}"
-                    title="برجاء إدخال رقم هاتف صحيح مكون من 11 رقم"
+                    title={t('admin_students_phone_error')}
                     value={addForm.phone_number}
                     onChange={e => {
                       const val = e.target.value.replace(/\D/g, '').slice(0, 11);
@@ -402,11 +406,11 @@ export default function AdminStudents() {
                     }}
                     className="w-full px-4 py-2.5 rounded-lg border border-gray-300 dark:border-slate-600 bg-white dark:bg-slate-700 focus:ring-2 focus:ring-blue-500 outline-none transition-all dark:text-white"
                     dir="ltr"
-                    placeholder="مثال: 01000000000"
+                    placeholder={t('admin_students_phone_hint')}
                   />
                 </div>
                 <div>
-                  <label className="block text-sm font-bold text-gray-700 dark:text-gray-300 mb-1">كلمة المرور</label>
+                  <label className="block text-sm font-bold text-gray-700 dark:text-gray-300 mb-1">{t('admin_students_pass_label')}</label>
                   <div className="relative">
                     <input
                       required
@@ -427,26 +431,17 @@ export default function AdminStudents() {
                   </div>
                 </div>
                 <div>
-                  <label className="block text-sm font-bold text-gray-700 dark:text-gray-300 mb-1">الصف الدراسي</label>
+                  <label className="block text-sm font-bold text-gray-700 dark:text-gray-300 mb-1">{t('admin_students_grade_label')}</label>
                   <select
                     required
                     value={addForm.grade_level}
                     onChange={e => setAddForm({...addForm, grade_level: e.target.value})}
                     className="w-full px-4 py-2.5 rounded-lg border border-gray-300 dark:border-slate-600 bg-white dark:bg-slate-700 focus:ring-2 focus:ring-blue-500 outline-none transition-all dark:text-white"
                   >
-                    <option value="" disabled>اختر الصف الدراسي</option>
-                    <option value="primary_1">الصف الأول الابتدائي</option>
-                    <option value="primary_2">الصف الثاني الابتدائي</option>
-                    <option value="primary_3">الصف الثالث الابتدائي</option>
-                    <option value="primary_4">الصف الرابع الابتدائي</option>
-                    <option value="primary_5">الصف الخامس الابتدائي</option>
-                    <option value="primary_6">الصف السادس الابتدائي</option>
-                    <option value="prep_1">الصف الأول الإعدادي</option>
-                    <option value="prep_2">الصف الثاني الإعدادي</option>
-                    <option value="prep_3">الصف الثالث الإعدادي</option>
-                    <option value="sec_1">الصف الأول الثانوي</option>
-                    <option value="sec_2">الصف الثاني الثانوي</option>
-                    <option value="sec_3">الصف الثالث الثانوي</option>
+                    <option value="" disabled>{t('admin_students_grade_select')}</option>
+                    {gradeOptions.map(opt => (
+                      <option key={opt.value} value={opt.value}>{opt.label}</option>
+                    ))}
                   </select>
                 </div>
               </div>
@@ -459,7 +454,7 @@ export default function AdminStudents() {
                 >
                   {addLoading ? (
                     <div className="w-5 h-5 border-2 border-white border-t-transparent rounded-full animate-spin"></div>
-                  ) : 'إنشاء الحساب'}
+                  ) : t('admin_students_btn_add')}
                 </button>
                 <button
                   type="button"
@@ -467,7 +462,7 @@ export default function AdminStudents() {
                   disabled={addLoading}
                   className="flex-1 bg-gray-100 text-gray-700 py-2.5 rounded-xl font-bold hover:bg-gray-200 transition-colors disabled:opacity-70"
                 >
-                  إلغاء
+                  {t('common_cancel')}
                 </button>
               </div>
             </form>
@@ -483,7 +478,7 @@ export default function AdminStudents() {
             <div className="px-6 py-4 border-b border-gray-100 dark:border-slate-700 flex justify-between items-center bg-gray-50/50 dark:bg-slate-800/50">
               <h3 className="text-xl font-bold text-gray-900 dark:text-white flex items-center gap-2">
                 <svg className="w-5 h-5 text-blue-600" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M15.232 5.232l3.536 3.536m-2.036-5.036a2.5 2.5 0 113.536 3.536L6.5 21.036H3v-3.572L16.732 3.732z"></path></svg>
-                تعديل بيانات الطالب
+                {t('admin_students_modal_edit_title')}
               </h3>
               <button 
                 onClick={() => setIsEditModalOpen(false)}
@@ -504,7 +499,7 @@ export default function AdminStudents() {
               
               <div className="space-y-4">
                 <div>
-                  <label className="block text-sm font-bold text-gray-700 dark:text-gray-300 mb-1">الاسم الكامل</label>
+                  <label className="block text-sm font-bold text-gray-700 dark:text-gray-300 mb-1">{t('admin_students_name_label')}</label>
                   <input
                     required
                     type="text"
@@ -514,7 +509,7 @@ export default function AdminStudents() {
                   />
                 </div>
                 <div>
-                  <label className="block text-sm font-bold text-gray-700 dark:text-gray-300 mb-1">البريد الإلكتروني</label>
+                  <label className="block text-sm font-bold text-gray-700 dark:text-gray-300 mb-1">{t('admin_students_email_label')}</label>
                   <input
                     required
                     type="email"
@@ -525,12 +520,12 @@ export default function AdminStudents() {
                   />
                 </div>
                 <div>
-                  <label className="block text-sm font-bold text-gray-700 dark:text-gray-300 mb-1">رقم الهاتف</label>
+                  <label className="block text-sm font-bold text-gray-700 dark:text-gray-300 mb-1">{t('admin_students_phone_label')}</label>
                   <input
                     required
                     type="tel"
                     pattern="[0-9]{11}"
-                    title="برجاء إدخال رقم هاتف صحيح مكون من 11 رقم"
+                    title={t('admin_students_phone_error')}
                     value={editForm.phone_number}
                     onChange={e => {
                       const val = e.target.value.replace(/\D/g, '').slice(0, 11);
@@ -538,11 +533,11 @@ export default function AdminStudents() {
                     }}
                     className="w-full px-4 py-2.5 rounded-lg border border-gray-300 dark:border-slate-600 bg-white dark:bg-slate-700 focus:ring-2 focus:ring-blue-500 outline-none transition-all dark:text-white"
                     dir="ltr"
-                    placeholder="مثال: 01000000000"
+                    placeholder={t('admin_students_phone_hint')}
                   />
                 </div>
                 <div>
-                  <label className="block text-sm font-bold text-gray-700 dark:text-gray-300 mb-1">كلمة المرور (اختياري)</label>
+                  <label className="block text-sm font-bold text-gray-700 dark:text-gray-300 mb-1">{t('admin_students_password_optional')}</label>
                   <div className="relative">
                     <input
                       minLength={6}
@@ -551,7 +546,7 @@ export default function AdminStudents() {
                       onChange={e => setEditForm({...editForm, password: e.target.value})}
                       className="w-full pl-4 pr-10 py-2.5 rounded-lg border border-gray-300 dark:border-slate-600 bg-white dark:bg-slate-700 focus:ring-2 focus:ring-blue-500 outline-none transition-all dark:text-white"
                       dir="ltr"
-                      placeholder="اتركه فارغاً إذا لم ترد تغييره"
+                      placeholder={t('admin_students_password_hint')}
                     />
                     <button
                       type="button"
@@ -563,26 +558,17 @@ export default function AdminStudents() {
                   </div>
                 </div>
                 <div>
-                  <label className="block text-sm font-bold text-gray-700 dark:text-gray-300 mb-1">الصف الدراسي</label>
+                  <label className="block text-sm font-bold text-gray-700 dark:text-gray-300 mb-1">{t('admin_students_grade_label')}</label>
                   <select
                     required
                     value={editForm.grade_level}
                     onChange={e => setEditForm({...editForm, grade_level: e.target.value})}
                     className="w-full px-4 py-2.5 rounded-lg border border-gray-300 dark:border-slate-600 bg-white dark:bg-slate-700 focus:ring-2 focus:ring-blue-500 outline-none transition-all dark:text-white"
                   >
-                    <option value="" disabled>اختر الصف الدراسي</option>
-                    <option value="primary_1">الصف الأول الابتدائي</option>
-                    <option value="primary_2">الصف الثاني الابتدائي</option>
-                    <option value="primary_3">الصف الثالث الابتدائي</option>
-                    <option value="primary_4">الصف الرابع الابتدائي</option>
-                    <option value="primary_5">الصف الخامس الابتدائي</option>
-                    <option value="primary_6">الصف السادس الابتدائي</option>
-                    <option value="prep_1">الصف الأول الإعدادي</option>
-                    <option value="prep_2">الصف الثاني الإعدادي</option>
-                    <option value="prep_3">الصف الثالث الإعدادي</option>
-                    <option value="sec_1">الصف الأول الثانوي</option>
-                    <option value="sec_2">الصف الثاني الثانوي</option>
-                    <option value="sec_3">الصف الثالث الثانوي</option>
+                    <option value="" disabled>{t('admin_students_grade_select')}</option>
+                    {gradeOptions.map(opt => (
+                      <option key={opt.value} value={opt.value}>{opt.label}</option>
+                    ))}
                   </select>
                 </div>
               </div>
@@ -595,7 +581,7 @@ export default function AdminStudents() {
                 >
                   {editLoading ? (
                     <div className="w-5 h-5 border-2 border-white border-t-transparent rounded-full animate-spin"></div>
-                  ) : 'حفظ التعديلات'}
+                  ) : t('review_update_btn')}
                 </button>
                 <button
                   type="button"
@@ -603,7 +589,7 @@ export default function AdminStudents() {
                   disabled={editLoading}
                   className="flex-1 bg-gray-100 text-gray-700 py-2.5 rounded-xl font-bold hover:bg-gray-200 transition-colors disabled:opacity-70"
                 >
-                  إلغاء
+                  {t('common_cancel')}
                 </button>
               </div>
             </form>
@@ -616,10 +602,10 @@ export default function AdminStudents() {
         isOpen={deleteConfig.isOpen}
         onClose={() => setDeleteConfig({ isOpen: false, studentId: null, studentName: '' })}
         onConfirm={confirmDelete}
-        title="حذف الطالب نهائياً"
-        message={`هل أنت متأكد من رغبتك في حذف حساب الطالب "${deleteConfig.studentName}"؟ سيتم مسح كافة بياناته واشتراكاته من المنصة ولا يمكن التراجع عن هذا الإجراء.`}
-        confirmText="نعم، احذف الطالب"
-        cancelText="تراجع"
+        title={t('admin_students_modal_delete_title')}
+        message={t('admin_students_modal_delete_msg')}
+        confirmText={t('admin_students_modal_delete_title')}
+        cancelText={t('common_cancel')}
         isDanger={true}
       />
     </div>

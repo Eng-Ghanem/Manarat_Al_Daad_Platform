@@ -1,5 +1,6 @@
 import { useState, useEffect } from 'react';
 import { useParams, useNavigate, Link } from 'react-router-dom';
+import { useTranslation } from 'react-i18next';
 import { motion, AnimatePresence } from 'framer-motion';
 import { CreditCard, Wallet, Smartphone, UploadCloud, Loader, CheckCircle, ChevronRight, BookOpen, ShieldCheck } from 'lucide-react';
 import { supabase } from '../lib/supabase';
@@ -9,6 +10,7 @@ import BackButton from '../components/BackButton';
 import { useAuth } from '../context/AuthContext';
 
 export default function Checkout() {
+  const { t } = useTranslation();
   const { courseId } = useParams();
   const navigate = useNavigate();
   const { user } = useAuth();

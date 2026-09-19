@@ -8,7 +8,8 @@ import FadeIn from '../components/FadeIn';
 import ChatInput from '../components/ChatInput';
 
 export default function StudentChat() {
-  const { t } = useTranslation();
+  const { t, i18n } = useTranslation();
+  const isRTL = i18n?.language === 'ar';
   const { user, profile } = useAuth();
 
   const [adminProfile, setAdminProfile] = useState(null);
@@ -88,7 +89,16 @@ export default function StudentChat() {
             supabase.from('profiles').select('full_name, role').eq('id', newMsg.sender_id).single()
               .then(({ data }) => {
                 if (data) newMsg.sender = data;
-                setMessages(prev => [...prev, newMsg]);
+                setMessages(prev => {
+                  if (prev.some(m => m.id === newMsg.id)) return prev;
+                  return [...prev, newMsg];
+                });
+              })
+              .catch(() => {
+                setMessages(prev => {
+                  if (prev.some(m => m.id === newMsg.id)) return prev;
+                  return [...prev, newMsg];
+                });
               });
           }
         } else if (event === 'UPDATE') {
@@ -267,9 +277,14 @@ export default function StudentChat() {
     try {
       const d = dateStr ? new Date(dateStr) : new Date();
       if (isNaN(d.getTime())) return '';
-      return d.toLocaleTimeString(isRTL ? 'ar-EG' : 'en-US', { hour: '2-digit', minute: '2-digit' });
+      const locale = (i18n?.language === 'ar' || isRTL) ? 'ar-EG' : 'en-US';
+      return d.toLocaleTimeString(locale, { hour: '2-digit', minute: '2-digit' });
     } catch (e) {
-      return '';
+      try {
+        return new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
+      } catch (err) {
+        return '';
+      }
     }
   };
 
@@ -385,7 +400,8 @@ export default function StudentChat() {
                   const nextMsg = messages[index + 1];
                   const showAvatar = !isMe && (!nextMsg || nextMsg.sender_id !== msg.sender_id);
                   const isFirstInGroup = index === 0 || prevMsg?.sender_id !== msg.sender_id;
-                  const isDeletable = (new Date() - new Date(msg.created_at)) < 60 * 60 * 1000;
+                  const msgTime = msg.created_at ? new Date(msg.created_at).getTime() : Date.now();
+                  const isDeletable = !isNaN(msgTime) && (Date.now() - msgTime) < 60 * 60 * 1000;
                   const colorIdx = getSenderColorIndex(msg.sender_id);
                   const senderName = getSenderName(msg);
                   const senderInitial = senderName.charAt(0);

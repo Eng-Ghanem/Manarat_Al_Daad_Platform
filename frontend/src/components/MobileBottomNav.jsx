@@ -37,13 +37,6 @@ export default function MobileBottomNav() {
       exact: true
     },
     {
-      id: 'courses',
-      label: isRTL ? 'كورسات التأسيس' : 'Courses',
-      to: '/classes',
-      icon: BookOpen,
-      matchPrefixes: ['/courses', '/classes', '/course/']
-    },
-    {
       id: 'live',
       label: isRTL ? 'حصص الأونلاين' : 'Live',
       to: liveRoute,

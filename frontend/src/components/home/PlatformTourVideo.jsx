@@ -27,26 +27,46 @@ export default function PlatformTourVideo() {
   const [isPlaying, setIsPlaying] = useState(false);
   const [activeTab, setActiveTab] = useState(0);
 
-  // Platform features showcased in the tour
+  // Platform features showcased in the tour (covering all platform services)
   const tourFeatures = [
     {
-      id: 'courses',
+      id: 'classes',
       icon: BookOpen,
-      color: 'from-blue-600 to-cyan-500',
+      color: 'from-blue-600 to-indigo-600',
       tagColor: 'bg-blue-500/10 text-blue-600 dark:text-blue-400 border-blue-200 dark:border-blue-800',
-      title: t('tour_feature_1_title'),
-      desc: t('tour_feature_1_desc'),
-      btnText: t('tour_feature_1_btn'),
+      title: isRTL ? 'مناهج الصفوف الدراسية' : 'Curricula & Grades',
+      desc: isRTL ? 'شروحات وافية ومذكرات للمرحلة الابتدائية، الإعدادية، والثانوية.' : 'Detailed lessons and PDF notes for primary, prep, and secondary.',
+      btnText: isRTL ? 'تصفح الصفوف والمناهج' : 'Browse Classes',
       link: '/classes',
-      badge: isRTL ? 'تأسيس ومناهج' : 'Foundation & Curricula',
+      badge: isRTL ? 'صفوف ومناهج' : 'School Grades',
       highlights: isRTL ? [
-        'فيديوهات عالية الدقة بدون انقطاع',
+        'دروس منظمة لكل مرحلة دراسية',
         'مذكرات وتلخيصات PDF لكل محاضرة',
-        'حفظ تلقائي للتقدم ونقاط الـ XP'
+        'متابعة مستمرة لمستوى استيعاب الطالب'
       ] : [
-        'HD uninterrupted video streaming',
-        'PDF lecture notes and summaries',
-        'Auto progress save with XP points'
+        'Structured lessons per school grade',
+        'PDF notes and lesson summaries',
+        'Progress tracking for comprehension'
+      ]
+    },
+    {
+      id: 'foundation',
+      icon: Sparkles,
+      color: 'from-cyan-600 to-blue-500',
+      tagColor: 'bg-cyan-500/10 text-cyan-600 dark:text-cyan-400 border-cyan-200 dark:border-cyan-800',
+      title: isRTL ? 'كورسات التأسيس الشامل' : 'Foundation Courses',
+      desc: isRTL ? 'تأسيس قوي في قواعد النحو، الإملاء، والبلاغة لجميع المراحل.' : 'Solid foundation in Arabic grammar, dictation, and rhetoric.',
+      btnText: isRTL ? 'استكشف كورسات التأسيس' : 'Explore Foundation',
+      link: '/courses',
+      badge: isRTL ? 'تأسيس شامل' : 'Foundation',
+      highlights: isRTL ? [
+        'سلسلة تأسيس متدرجة من الصفر حتى الإتقان',
+        'تطبيقات عملية وأمثلة إعرابية شاملة',
+        'اختبارات تحديد مستوى وتطوير مستمر'
+      ] : [
+        'Step-by-step foundation from basics to mastery',
+        'Hands-on parsing exercises and examples',
+        'Level placement and mastery tests'
       ]
     },
     {
@@ -54,19 +74,19 @@ export default function PlatformTourVideo() {
       icon: GraduationCap,
       color: 'from-emerald-600 to-teal-500',
       tagColor: 'bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 border-emerald-200 dark:border-emerald-800',
-      title: t('tour_feature_2_title'),
-      desc: t('tour_feature_2_desc'),
-      btnText: t('tour_feature_2_btn'),
+      title: isRTL ? 'الامتحانات وبنك الأسئلة' : 'Quizzes & Question Bank',
+      desc: isRTL ? 'تدريب عملي مستمر وتصحيح ذكي فوري مع شرح مفصل للإجابات.' : 'Practice tests, smart automated scoring and instant feedback.',
+      btnText: isRTL ? 'بدء تدريبات الامتحانات' : 'Start Quizzes',
       link: '/quizzes',
       badge: isRTL ? 'تصحيح فوري' : 'Instant Grading',
       highlights: isRTL ? [
         'نماذج تدريبية شاملة لكل درس',
-        'تصحيح تلقائي فوري مع شرح الإجابات',
-        'شهادة تقدير الكترونية للمتميزين'
+        'تصحيح تلقائي فوري مع تعليقات وتوضيحات',
+        'إصدار شهادات تقدير إلكترونية فورية'
       ] : [
         'Comprehensive quiz banks per lesson',
         'Instant grading with answer feedback',
-        'Merit certificates for achievers'
+        'Instant digital certificates of achievement'
       ]
     },
     {
@@ -74,19 +94,19 @@ export default function PlatformTourVideo() {
       icon: MessageSquare,
       color: 'from-purple-600 to-pink-500',
       tagColor: 'bg-purple-500/10 text-purple-600 dark:text-purple-400 border-purple-200 dark:border-purple-800',
-      title: t('tour_feature_3_title'),
-      desc: t('tour_feature_3_desc'),
-      btnText: t('tour_feature_3_btn'),
+      title: isRTL ? 'المحادثات والتفاعل الذكي' : 'Interactive Smart Chat',
+      desc: isRTL ? 'اسأل واستفسر في أي وقت مع ميزة الرد المقتبس والمنشن وتواصل مع الأستاذ.' : 'Ask questions anytime with WhatsApp-style replies, @ mentions, and teacher guidance.',
+      btnText: isRTL ? 'الدخول لغرفة المحادثة' : 'Join Discussion',
       link: '/chat',
-      badge: isRTL ? 'ردود ومنشن @' : 'Replies & @ Mentions',
+      badge: isRTL ? 'ردود ومنشن' : 'Replies & Mentions',
       highlights: isRTL ? [
-        'ميزة الرد المقتبس WhatsApp-style على أي رسالة',
-        'منشن سريع بالـ @ للأستاذ والزملاء',
-        'تسجيلات صوتية وملفات مرفقة وتواصل خاص'
+        'سحب جهة اليمين للرد الفوري على أي رسالة',
+        'إشارة سريعة بالـ @ للأستاذ والزملاء',
+        'تسجيلات صوتية وملفات وتواصل خاص مباشر'
       ] : [
-        'WhatsApp-style quoted replies on any message',
-        'Quick @ mentions for teacher & peers',
-        'Voice notes, attachments & direct DMs'
+        'Swipe-to-reply on any message',
+        'Quick @ mentions with instant alerts',
+        'Voice notes, file sharing, and direct DMs'
       ]
     },
     {
@@ -94,19 +114,19 @@ export default function PlatformTourVideo() {
       icon: Video,
       color: 'from-amber-500 to-orange-500',
       tagColor: 'bg-amber-500/10 text-amber-600 dark:text-amber-400 border-amber-200 dark:border-amber-800',
-      title: t('tour_feature_4_title'),
-      desc: t('tour_feature_4_desc'),
-      btnText: t('tour_feature_4_btn'),
+      title: isRTL ? 'حصص البث المباشر (Zoom)' : 'Zoom Live Sessions',
+      desc: isRTL ? 'تفاعل مباشر أسبوعي مع الأستاذ سيد غريب لحل أصعب الأسئلة.' : 'Weekly live sessions with Mr. Sayed Gharieb for live Q&A.',
+      btnText: isRTL ? 'عرض جدول الحصص' : 'View Live Schedule',
       link: '/live-sessions',
       badge: isRTL ? 'بث مباشر Zoom' : 'Zoom Live Sessions',
       highlights: isRTL ? [
-        'لقاءات أسبوعية تفاعلية مع الأستاذ سيد غريب',
-        'تنبيهات تلقائية قبل بدء كل حصة',
-        'حل الأسئلة الصعبة ومراجعات ليلة الامتحان'
+        'لقاءات أسبوعية تفاعلية بالصوت والصورة',
+        'تنبيهات ورابط مباشر للانضمام بضغطة زر',
+        'مراجعات ليلة الامتحان وحل الأسئلة الوزارية'
       ] : [
-        'Weekly interactive live sessions with Mr. Sayed',
-        'Automated reminders before every session',
-        'Challenging questions & exam night reviews'
+        'Interactive audio-video live workshops',
+        'One-click join links with automated alerts',
+        'Exam night reviews and high-yield problems'
       ]
     },
     {
@@ -114,19 +134,19 @@ export default function PlatformTourVideo() {
       icon: Trophy,
       color: 'from-yellow-500 to-amber-600',
       tagColor: 'bg-yellow-500/10 text-yellow-600 dark:text-yellow-400 border-yellow-200 dark:border-yellow-800',
-      title: t('tour_feature_5_title'),
-      desc: t('tour_feature_5_desc'),
-      btnText: t('tour_feature_5_btn'),
-      link: '/leaderboard',
+      title: isRTL ? 'لوحة الشرف وشهادات التميز' : 'Honor Board & Certificates',
+      desc: isRTL ? 'اجمع نقاط الـ XP وتصدر قائمة الأوائل واستلم شهادات تقدير معتمدة.' : 'Earn XP points, rank on the national board, and receive certificates.',
+      btnText: isRTL ? 'عرض لوحة الشرف والشهادات' : 'View Honors & Certificates',
+      link: '/certificates',
       badge: isRTL ? 'لوحة الشرف والـ XP' : 'Honor Board & XP',
       highlights: isRTL ? [
         'نقاط خبرة (XP) مع كل درس وامتحان تنجزه',
         'تصنيف أسبوعي وشهري لأوائل الطلاب',
-        'تكريم وجوائز خاصة للمتفوقين'
+        'شهادات تقدير رسمية وتكريم وجوائز خاصة'
       ] : [
-        'XP rewarded with every lesson & test',
-        'Weekly & monthly national rankings',
-        'Special honors and badges for top students'
+        'XP rewarded with every completed lesson',
+        'Weekly & monthly top student rankings',
+        'Official certificates of excellence and awards'
       ]
     }
   ];
@@ -260,8 +280,8 @@ export default function PlatformTourVideo() {
                       </div>
 
                       <div className="flex-1 min-w-0">
-                        <div className="flex items-center justify-between gap-2 mb-1">
-                          <h4 className={`text-sm sm:text-base font-bold font-arabic truncate ${
+                        <div className="flex flex-wrap items-center justify-between gap-1.5 mb-1">
+                          <h4 className={`text-sm sm:text-base font-bold font-arabic leading-snug ${
                             isSelected ? 'text-blue-600 dark:text-blue-400' : 'text-gray-900 dark:text-white'
                           }`}>
                             {feat.title}

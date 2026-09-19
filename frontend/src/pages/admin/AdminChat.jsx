@@ -1,5 +1,6 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { useTranslation } from 'react-i18next';
+import { motion } from 'framer-motion';
 import { supabase } from '../../lib/supabase';
 import { chatService } from '../../lib/chatService';
 import { useAuth } from '../../context/AuthContext';
@@ -230,7 +231,7 @@ export default function AdminChat() {
     setActiveMessageOptions(null);
   };
 
-  const handleSendMessage = async ({ content, mediaUrl, mediaType, replyTo }) => {
+  const handleSendMessage = async ({ content, mediaUrl, mediaType, replyTo, mentions }) => {
     try {
       await chatService.sendMessage({
         senderId: user.id,
@@ -242,6 +243,24 @@ export default function AdminChat() {
         replyTo
       });
       setReplyingTo(null);
+
+      // Create notification for mentioned users
+      if (mentions && Array.isArray(mentions) && mentions.length > 0) {
+        const senderName = profile?.full_name || 'أ. سيد غريب';
+        for (const m of mentions) {
+          if (m && m.id && m.id !== user.id) {
+            supabase.from('notifications').insert([{
+              user_id: m.id,
+              title: isRTL ? 'إشارة في المحادثة من المعلم' : 'Mention from Teacher',
+              message: isRTL 
+                ? `قام الأستاذ ${senderName} بالإشارة إليك في المحادثة`
+                : `${senderName} mentioned you in the chat`,
+              type: 'chat_mention',
+              link: '/chat'
+            }]).then(() => {}).catch(e => console.warn('Mention notification error:', e));
+          }
+        }
+      }
     } catch (err) {
       console.error('Error sending message:', err);
       throw err; // Re-throw to handle it in ChatInput
@@ -305,20 +324,7 @@ export default function AdminChat() {
 
   const renderTextWithMentions = (text) => {
     if (!text) return null;
-    const parts = text.split(/(@[a-zA-Z0-9_\u0600-\u06FF]+)/g);
-    return parts.map((part, i) => {
-      if (part.startsWith('@')) {
-        return (
-          <span 
-            key={i} 
-            className="font-extrabold text-amber-300 dark:text-amber-200 bg-black/25 dark:bg-black/35 px-1.5 py-0.5 rounded-md mx-0.5 inline-block shadow-2xs"
-          >
-            {part}
-          </span>
-        );
-      }
-      return part;
-    });
+    return <span dir="auto" className="break-words leading-relaxed">{text}</span>;
   };
 
   const filteredStudents = students.filter(s =>
@@ -587,9 +593,33 @@ export default function AdminChat() {
 
                       <div 
                         id={`msg-${msg.id}`}
-                        className={`max-w-[68%] flex flex-col ${isMe ? 'items-end' : 'items-start'}`}
+                        className={`max-w-[78%] sm:max-w-[68%] flex flex-col ${isMe ? 'items-end' : 'items-start'} relative group`}
                       >
-                        <div className={`rounded-2xl px-3 py-2 shadow-sm relative group transition-all ${activeMessageOptions === msg.id ? 'z-50' : 'z-10'
+                        {/* Quick hover reply button on desktop */}
+                        {!msg.is_deleted && (
+                          <div 
+                            onClick={() => handleReplyClick(msg)}
+                            title={t('chat_reply')}
+                            className={`absolute top-1/2 -translate-y-1/2 ${isRTL ? '-left-8' : '-right-8'} w-7 h-7 rounded-full bg-purple-500/20 hover:bg-purple-500/30 text-purple-600 dark:text-purple-400 flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity cursor-pointer z-0 shadow-xs active:scale-90`}
+                          >
+                            <Reply className="w-3.5 h-3.5 rtl:-scale-x-100" />
+                          </div>
+                        )}
+
+                        <motion.div 
+                          drag={!msg.is_deleted ? "x" : false}
+                          dragConstraints={{ left: 0, right: 0 }}
+                          dragElastic={{ right: 0.35, left: 0 }}
+                          onDragEnd={(e, info) => {
+                            if (info.offset.x > 40 || info.velocity.x > 250) {
+                              handleReplyClick(msg);
+                              if (typeof navigator !== 'undefined' && navigator.vibrate) {
+                                navigator.vibrate(20);
+                              }
+                            }
+                          }}
+                          onDoubleClick={() => !msg.is_deleted && handleReplyClick(msg)}
+                          className={`rounded-2xl px-3 py-2 shadow-sm relative transition-all ${activeMessageOptions === msg.id ? 'z-50' : 'z-10'
                           } ${isMe
                             ? 'bg-gradient-to-l from-purple-600 to-indigo-600 text-white rounded-tl-none shadow-md'
                             : 'bg-white dark:bg-slate-800 text-gray-900 dark:text-white rounded-tr-none border border-gray-200 dark:border-slate-700'
@@ -622,7 +652,10 @@ export default function AdminChat() {
                           {msg.is_deleted ? (
                             <div className={`flex items-center gap-2 text-sm italic py-1 ${isMe ? 'text-blue-200' : 'text-gray-400 dark:text-gray-500'}`}>
                               <Ban className="w-3.5 h-3.5 text-red-400 shrink-0" />
-                              <span>{msg.deleted_by && msg.deleted_by !== msg.sender_id ? t('chat_msg_deleted_admin') : t('chat_msg_deleted')}</span>
+                              <span>{(() => {
+                                const isDeletedByAdmin = (msg.deleted_by && msg.deleted_by !== msg.sender_id) || (msg.deleted_by && msg.deleted_by === user.id);
+                                return isDeletedByAdmin ? t('chat_msg_deleted_admin') : t('chat_msg_deleted');
+                              })()}</span>
                             </div>
                           ) : (
                             <>
@@ -726,8 +759,8 @@ export default function AdminChat() {
                             )}
                           </div>
 
-                          {/* Options Button - ALWAYS VISIBLE for active messages, supports Reply + 1h Delete/Edit */}
-                          {!msg.is_deleted && (
+                          {/* Options Button - VISIBLE for active messages within 1 hour */}
+                          {!msg.is_deleted && isDeletable && (
                             <div className={`absolute top-1.5 ${isMe ? (isRTL ? 'left-1.5' : 'right-1.5') : (isRTL ? 'right-1.5' : 'left-1.5')} z-20`}>
                               <button
                                 onClick={() => setActiveMessageOptions(activeMessageOptions === msg.id ? null : msg.id)}
@@ -781,7 +814,7 @@ export default function AdminChat() {
                               )}
                             </div>
                           )}
-                        </div>
+                        </motion.div>
                       </div>
 
                       {/* Spacer for my messages side (no avatar) */}

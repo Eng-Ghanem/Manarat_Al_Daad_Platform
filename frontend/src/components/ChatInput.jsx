@@ -75,12 +75,19 @@ export default function ChatInput({ onSendMessage, replyingTo = null, onCancelRe
     }
   };
 
+  const [mentionedUsers, setMentionedUsers] = useState([]);
+
   const handleSelectMention = (participant) => {
     if (mentionIndex === null) return;
     const before = message.slice(0, mentionIndex);
     const after = message.slice(mentionIndex + (mentionQuery?.length || 0) + 1);
-    const newText = `${before}@${participant.name} ${after}`;
+    // Insert clean name without literal '@' character to prevent BiDi text reversal
+    const newText = `${before}${participant.name} ${after}`;
     setMessage(newText);
+    setMentionedUsers(prev => {
+      if (prev.some(p => p.id === participant.id)) return prev;
+      return [...prev, participant];
+    });
     setMentionQuery(null);
     setMentionIndex(null);
     if (textareaRef.current) {
@@ -183,12 +190,14 @@ export default function ChatInput({ onSendMessage, replyingTo = null, onCancelRe
           sender_name: replyingTo.sender_name,
           content: replyingTo.content || '',
           media_type: replyingTo.media_type || null
-        } : null
+        } : null,
+        mentions: mentionedUsers
       });
 
       setMessage('');
       clearMedia();
       setMentionQuery(null);
+      setMentionedUsers([]);
       if (onCancelReply) onCancelReply();
     } catch (err) {
       console.error('Submit error:', err);

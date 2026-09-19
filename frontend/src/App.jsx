@@ -115,6 +115,7 @@ function App() {
                   <Route path="/dashboard" element={<ProtectedRoute><Dashboard /></ProtectedRoute>} />
                   <Route path="/settings" element={<ProtectedRoute><Settings /></ProtectedRoute>} />
                   <Route path="/certificates" element={<ProtectedRoute><Certificates /></ProtectedRoute>} />
+                  <Route path="/leaderboard" element={<ProtectedRoute><Dashboard /></ProtectedRoute>} />
                   <Route path="/live-sessions" element={<ProtectedRoute><StudentLiveSessions /></ProtectedRoute>} />
                   <Route path="/chat" element={<ProtectedRoute><StudentChat /></ProtectedRoute>} />
                   <Route path="/quizzes" element={<ProtectedRoute><StudentQuizzes /></ProtectedRoute>} />

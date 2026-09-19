@@ -1,6 +1,23 @@
 import { supabase } from './supabase';
 
 export const chatService = {
+  // Helper to format/extract reply metadata if embedded
+  formatMessage(msg) {
+    if (!msg) return msg;
+    if (!msg.reply_to && msg.content && typeof msg.content === 'string' && msg.content.startsWith('__REPLY__')) {
+      const match = msg.content.match(/^__REPLY__(.*?)__ENDREPLY__\n?([\s\S]*)$/);
+      if (match) {
+        try {
+          msg.reply_to = JSON.parse(match[1]);
+          msg.content = match[2];
+        } catch (e) {
+          console.warn('Failed to parse embedded reply:', e);
+        }
+      }
+    }
+    return msg;
+  },
+
   // Fetch messages for a specific general grade chat or private chat
   async fetchMessages({ gradeLevel, studentId, isAdmin, adminId }) {
     let query = supabase
@@ -30,7 +47,7 @@ export const chatService = {
       console.error('Error fetching messages:', error);
       throw error;
     }
-    return data;
+    return (data || []).map(m => this.formatMessage(m));
   },
 
   // Send a message
@@ -59,9 +76,12 @@ export const chatService = {
         .single();
 
       if (error) {
-        // Fallback: If reply_to column does not exist yet on remote schema, retry without it so sending never crashes
+        // Fallback: If reply_to column does not exist yet on remote schema, embed reply metadata in content so the quote is NEVER lost!
         if (error.message && error.message.includes('reply_to')) {
           delete payload.reply_to;
+          if (replyTo) {
+            payload.content = `__REPLY__${JSON.stringify(replyTo)}__ENDREPLY__\n${content || ''}`;
+          }
           const retryRes = await supabase
             .from('chat_messages')
             .insert([payload])
@@ -71,11 +91,11 @@ export const chatService = {
             `)
             .single();
           if (retryRes.error) throw retryRes.error;
-          return retryRes.data;
+          return this.formatMessage(retryRes.data);
         }
         throw error;
       }
-      return data;
+      return this.formatMessage(data);
     } catch (err) {
       console.error('Error sending message:', err);
       throw err;
@@ -95,7 +115,7 @@ export const chatService = {
       console.error('Error editing message:', error);
       throw error;
     }
-    return data;
+    return this.formatMessage(data);
   },
 
   // Delete a message
@@ -121,6 +141,9 @@ export const chatService = {
     const subscription = supabase
       .channel('public:chat_messages')
       .on('postgres_changes', { event: '*', schema: 'public', table: 'chat_messages' }, payload => {
+        if (payload.new) {
+          payload.new = chatService.formatMessage(payload.new);
+        }
         callback(payload);
       })
       .subscribe();
@@ -164,5 +187,44 @@ export const chatService = {
       .getPublicUrl(filePath);
 
     return publicUrlData.publicUrl;
+  },
+
+  // Notify mentioned users reliably through backend (with client-side fallback)
+  async notifyMentions({ mentionedUsers, senderName, senderId, messageSnippet, isRTL }) {
+    if (!mentionedUsers || !Array.isArray(mentionedUsers) || mentionedUsers.length === 0) return;
+    const targetIds = mentionedUsers.map(u => (typeof u === 'string' ? u : u.id)).filter(id => id && id !== senderId);
+    if (targetIds.length === 0) return;
+
+    // 1. Try backend service-role endpoint (bypasses RLS)
+    try {
+      const apiUrl = import.meta.env.VITE_API_URL || 'http://localhost:5000';
+      const res = await fetch(`${apiUrl}/api/chat/mention-notify`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          mentionedUserIds: targetIds,
+          senderName,
+          senderId,
+          messageSnippet,
+          isRTL
+        })
+      });
+      if (res.ok) return;
+    } catch (err) {
+      console.warn('Backend mention notification failed, trying Supabase direct:', err);
+    }
+
+    // 2. Fallback to direct client insert
+    const notifs = targetIds.map(userId => ({
+      user_id: userId,
+      title: isRTL ? 'إشارة في المحادثة' : 'Mention in Chat',
+      message: isRTL 
+        ? `قام ${senderName} بالإشارة إليك في المحادثة: "${(messageSnippet || '').slice(0, 60)}"`
+        : `${senderName} mentioned you in the chat: "${(messageSnippet || '').slice(0, 60)}"`,
+      type: 'chat_mention',
+      link: '/chat'
+    }));
+
+    await supabase.from('notifications').insert(notifs).catch(() => {});
   }
 };

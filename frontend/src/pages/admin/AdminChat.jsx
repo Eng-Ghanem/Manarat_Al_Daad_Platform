@@ -185,8 +185,17 @@ export default function AdminChat() {
     });
   };
 
+  const chatCacheRef = useRef({});
+
   const loadMessages = async () => {
-    setLoading(true);
+    if (!activeChat) return;
+    const cacheKey = `${activeChat.type}_${activeChat.id}`;
+    if (chatCacheRef.current[cacheKey]) {
+      setMessages(chatCacheRef.current[cacheKey]);
+    } else {
+      setLoading(true);
+    }
+
     try {
       const data = await chatService.fetchMessages({
         gradeLevel: activeChat.type === 'general' ? activeChat.id : null,
@@ -195,9 +204,10 @@ export default function AdminChat() {
         adminId: user.id
       });
       setMessages(data || []);
+      chatCacheRef.current[cacheKey] = data || [];
 
       // Mark as read
-      const unreadIds = data.filter(m => m.sender_id !== user.id && !m.is_read).map(m => m.id);
+      const unreadIds = (data || []).filter(m => m.sender_id !== user.id && !m.is_read).map(m => m.id);
       if (unreadIds.length > 0) {
         await chatService.markAsRead(unreadIds);
       }
@@ -232,8 +242,38 @@ export default function AdminChat() {
   };
 
   const handleSendMessage = async ({ content, mediaUrl, mediaType, replyTo, mentions }) => {
+    // 1. Optimistic Message for 0ms Perceived Latency
+    const tempId = `temp-${Date.now()}`;
+    const optimisticMsg = {
+      id: tempId,
+      sender_id: user.id,
+      receiver_id: activeChat.type === 'private' ? activeChat.id : null,
+      grade_level: activeChat.type === 'general' ? activeChat.id : null,
+      content,
+      media_url: mediaUrl,
+      media_type: mediaType,
+      reply_to: replyTo,
+      created_at: new Date().toISOString(),
+      is_read: false,
+      sender: {
+        full_name: profile?.full_name || 'أ. سيد غريب',
+        role: 'admin'
+      },
+      is_optimistic: true
+    };
+
+    setMessages(prev => [...prev, optimisticMsg]);
+    setReplyingTo(null);
+
+    // Instant auto-scroll
+    setTimeout(() => {
+      if (messagesEndRef.current) {
+        messagesEndRef.current.scrollIntoView({ behavior: 'smooth' });
+      }
+    }, 10);
+
     try {
-      await chatService.sendMessage({
+      const realMsg = await chatService.sendMessage({
         senderId: user.id,
         receiverId: activeChat.type === 'private' ? activeChat.id : null,
         gradeLevel: activeChat.type === 'general' ? activeChat.id : null,
@@ -242,28 +282,31 @@ export default function AdminChat() {
         mediaType,
         replyTo
       });
-      setReplyingTo(null);
 
-      // Create notification for mentioned users
+      // Replace optimistic placeholder with confirmed server message
+      setMessages(prev => prev.map(m => m.id === tempId ? (realMsg || m) : m));
+
+      // Update cache
+      const cacheKey = `${activeChat.type}_${activeChat.id}`;
+      if (chatCacheRef.current[cacheKey]) {
+        chatCacheRef.current[cacheKey] = chatCacheRef.current[cacheKey].map(m => m.id === tempId ? (realMsg || m) : m);
+      }
+
+      // 2. Dispatch notifications to mentioned students reliably
       if (mentions && Array.isArray(mentions) && mentions.length > 0) {
         const senderName = profile?.full_name || 'أ. سيد غريب';
-        for (const m of mentions) {
-          if (m && m.id && m.id !== user.id) {
-            supabase.from('notifications').insert([{
-              user_id: m.id,
-              title: isRTL ? 'إشارة في المحادثة من المعلم' : 'Mention from Teacher',
-              message: isRTL 
-                ? `قام الأستاذ ${senderName} بالإشارة إليك في المحادثة`
-                : `${senderName} mentioned you in the chat`,
-              type: 'chat_mention',
-              link: '/chat'
-            }]).then(() => {}).catch(e => console.warn('Mention notification error:', e));
-          }
-        }
+        chatService.notifyMentions({
+          mentionedUsers: mentions,
+          senderName,
+          senderId: user.id,
+          messageSnippet: content,
+          isRTL
+        });
       }
     } catch (err) {
       console.error('Error sending message:', err);
-      throw err; // Re-throw to handle it in ChatInput
+      setMessages(prev => prev.filter(m => m.id !== tempId));
+      throw err;
     }
   };
 
@@ -324,7 +367,49 @@ export default function AdminChat() {
 
   const renderTextWithMentions = (text) => {
     if (!text) return null;
-    return <span dir="auto" className="break-words leading-relaxed">{text}</span>;
+    // Check if message starts with @Name on the first line (mention with message underneath)
+    const leadingMentionMatch = text.match(/^@([^\n]+)\n?([\s\S]*)$/);
+    if (leadingMentionMatch) {
+      const mentionName = leadingMentionMatch[1].trim();
+      const messageBody = leadingMentionMatch[2];
+      return (
+        <div className="flex flex-col items-start gap-1 w-full" dir="auto">
+          <div className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-lg bg-amber-400/25 text-amber-200 dark:text-amber-300 border border-amber-400/50 font-extrabold text-xs shadow-xs tracking-wide">
+            <span className="text-amber-300 font-bold">@</span>
+            <span>{mentionName}</span>
+          </div>
+          {messageBody ? (
+            <span className="leading-relaxed break-words whitespace-pre-wrap mt-0.5">
+              {messageBody}
+            </span>
+          ) : null}
+        </div>
+      );
+    }
+
+    // Inline @mentions
+    if (text.includes('@')) {
+      const parts = text.split(/(@[^\s@\n]+)/g);
+      return (
+        <span dir="auto" className="break-words leading-relaxed whitespace-pre-wrap">
+          {parts.map((part, i) => {
+            if (part.startsWith('@')) {
+              return (
+                <span 
+                  key={i} 
+                  className="inline-flex items-center gap-0.5 px-1.5 py-0.5 rounded bg-amber-400/25 text-amber-200 dark:text-amber-300 border border-amber-400/50 font-bold text-xs mx-0.5"
+                >
+                  {part}
+                </span>
+              );
+            }
+            return part;
+          })}
+        </span>
+      );
+    }
+
+    return <span dir="auto" className="break-words leading-relaxed whitespace-pre-wrap">{text}</span>;
   };
 
   const filteredStudents = students.filter(s =>
@@ -609,12 +694,13 @@ export default function AdminChat() {
                         <motion.div 
                           drag={!msg.is_deleted ? "x" : false}
                           dragConstraints={{ left: 0, right: 0 }}
-                          dragElastic={{ right: 0.35, left: 0 }}
+                          dragElastic={{ right: 0.5, left: 0 }}
+                          dragTransition={{ bounceStiffness: 900, bounceDamping: 28 }}
                           onDragEnd={(e, info) => {
-                            if (info.offset.x > 40 || info.velocity.x > 250) {
+                            if (info.offset.x > 25 || info.velocity.x > 150) {
                               handleReplyClick(msg);
                               if (typeof navigator !== 'undefined' && navigator.vibrate) {
-                                navigator.vibrate(20);
+                                navigator.vibrate(25);
                               }
                             }
                           }}
@@ -744,7 +830,7 @@ export default function AdminChat() {
                                 </div>
                               ) : (
                                 msg.content && msg.media_type !== 'audio' && (
-                                  <p className="text-sm leading-relaxed break-words whitespace-pre-wrap">{renderTextWithMentions(msg.content)}</p>
+                                  <div className="text-sm leading-relaxed break-words whitespace-pre-wrap">{renderTextWithMentions(msg.content)}</div>
                                 )
                               )}
                             </>

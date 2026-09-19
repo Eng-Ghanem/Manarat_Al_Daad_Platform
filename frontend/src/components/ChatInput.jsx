@@ -81,8 +81,8 @@ export default function ChatInput({ onSendMessage, replyingTo = null, onCancelRe
     if (mentionIndex === null) return;
     const before = message.slice(0, mentionIndex);
     const after = message.slice(mentionIndex + (mentionQuery?.length || 0) + 1);
-    // Insert clean name without literal '@' character to prevent BiDi text reversal
-    const newText = `${before}${participant.name} ${after}`;
+    // Put @Name on line 1 and newline so user types their message directly underneath
+    const newText = `${before}@${participant.name}\n${after}`;
     setMessage(newText);
     setMentionedUsers(prev => {
       if (prev.some(p => p.id === participant.id)) return prev;
@@ -90,9 +90,13 @@ export default function ChatInput({ onSendMessage, replyingTo = null, onCancelRe
     });
     setMentionQuery(null);
     setMentionIndex(null);
-    if (textareaRef.current) {
-      textareaRef.current.focus();
-    }
+    setTimeout(() => {
+      if (textareaRef.current) {
+        textareaRef.current.focus();
+        const cursorPosition = (before + `@${participant.name}\n`).length;
+        textareaRef.current.setSelectionRange(cursorPosition, cursorPosition);
+      }
+    }, 10);
   };
 
   const filteredParticipants = mentionQuery !== null && Array.isArray(participants)

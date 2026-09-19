@@ -71,6 +71,48 @@ const authRoutes = require('./src/routes/authRoutes');
 app.use('/api/admin', adminRoutes);
 app.use('/api/auth', authLimiter, authRoutes);
 
+// Mention Notifications Dispatcher (Service Role Bypasses RLS)
+app.post('/api/chat/mention-notify', async (req, res) => {
+  try {
+    const { mentionedUserIds, senderName, senderId, messageSnippet, isRTL } = req.body;
+    if (!mentionedUserIds || !Array.isArray(mentionedUserIds) || mentionedUserIds.length === 0) {
+      return res.status(400).json({ success: false, error: 'No mentioned users provided' });
+    }
+
+    const supabaseAdmin = require('./src/lib/supabaseAdmin');
+    if (!supabaseAdmin) {
+      return res.status(500).json({ success: false, error: 'Supabase admin client not available' });
+    }
+
+    const notificationsToInsert = mentionedUserIds
+      .filter(id => id && id !== senderId)
+      .map(userId => ({
+        user_id: userId,
+        title: isRTL ? 'إشارة في المحادثة' : 'Mention in Chat',
+        message: isRTL 
+          ? `قام ${senderName || 'أحد الأعضاء'} بالإشارة إليك في المحادثة: "${(messageSnippet || '').slice(0, 60)}"`
+          : `${senderName || 'Someone'} mentioned you in the chat: "${(messageSnippet || '').slice(0, 60)}"`,
+        type: 'chat_mention',
+        link: '/chat'
+      }));
+
+    if (notificationsToInsert.length > 0) {
+      const { data, error } = await supabaseAdmin
+        .from('notifications')
+        .insert(notificationsToInsert);
+      if (error) {
+        console.error('Error inserting mention notifications via supabaseAdmin:', error);
+        return res.status(500).json({ success: false, error: error.message });
+      }
+    }
+
+    return res.json({ success: true, count: notificationsToInsert.length });
+  } catch (err) {
+    console.error('Mention notify error:', err);
+    return res.status(500).json({ success: false, error: err.message });
+  }
+});
+
 // Test Route
 app.get('/', (req, res) => {
   res.send('مرحباً بك في الخادم الخلفي لمنصة مَنَارَةُ الضَّادِ!');

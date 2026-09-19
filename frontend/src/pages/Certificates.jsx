@@ -636,20 +636,26 @@ export default function Certificates() {
                 </div>
               </div>
 
+              {/* Mobile Scroll Hint */}
+              <div className="sm:hidden px-4 py-1.5 bg-amber-50 dark:bg-amber-950/30 text-amber-800 dark:text-amber-300 text-[11px] font-bold text-center border-b border-amber-200/50 flex items-center justify-center gap-1.5 no-print print:hidden">
+                <span>↔️</span>
+                <span>{isRTL ? 'يمكنك التمرير أفقياً لمعاينة الشهادة بأبعادها الكاملة' : 'Scroll horizontally to view the full certificate'}</span>
+              </div>
+
               {/* Printable Luxury Certificate Frame */}
-              <div className="p-2 sm:p-6 overflow-x-auto bg-slate-900/10 dark:bg-black/30 flex items-center justify-center" ref={certPrintRef}>
+              <div className="p-2 sm:p-6 overflow-x-auto bg-slate-900/10 dark:bg-black/30 flex items-center justify-start sm:justify-center no-scrollbar" ref={certPrintRef}>
                 <div 
                   id="printable-certificate" 
-                  className={`w-full max-w-4xl mx-auto rounded-3xl border-[8px] sm:border-[10px] shadow-2xl text-center relative overflow-hidden transition-colors flex flex-col justify-between ${
+                  className={`w-full min-w-[580px] sm:min-w-0 max-w-4xl mx-auto rounded-3xl border-[6px] sm:border-[10px] shadow-2xl text-center relative overflow-hidden transition-colors flex flex-col justify-between ${
                     certTheme === 'classic'
                       ? 'bg-[#FCFAF6] border-[#9A6B2F] text-slate-900'
                       : 'bg-[#0B1120] border-[#D97706] text-slate-100'
                   }`}
-                  style={{ minHeight: '520px' }}
+                  style={{ minHeight: '480px' }}
                 >
                   
                   {/* Decorative Inner Border Frame */}
-                  <div className={`w-full h-full rounded-2xl border-2 p-4 sm:p-6 relative flex flex-col justify-between flex-1 ${
+                  <div className={`w-full h-full rounded-2xl border-2 p-3 sm:p-6 relative flex flex-col justify-between flex-1 ${
                     certTheme === 'classic' ? 'border-[#D4AF37]/70' : 'border-[#F59E0B]/50'
                   }`}>
 
@@ -660,7 +666,7 @@ export default function Certificates() {
                     <div className={`absolute bottom-2 right-2 w-6 h-6 border-b-4 border-r-4 ${certTheme === 'classic' ? 'border-[#9A6B2F]' : 'border-[#F59E0B]'}`}></div>
 
                     {/* Header */}
-                    <div className={`flex items-center justify-between border-b pb-3 mb-4 flex-shrink-0 ${
+                    <div className={`flex items-center justify-between border-b pb-2.5 mb-3 flex-shrink-0 ${
                       certTheme === 'classic' ? 'border-[#9A6B2F]/30' : 'border-amber-500/30'
                     }`}>
                       <div className="text-start">
@@ -669,26 +675,26 @@ export default function Certificates() {
                       </div>
 
                       <div className="flex items-center gap-2">
-                        <div className="w-10 h-10 rounded-xl bg-gradient-to-tr from-amber-500 to-yellow-300 flex items-center justify-center shadow-md text-slate-950 font-black text-xl">
+                        <div className="w-9 h-9 sm:w-10 sm:h-10 rounded-xl bg-gradient-to-tr from-amber-500 to-yellow-300 flex items-center justify-center shadow-md text-slate-950 font-black text-lg sm:text-xl">
                           ض
                         </div>
                         <div className="text-start">
-                          <h2 className={`text-lg font-black tracking-tight leading-none ${
+                          <h2 className={`text-base sm:text-lg font-black tracking-tight leading-none ${
                             certTheme === 'classic' ? 'text-[#0F172A]' : 'text-white'
                           }`}>
                             مَنَارَةُ الضَّادِ
                           </h2>
-                          <span className="text-[9px] text-amber-600 dark:text-amber-400 font-extrabold tracking-wider">
+                          <span className="text-[8px] sm:text-[9px] text-amber-600 dark:text-amber-400 font-extrabold tracking-wider">
                             MANARAT AL-DAAD ACADEMY
                           </span>
                         </div>
                       </div>
 
                       <div className="text-end">
-                        <p className={`text-[10px] font-bold mb-0.5 ${certTheme === 'classic' ? 'text-[#334155]' : 'text-slate-300'}`}>
+                        <p className={`text-[9px] sm:text-[10px] font-bold mb-0.5 ${certTheme === 'classic' ? 'text-[#334155]' : 'text-slate-300'}`}>
                           {isRTL ? 'كود الاعتماد الرقمي:' : 'Accreditation ID:'}
                         </p>
-                        <span className={`text-[11px] font-mono font-bold px-2 py-0.5 rounded-md border ${
+                        <span className={`text-[10px] sm:text-[11px] font-mono font-bold px-2 py-0.5 rounded-md border ${
                           certTheme === 'classic'
                             ? 'bg-blue-50 text-[#1D4ED8] border-blue-200'
                             : 'bg-slate-800 text-[#93C5FD] border-blue-500/40'
@@ -701,8 +707,8 @@ export default function Certificates() {
                     {/* Certificate Core Body */}
                     <div className="my-auto flex flex-col justify-center py-2 flex-1">
                       {/* Badge & Title */}
-                      <div className="mb-3">
-                        <span className={`inline-block px-4 py-1 rounded-full text-[11px] font-black tracking-wider uppercase mb-2 border shadow-sm ${
+                      <div className="mb-2">
+                        <span className={`inline-block px-3.5 py-0.5 rounded-full text-[10px] sm:text-[11px] font-black tracking-wider uppercase mb-1.5 border shadow-sm ${
                           certTheme === 'classic'
                             ? 'bg-[#FEF3C7] text-[#78350F] border-[#D97706]'
                             : 'bg-[#78350F]/50 text-[#FDE68A] border-[#F59E0B]'
@@ -720,19 +726,19 @@ export default function Certificates() {
                       </div>
 
                       {/* Student Dedication */}
-                      <div className={`max-w-2xl mx-auto space-y-2 text-sm sm:text-base leading-relaxed ${
+                      <div className={`max-w-2xl mx-auto space-y-1.5 text-sm sm:text-base leading-relaxed ${
                         certTheme === 'classic' ? 'text-[#334155]' : 'text-[#CBD5E1]'
                       }`}>
-                        <p className="font-bold">
-                          {isRTL ? 'تشهد إدارة منصة' : 'This is to certify that'} <span className={`font-black ${
+                        <p className="font-bold text-xs sm:text-sm">
+                          {isRTL ? 'تَشْهَدُ إِدَارَةُ مَنَصَّةِ' : 'This is to certify that'} <span className={`font-black ${
                             certTheme === 'classic' ? 'text-[#B45309]' : 'text-[#FCD34D]'
-                          }`}>منارة الضاد</span> {isRTL ? 'والأستاذ' : 'and Mr.'} <span className={`font-black ${
+                          }`}>مَنَارَة الضَّادِ</span> {isRTL ? 'وَالأُسْتَاذُ' : 'and Mr.'} <span className={`font-black ${
                             certTheme === 'classic' ? 'text-[#0F172A]' : 'text-white'
-                          }`}>سيد غريب</span> {isRTL ? 'بأن الطالب/ـة المتميز/ة:' : 'certify that the student:'}
+                          }`}>سَيِّد غَرِيب</span> {isRTL ? 'بِأَنَّ الطَّالِبَ المَتَمَيِّز:' : 'proudly award:'}
                         </p>
                         
                         <div className="py-1">
-                          <span className={`inline-block text-2xl sm:text-3xl font-black px-8 py-1 border-b-2 tracking-wide ${
+                          <span className={`inline-block text-xl sm:text-3xl font-black px-6 sm:px-8 py-1 border-b-2 tracking-wide font-arabic ${
                             certTheme === 'classic'
                               ? 'text-[#1D4ED8] border-[#D97706]'
                               : 'text-[#60A5FA] border-[#F59E0B]'
@@ -743,12 +749,12 @@ export default function Certificates() {
 
                         <p className="font-bold text-xs sm:text-sm">
                           {isRTL 
-                            ? 'قد أتم/ت بنجاح واقتدار كافة المتطلبات التدريبية والتطبيقات والاختبارات المقررة لدراسة كورس:'
-                            : 'has successfully completed all requirements and coursework for:'}
+                            ? 'لاجتيازه بتفوق واقتدار كافة المتطلبات الدراسية والتطبيقية لكورس:'
+                            : 'For outstanding completion of all coursework and assessments in:'}
                         </p>
 
-                        <div>
-                          <h3 className={`text-base sm:text-lg font-black py-1.5 px-6 rounded-xl border inline-block shadow-sm ${
+                        <div className="my-1">
+                          <h3 className={`text-sm sm:text-base font-black py-1 px-5 sm:px-6 rounded-xl border inline-block shadow-sm ${
                             certTheme === 'classic'
                               ? 'text-[#78350F] bg-[#FEF3C7] border-[#D97706]'
                               : 'text-[#FDE68A] bg-[#1E293B] border-[#F59E0B]'
@@ -757,23 +763,23 @@ export default function Certificates() {
                           </h3>
                         </div>
 
-                        <p className={`text-[11px] font-medium pt-1 ${
+                        <p className={`text-[10px] sm:text-[11px] font-medium pt-0.5 ${
                           certTheme === 'classic' ? 'text-[#64748B]' : 'text-[#94A3B8]'
                         }`}>
                           {isRTL 
-                            ? `بمعدل إنجاز كامل (100%) لجميع الدروس المقررة (${selectedCert.totalLessons} دروس) واجتياز تقييمات المنصة بنجاح.`
-                            : `With a 100% completion rate across all ${selectedCert.totalLessons} lessons and platform assessments.`}
+                            ? `بمعدل إنجاز كامل (100%) لجميع الدروس والتقييمات المعتمدة بنجاح.`
+                            : `With a 100% completion rate across all lessons and certified assessments.`}
                         </p>
                       </div>
                     </div>
 
                     {/* Footer Signatures and Seals */}
-                    <div className={`pt-3 border-t flex items-end justify-between flex-shrink-0 ${
+                    <div className={`pt-2.5 border-t flex items-end justify-between flex-shrink-0 ${
                       certTheme === 'classic' ? 'border-[#9A6B2F]/30' : 'border-amber-500/30'
                     }`}>
-                      {/* Left Signature: General Supervisor (Mr. Mohamed Ghanem) */}
+                      {/* Left Signature: General Supervisor (Eng. Mohamed Ghanem) */}
                       <div className="text-start">
-                        <p className={`text-[10px] font-bold ${
+                        <p className={`text-[9px] sm:text-[10px] font-bold ${
                           certTheme === 'classic' ? 'text-[#64748B]' : 'text-[#94A3B8]'
                         }`}>
                           {isRTL ? 'إدارة المنصة والإشراف العام:' : 'General Supervision:'}
@@ -781,9 +787,9 @@ export default function Certificates() {
                         <p className={`text-sm sm:text-base font-black font-arabic mt-0.5 ${
                           certTheme === 'classic' ? 'text-[#0F172A]' : 'text-white'
                         }`}>
-                          أ. محمد غانم
+                          م. محمد غانم
                         </p>
-                        <p className={`text-[9px] font-medium mt-0.5 ${
+                        <p className={`text-[8px] sm:text-[9px] font-medium mt-0.5 ${
                           certTheme === 'classic' ? 'text-[#64748B]' : 'text-[#94A3B8]'
                         }`}>
                           {isRTL ? `تاريخ المنح: ${selectedCert.issueDate}` : `Issued: ${selectedCert.issueDate}`}
@@ -791,9 +797,9 @@ export default function Certificates() {
                       </div>
 
                       {/* Golden Wax Stamp Simulation (Center) */}
-                      <div className="w-16 h-16 sm:w-20 sm:h-20 rounded-full bg-gradient-to-tr from-amber-600 via-yellow-400 to-amber-500 p-0.5 shadow-xl flex items-center justify-center transform rotate-3 border border-amber-300">
+                      <div className="w-14 h-14 sm:w-18 sm:h-18 rounded-full bg-gradient-to-tr from-amber-600 via-yellow-400 to-amber-500 p-0.5 shadow-xl flex items-center justify-center transform rotate-3 border border-amber-300">
                         <div className="w-full h-full rounded-full border border-dashed border-amber-900 flex flex-col items-center justify-center text-slate-950 font-black p-1 text-center shadow-inner">
-                          <Award className="w-5 h-5 fill-slate-950" />
+                          <Award className="w-4 h-4 sm:w-5 sm:h-5 fill-slate-950" />
                           <span className="text-[7px] leading-tight font-extrabold uppercase mt-0.5">معتمد رسمياً</span>
                           <span className="text-[6px]">VERIFIED</span>
                         </div>
@@ -801,7 +807,7 @@ export default function Certificates() {
 
                       {/* Right Signature: Expert Teacher (Mr. Sayed Gharieb) */}
                       <div className="text-end">
-                        <p className={`text-[10px] font-bold ${
+                        <p className={`text-[9px] sm:text-[10px] font-bold ${
                           certTheme === 'classic' ? 'text-[#64748B]' : 'text-[#94A3B8]'
                         }`}>
                           {isRTL ? 'المعلم الخبير ومعد المنهج:' : 'Course Instructor:'}
@@ -811,7 +817,7 @@ export default function Certificates() {
                         }`}>
                           أ. سيد غريب
                         </p>
-                        <p className={`text-[10px] font-bold ${
+                        <p className={`text-[9px] sm:text-[10px] font-bold ${
                           certTheme === 'classic' ? 'text-[#B45309]' : 'text-[#FCD34D]'
                         }`}>
                           {isRTL ? 'معلم خبير لغة عربية' : 'Expert Arabic Teacher'}

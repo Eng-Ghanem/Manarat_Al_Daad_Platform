@@ -282,9 +282,19 @@ export default function AdminChat() {
     return null;
   };
 
+  const formatMsgTime = (dateStr) => {
+    try {
+      const d = dateStr ? new Date(dateStr) : new Date();
+      if (isNaN(d.getTime())) return '';
+      return d.toLocaleTimeString(isRTL ? 'ar-EG' : 'en-US', { hour: '2-digit', minute: '2-digit' });
+    } catch (e) {
+      return '';
+    }
+  };
+
   return (
     <>
-      <div className="flex h-[calc(100vh-80px)] bg-gray-50 dark:bg-slate-900 rounded-3xl overflow-hidden border border-gray-200 dark:border-slate-800 shadow-xl relative z-10">
+      <div className="flex h-[calc(100dvh-8rem)] md:h-[calc(100vh-80px)] mt-16 md:mt-20 mb-16 md:mb-0 bg-gray-50 dark:bg-slate-900 rounded-none md:rounded-3xl overflow-hidden border-0 md:border border-gray-200 dark:border-slate-800 shadow-xl relative z-10">
 
       {/* Sidebar */}
       <div className={`w-full lg:w-80 bg-white dark:bg-slate-800 flex flex-col border-l border-gray-200 dark:border-slate-700 shrink-0 transition-transform ${activeChat ? 'hidden lg:flex' : 'flex'}`}>
@@ -601,7 +611,7 @@ export default function AdminChat() {
                           {/* Timestamp + read receipt */}
                           <div className={`flex items-center justify-end gap-1 mt-1 text-[10px] ${isMe ? 'text-blue-200' : 'text-gray-400 dark:text-gray-500'}`} dir="ltr">
                             {msg.is_edited && !msg.is_deleted && <span className="opacity-70">{t('chat_edited')}</span>}
-                            <span>{new Date(msg.created_at).toLocaleTimeString(t('locale'), { hour: '2-digit', minute: '2-digit' })}</span>
+                            <span>{formatMsgTime(msg.created_at)}</span>
                             {isMe && (
                               msg.is_read ? <CheckCheck className="w-3.5 h-3.5 text-blue-200" /> : <Check className="w-3.5 h-3.5" />
                             )}

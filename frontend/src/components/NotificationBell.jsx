@@ -160,8 +160,16 @@ export default function NotificationBell() {
         )}
       </button>
 
+      {/* Mobile Backdrop Overlay */}
+      {isOpen && (
+        <div 
+          className="fixed inset-0 bg-black/40 backdrop-blur-xs z-40 sm:hidden"
+          onClick={() => setIsOpen(false)}
+        />
+      )}
+
       {/* Dropdown */}
-      <div className={`absolute top-full rtl:left-0 ltr:right-0 mt-3 w-80 sm:w-96 bg-white dark:bg-slate-800 rounded-2xl shadow-2xl border border-gray-100 dark:border-slate-700 overflow-hidden transition-all duration-300 origin-top ${isOpen ? 'opacity-100 visible translate-y-0' : 'opacity-0 invisible -translate-y-2'}`}>
+      <div className={`fixed left-3 right-3 top-16 sm:absolute sm:inset-auto sm:top-full sm:rtl:left-0 sm:ltr:right-0 sm:mt-3 sm:w-96 z-50 bg-white dark:bg-slate-800 rounded-2xl shadow-2xl border border-gray-100 dark:border-slate-700 overflow-hidden transition-all duration-300 origin-top ${isOpen ? 'opacity-100 visible translate-y-0' : 'opacity-0 invisible -translate-y-2 pointer-events-none'}`}>
         <div className="p-4 border-b border-gray-100 dark:border-slate-700 flex items-center justify-between bg-gray-50 dark:bg-slate-900/50">
           <h3 className="font-bold text-gray-900 dark:text-white">{t('notif_title')}</h3>
           {unreadCount > 0 && (

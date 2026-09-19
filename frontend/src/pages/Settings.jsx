@@ -86,16 +86,16 @@ export default function Settings() {
         </div>
 
         <FadeIn>
-          <div className="bg-white dark:bg-slate-800 rounded-3xl p-8 shadow-sm border border-gray-100 dark:border-slate-700/50">
+          <div className="bg-white dark:bg-slate-800 rounded-3xl p-5 sm:p-8 shadow-sm border border-gray-100 dark:border-slate-700/50">
             
             <div className="flex items-center gap-4 mb-8 pb-8 border-b border-gray-100 dark:border-slate-700/50">
-              <div className="w-20 h-20 rounded-full bg-blue-100 dark:bg-blue-900/50 flex items-center justify-center border-4 border-white dark:border-slate-700 shadow-sm">
-                <User className="w-10 h-10 text-blue-600 dark:text-blue-400" />
+              <div className="w-14 h-14 sm:w-20 sm:h-20 rounded-full bg-blue-100 dark:bg-blue-900/50 flex items-center justify-center border-4 border-white dark:border-slate-700 shadow-sm shrink-0">
+                <User className="w-7 h-7 sm:w-10 sm:h-10 text-blue-600 dark:text-blue-400" />
               </div>
-              <div>
-                <p className="text-sm font-bold text-gray-500 dark:text-gray-400">{t('email_label')}</p>
-                <p className="text-lg font-bold text-gray-900 dark:text-white">{user?.email}</p>
-                <span className="inline-block mt-1 px-2 py-1 bg-green-100 text-green-700 dark:bg-green-900/30 dark:text-green-400 text-xs font-bold rounded-md">
+              <div className="min-w-0 flex-1">
+                <p className="text-xs sm:text-sm font-bold text-gray-500 dark:text-gray-400">{t('email_label')}</p>
+                <p className="text-sm sm:text-lg font-bold text-gray-900 dark:text-white break-all mt-0.5">{user?.email}</p>
+                <span className="inline-block mt-1.5 px-2.5 py-0.5 bg-green-100 text-green-700 dark:bg-green-900/30 dark:text-green-400 text-xs font-bold rounded-md">
                   {t('account_active')}
                 </span>
               </div>
@@ -126,7 +126,7 @@ export default function Settings() {
                     required
                     value={fullName}
                     onChange={(e) => setFullName(e.target.value)}
-                    className="block w-full pr-12 pl-4 py-3 bg-gray-50 dark:bg-slate-900/50 border border-gray-200 dark:border-slate-700 rounded-xl focus:ring-2 focus:ring-blue-500 focus:border-blue-500 transition-colors text-gray-900 dark:text-white placeholder-gray-400"
+                    className="block w-full pr-12 pl-4 py-3 bg-gray-50 dark:bg-slate-900/50 border border-gray-200 dark:border-slate-700 rounded-xl focus:ring-2 focus:ring-blue-500 focus:border-blue-500 transition-colors text-gray-900 dark:text-white placeholder-gray-400 text-sm sm:text-base"
                     placeholder={t('fullname_placeholder')}
                   />
                 </div>
@@ -143,7 +143,7 @@ export default function Settings() {
                     required
                     value={email}
                     onChange={(e) => setEmail(e.target.value)}
-                    className="block w-full pr-12 pl-4 py-3 bg-gray-50 dark:bg-slate-900/50 border border-gray-200 dark:border-slate-700 rounded-xl focus:ring-2 focus:ring-blue-500 focus:border-blue-500 transition-colors text-gray-900 dark:text-white placeholder-gray-400 text-left direction-ltr"
+                    className="block w-full pr-12 pl-4 py-3 bg-gray-50 dark:bg-slate-900/50 border border-gray-200 dark:border-slate-700 rounded-xl focus:ring-2 focus:ring-blue-500 focus:border-blue-500 transition-colors text-gray-900 dark:text-white placeholder-gray-400 text-sm sm:text-base"
                     placeholder="example@email.com"
                   />
                 </div>
@@ -159,7 +159,7 @@ export default function Settings() {
                     type="tel"
                     value={phoneNumber}
                     onChange={(e) => setPhoneNumber(e.target.value)}
-                    className="block w-full pr-12 pl-4 py-3 bg-gray-50 dark:bg-slate-900/50 border border-gray-200 dark:border-slate-700 rounded-xl focus:ring-2 focus:ring-blue-500 focus:border-blue-500 transition-colors text-gray-900 dark:text-white placeholder-gray-400 text-left direction-ltr"
+                    className="block w-full pr-12 pl-4 py-3 bg-gray-50 dark:bg-slate-900/50 border border-gray-200 dark:border-slate-700 rounded-xl focus:ring-2 focus:ring-blue-500 focus:border-blue-500 transition-colors text-gray-900 dark:text-white placeholder-gray-400 text-sm sm:text-base"
                     placeholder="01xxxxxxxxx"
                   />
                 </div>

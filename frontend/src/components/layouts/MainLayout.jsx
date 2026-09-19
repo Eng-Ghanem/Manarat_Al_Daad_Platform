@@ -16,7 +16,7 @@ export default function MainLayout() {
   return (
     <>
       <Navbar />
-      <main className={`w-full flex-grow ${isChatPage ? '' : 'pb-16 md:pb-0'}`}>
+      <main className="w-full flex-grow pb-16 md:pb-0">
         <Suspense fallback={<TopProgressBar />}>
           <Outlet />
         </Suspense>

@@ -53,24 +53,40 @@ export default function ChatInput({ onSendMessage }) {
 
   const startRecording = async () => {
     try {
+      if (!navigator.mediaDevices || !navigator.mediaDevices.getUserMedia) {
+        alert(isRTL ? 'الميكروفون غير مدعوم في هذا المتصفح' : 'Microphone not supported on this browser');
+        return;
+      }
       const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
-      const mediaRecorder = new MediaRecorder(stream);
+      
+      let mimeType = '';
+      if (typeof MediaRecorder !== 'undefined' && MediaRecorder.isTypeSupported) {
+        if (MediaRecorder.isTypeSupported('audio/webm;codecs=opus')) mimeType = 'audio/webm;codecs=opus';
+        else if (MediaRecorder.isTypeSupported('audio/webm')) mimeType = 'audio/webm';
+        else if (MediaRecorder.isTypeSupported('audio/mp4')) mimeType = 'audio/mp4';
+        else if (MediaRecorder.isTypeSupported('audio/aac')) mimeType = 'audio/aac';
+      }
+
+      const options = mimeType ? { mimeType } : undefined;
+      const mediaRecorder = options ? new MediaRecorder(stream, options) : new MediaRecorder(stream);
       mediaRecorderRef.current = mediaRecorder;
       audioChunksRef.current = [];
 
       mediaRecorder.ondataavailable = (e) => {
-        if (e.data.size > 0) audioChunksRef.current.push(e.data);
+        if (e.data && e.data.size > 0) audioChunksRef.current.push(e.data);
       };
 
       mediaRecorder.onstop = () => {
-        const audioBlob = new Blob(audioChunksRef.current, { type: 'audio/webm' });
-        const file = new File([audioBlob], 'voice-note.webm', { type: 'audio/webm' });
+        const actualType = mediaRecorder.mimeType || mimeType || 'audio/webm';
+        const ext = actualType.includes('mp4') ? 'mp4' : actualType.includes('aac') ? 'aac' : 'webm';
+        const audioBlob = new Blob(audioChunksRef.current, { type: actualType });
+        const file = new File([audioBlob], `voice-note.${ext}`, { type: actualType });
         setMediaFile(file);
         setMediaPreview('audio');
         stream.getTracks().forEach(track => track.stop());
       };
 
-      mediaRecorder.start();
+      mediaRecorder.start(250);
       setIsRecording(true);
       setRecordingTime(0);
 
@@ -79,7 +95,7 @@ export default function ChatInput({ onSendMessage }) {
       }, 1000);
     } catch (err) {
       console.error('Error accessing microphone:', err);
-      alert(t('chat_mic_permission_denied'));
+      alert(t('chat_mic_permission_denied') || (isRTL ? 'يرجى السماح بالوصول إلى الميكروفون' : 'Please allow microphone access'));
     }
   };
 
@@ -134,7 +150,7 @@ export default function ChatInput({ onSendMessage }) {
   };
 
   return (
-    <form onSubmit={handleSubmit} className="p-4 sm:p-6 bg-white dark:bg-slate-800 border-t border-gray-200 dark:border-slate-700 shrink-0 relative z-20">
+    <form onSubmit={handleSubmit} className="p-3 sm:p-5 bg-white dark:bg-slate-800 border-t border-gray-200 dark:border-slate-700 shrink-0 sticky bottom-0 z-30 shadow-lg">
       
       {/* Media Preview Area */}
       {mediaFile && mediaPreview !== 'audio' && (

@@ -12,11 +12,10 @@ export default function MobileBottomNav() {
   const isRTL = i18n.language === 'ar';
   const isAdmin = profile?.role === 'admin';
 
-  // Do not render bottom nav on full-screen chat or quiz taking pages
-  const isChatPage = location.pathname === '/chat' || location.pathname.startsWith('/admin-dashboard/chat');
+  // Do not render bottom nav only on active quiz taking page to maximize focus
   const isTakingQuiz = location.pathname.startsWith('/quizzes/') && !location.pathname.endsWith('/result');
 
-  if (isChatPage || isTakingQuiz) {
+  if (isTakingQuiz) {
     return null;
   }
 

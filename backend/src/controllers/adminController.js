@@ -394,6 +394,95 @@ const adjustStudentXp = async (req, res) => {
   }
 };
 
+// @desc    Get current gamification XP rules
+// @route   GET /api/gamification/rules
+// @access  Public
+const getGamificationRulesHandler = async (req, res) => {
+  try {
+    // 1. Try Supabase platform_settings if table exists
+    if (supabaseAdmin) {
+      try {
+        const { data, error } = await supabaseAdmin
+          .from('platform_settings')
+          .select('value')
+          .eq('key', 'gamification_rules')
+          .maybeSingle();
+
+        if (!error && data?.value) {
+          return res.json({ success: true, rules: data.value });
+        }
+      } catch (sbErr) {
+        // Fallback to local JSON
+      }
+    }
+
+    // 2. Fallback to local JSON file
+    const fs = require('fs');
+    const path = require('path');
+    const filePath = path.resolve(__dirname, '../../data/gamification_rules.json');
+    if (fs.existsSync(filePath)) {
+      const content = fs.readFileSync(filePath, 'utf8');
+      return res.json({ success: true, rules: JSON.parse(content) });
+    }
+
+    res.json({
+      success: true,
+      rules: {
+        lesson_completed: 15,
+        quiz_passed: 20,
+        quiz_full_score: 50,
+        course_completed: 100,
+        notes_saved: 5
+      }
+    });
+  } catch (error) {
+    console.error('Error fetching gamification rules:', error);
+    res.status(500).json({ success: false, error: 'Failed to fetch rules' });
+  }
+};
+
+// @desc    Update gamification XP rules
+// @route   POST /api/admin/gamification/rules
+// @access  Private/Admin
+const updateGamificationRulesHandler = async (req, res) => {
+  try {
+    const rules = req.body;
+    if (!rules || typeof rules !== 'object') {
+      return res.status(400).json({ success: false, error: 'Invalid rules object' });
+    }
+
+    // 1. Persist to local JSON file
+    const fs = require('fs');
+    const path = require('path');
+    const dirPath = path.resolve(__dirname, '../../data');
+    if (!fs.existsSync(dirPath)) {
+      fs.mkdirSync(dirPath, { recursive: true });
+    }
+    const filePath = path.join(dirPath, 'gamification_rules.json');
+    fs.writeFileSync(filePath, JSON.stringify(rules, null, 2), 'utf8');
+
+    // 2. Try persisting to Supabase platform_settings if available
+    if (supabaseAdmin) {
+      try {
+        await supabaseAdmin
+          .from('platform_settings')
+          .upsert({
+            key: 'gamification_rules',
+            value: rules,
+            updated_at: new Date().toISOString()
+          });
+      } catch (sbErr) {
+        console.warn('Supabase platform_settings upsert error:', sbErr.message);
+      }
+    }
+
+    res.json({ success: true, message: 'Gamification rules updated successfully', rules });
+  } catch (error) {
+    console.error('Error updating gamification rules:', error);
+    res.status(500).json({ success: false, error: error.message || 'Failed to update rules' });
+  }
+};
+
 module.exports = {
   getDashboardStats,
   updateSubscriptionStatus,
@@ -403,5 +492,7 @@ module.exports = {
   createStudent,
   updateStudent,
   deleteStudent,
-  adjustStudentXp
+  adjustStudentXp,
+  getGamificationRulesHandler,
+  updateGamificationRulesHandler
 };

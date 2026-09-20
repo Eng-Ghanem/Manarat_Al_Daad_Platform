@@ -779,7 +779,7 @@ export default function AdminChat() {
                   return (
                     <React.Fragment key={msg.id || index}>
                       {showDateDivider && (
-                        <div className="flex items-center justify-center my-4 select-none sticky top-2 z-20 pointer-events-none">
+                        <div className="flex items-center justify-center my-4 select-none pointer-events-none">
                           <div className="inline-flex items-center gap-1.5 px-3.5 py-1 rounded-full text-[11px] font-bold tracking-wide shadow-xs border bg-white/95 dark:bg-slate-800/95 text-gray-600 dark:text-gray-300 border-gray-200/90 dark:border-slate-700/90 backdrop-blur-md">
                             <Calendar className="w-3 h-3 text-blue-500 dark:text-blue-400 shrink-0" />
                             <span>{formatChatDateDivider(msg.created_at)}</span>

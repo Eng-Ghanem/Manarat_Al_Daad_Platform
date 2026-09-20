@@ -9,7 +9,8 @@ const {
   createStudent, 
   updateStudent, 
   deleteStudent,
-  adjustStudentXp
+  adjustStudentXp,
+  updateGamificationRulesHandler
 } = require('../controllers/adminController');
 
 const router = express.Router();
@@ -44,5 +45,8 @@ router.delete('/students/:id', deleteStudent);
 
 // Route: POST /api/admin/students/:id/adjust-xp
 router.post('/students/:id/adjust-xp', adjustStudentXp);
+
+// Route: POST /api/admin/gamification/rules
+router.post('/gamification/rules', updateGamificationRulesHandler);
 
 module.exports = router;

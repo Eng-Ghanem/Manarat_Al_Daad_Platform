@@ -22,25 +22,91 @@ export default function StudentQuizzes() {
   // Tabs: 'available' (لم يتم التسليم), 'completed' (تم التسليم)
   const [activeTab, setActiveTab] = useState('available');
 
+  const studentId = profile?.id || user?.id;
+
   useEffect(() => {
-    if (profile) {
+    if (studentId) {
       fetchQuizzes();
     }
-  }, [profile]);
+  }, [studentId, profile?.grade_level]);
 
   const fetchQuizzes = async () => {
     try {
       setLoading(true);
+      if (!studentId) return;
 
-      // Fetch student courses to check course_id
-      const { data: enrollmentData } = await supabase
-        .from('course_students')
-        .select('course_id')
-        .eq('student_id', profile.id);
-        
-      const enrolledCourseIds = enrollmentData?.map(e => e.course_id) || [];
+      // 1. Fetch student courses from subscriptions (active) and enrollments
+      let enrolledCourseIds = [];
+      try {
+        const { data: subData } = await supabase
+          .from('subscriptions')
+          .select('course_id')
+          .eq('user_id', studentId)
+          .eq('status', 'active');
+        if (subData) {
+          enrolledCourseIds = [...enrolledCourseIds, ...subData.map(s => s.course_id)];
+        }
+      } catch (e) {
+        console.warn('Subscriptions fetch:', e);
+      }
 
-      // Fetch published quizzes
+      try {
+        const { data: enrollmentData } = await supabase
+          .from('enrollments')
+          .select('course_id')
+          .eq('user_id', studentId)
+          .eq('status', 'active');
+        if (enrollmentData) {
+          enrolledCourseIds = [...enrolledCourseIds, ...enrollmentData.map(e => e.course_id)];
+        }
+      } catch (e) {
+        // Ignored
+      }
+      enrolledCourseIds = Array.from(new Set(enrolledCourseIds.filter(Boolean)));
+
+      // 2. Fetch all student submissions with joined quiz details
+      const { data: submissionsData, error: sError } = await supabase
+        .from('quiz_submissions')
+        .select(`
+          id,
+          quiz_id,
+          score,
+          total_marks,
+          submitted_at,
+          status,
+          quiz:quizzes (
+            id,
+            title,
+            description,
+            course_id,
+            grade_level,
+            duration_minutes,
+            passing_score,
+            is_published,
+            course:courses(title),
+            questions:quiz_questions(count)
+          )
+        `)
+        .eq('student_id', studentId)
+        .order('submitted_at', { ascending: false });
+
+      if (sError) console.warn('Error fetching submissions:', sError);
+
+      const submissionsMap = {};
+      const completedList = [];
+
+      (submissionsData || []).forEach(sub => {
+        submissionsMap[sub.quiz_id] = sub;
+        if (sub.quiz) {
+          completedList.push({
+            ...sub.quiz,
+            submission: sub,
+            questionCount: sub.quiz.questions?.[0]?.count || 0
+          });
+        }
+      });
+
+      // 3. Fetch published quizzes
       const { data: quizzesData, error: qError } = await supabase
         .from('quizzes')
         .select(`
@@ -52,19 +118,6 @@ export default function StudentQuizzes() {
         .order('created_at', { ascending: false });
 
       if (qError) throw qError;
-
-      // Fetch student submissions
-      const { data: submissionsData, error: sError } = await supabase
-        .from('quiz_submissions')
-        .select('quiz_id, score, total_marks, submitted_at')
-        .eq('student_id', profile.id);
-
-      if (sError) throw sError;
-
-      const submissionsMap = {};
-      submissionsData?.forEach(sub => {
-        submissionsMap[sub.quiz_id] = sub;
-      });
 
       // Filter quizzes based on grade_level and course_id
       const getArabicGrade = (gradeKey) => {
@@ -85,25 +138,54 @@ export default function StudentQuizzes() {
         return map[gradeKey] || gradeKey;
       };
 
+      const userGrade = profile?.grade_level;
       const allowedQuizzes = (quizzesData || []).filter(quiz => {
         // 1. Check grade level
         const matchesGrade = !quiz.grade_level || 
-                             quiz.grade_level === profile.grade_level ||
-                             quiz.grade_level === getArabicGrade(profile.grade_level);
+                             !userGrade ||
+                             quiz.grade_level === userGrade ||
+                             quiz.grade_level === getArabicGrade(userGrade);
         // 2. Check course
         const matchesCourse = !quiz.course_id || enrolledCourseIds.includes(quiz.course_id);
         
         return matchesGrade && matchesCourse;
       });
 
-      // Add submission data to quizzes
-      const finalQuizzes = allowedQuizzes.map(quiz => ({
-        ...quiz,
-        submission: submissionsMap[quiz.id] || null,
-        questionCount: quiz.questions?.[0]?.count || 0
-      }));
+      // Combine: First add all completed quizzes so they are NEVER excluded
+      const combinedQuizzes = [];
+      const seenIds = new Set();
 
-      setQuizzes(finalQuizzes);
+      completedList.forEach(q => {
+        if (!seenIds.has(q.id)) {
+          seenIds.add(q.id);
+          combinedQuizzes.push(q);
+        }
+      });
+
+      // Then add allowed quizzes
+      allowedQuizzes.forEach(quiz => {
+        if (submissionsMap[quiz.id]) {
+          if (!seenIds.has(quiz.id)) {
+            seenIds.add(quiz.id);
+            combinedQuizzes.push({
+              ...quiz,
+              submission: submissionsMap[quiz.id],
+              questionCount: quiz.questions?.[0]?.count || 0
+            });
+          }
+        } else {
+          if (!seenIds.has(quiz.id)) {
+            seenIds.add(quiz.id);
+            combinedQuizzes.push({
+              ...quiz,
+              submission: null,
+              questionCount: quiz.questions?.[0]?.count || 0
+            });
+          }
+        }
+      });
+
+      setQuizzes(combinedQuizzes);
 
     } catch (error) {
       console.error('Error fetching student quizzes:', error);
@@ -249,15 +331,37 @@ export default function StudentQuizzes() {
                     </div>
                     
                     {activeTab === 'completed' && quiz.submission && (
-                      <div className="flex items-center justify-between p-3 bg-gray-50 dark:bg-slate-900 rounded-xl mt-4">
-                        <span className="text-sm font-bold text-gray-600 dark:text-gray-400">{t('quiz_score_label')}</span>
-                        <div className="font-bold text-lg">
-                          <span className={quiz.submission.score / quiz.submission.total_marks >= 0.5 ? 'text-green-600' : 'text-red-600'}>
-                            {quiz.submission.score}
-                          </span>
-                          <span className="text-gray-400 mx-1">/</span>
-                          <span className="text-gray-600 dark:text-gray-300">{quiz.submission.total_marks}</span>
+                      <div className="space-y-2 mt-4 pt-3 border-t border-gray-100 dark:border-slate-700/60">
+                        <div className="flex items-center justify-between p-3 bg-gray-50 dark:bg-slate-900/80 rounded-xl border border-gray-100 dark:border-slate-700/50">
+                          <span className="text-sm font-bold text-gray-600 dark:text-gray-400">{t('quiz_score_label')}</span>
+                          <div className="flex items-center gap-2">
+                            <span className={`text-xs px-2 py-0.5 rounded-full font-black ${
+                              (quiz.submission.score / (quiz.submission.total_marks || 1)) >= 0.5
+                                ? 'bg-emerald-100 text-emerald-700 dark:bg-emerald-900/40 dark:text-emerald-300'
+                                : 'bg-red-100 text-red-700 dark:bg-red-900/40 dark:text-red-300'
+                            }`}>
+                              {Math.round(((quiz.submission.score || 0) / (quiz.submission.total_marks || 1)) * 100)}%
+                            </span>
+                            <div className="font-black text-lg">
+                              <span className={(quiz.submission.score / (quiz.submission.total_marks || 1)) >= 0.5 ? 'text-emerald-600 dark:text-emerald-400' : 'text-red-600 dark:text-red-400'}>
+                                {quiz.submission.score}
+                              </span>
+                              <span className="text-gray-400 mx-1">/</span>
+                              <span className="text-gray-600 dark:text-gray-300">{quiz.submission.total_marks}</span>
+                            </div>
+                          </div>
                         </div>
+                        {quiz.submission.submitted_at && (
+                          <div className="text-[11px] text-gray-400 dark:text-gray-500 text-left dir-ltr px-1">
+                            {new Date(quiz.submission.submitted_at).toLocaleDateString(isRTL ? 'ar-EG' : 'en-US', {
+                              year: 'numeric',
+                              month: 'short',
+                              day: 'numeric',
+                              hour: '2-digit',
+                              minute: '2-digit'
+                            })}
+                          </div>
+                        )}
                       </div>
                     )}
                   </div>

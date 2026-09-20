@@ -13,7 +13,7 @@ import FadeIn from '../components/FadeIn';
 import ConfirmModal from '../components/ConfirmModal';
 import { supabase } from '../lib/supabase';
 import { getDirectImageUrl } from '../utils/helpers';
-import { getXpRules, saveXpRules, getStudentBadge } from '../utils/gamification';
+import { getXpRules, saveXpRules, fetchXpRulesAsync, saveXpRulesAsync, getStudentBadge } from '../utils/gamification';
 import toast from 'react-hot-toast';
 import { getCache, setCache } from '../utils/appCache';
 
@@ -61,6 +61,9 @@ export default function AdminDashboard() {
   useEffect(() => {
     fetchDashboardData();
     fetchStudentsLeaderboard();
+    fetchXpRulesAsync().then(rules => {
+      if (rules) setXpRules(rules);
+    });
   }, []);
 
   const fetchDashboardData = async () => {
@@ -138,14 +141,18 @@ export default function AdminDashboard() {
     }
   };
 
-  const handleSaveXpRules = (e) => {
+  const handleSaveXpRules = async (e) => {
     e.preventDefault();
     setIsSavingRules(true);
-    saveXpRules(xpRules);
-    setTimeout(() => {
-      setIsSavingRules(false);
+    try {
+      await saveXpRulesAsync(xpRules);
       toast.success(isRTL ? '✅ تم حفظ وتطبيق معايير نقاط الـ XP بنجاح على المنصة!' : 'Gamification rules updated successfully!');
-    }, 400);
+    } catch (err) {
+      console.error('Error saving XP rules:', err);
+      toast.error(isRTL ? 'حدث خطأ أثناء حفظ المعايير' : 'Failed to save rules');
+    } finally {
+      setIsSavingRules(false);
+    }
   };
 
   const handleOpenAdjustModal = (student) => {

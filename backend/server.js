@@ -66,10 +66,12 @@ const authLimiter = rateLimit({
 
 const adminRoutes = require('./src/routes/adminRoutes');
 const authRoutes = require('./src/routes/authRoutes');
+const { getGamificationRulesHandler } = require('./src/controllers/adminController');
 
 // API Routes
 app.use('/api/admin', adminRoutes);
 app.use('/api/auth', authLimiter, authRoutes);
+app.get('/api/gamification/rules', getGamificationRulesHandler);
 
 // Mention Notifications Dispatcher (Service Role Bypasses RLS)
 app.post('/api/chat/mention-notify', async (req, res) => {

@@ -4,7 +4,7 @@ import { motion } from 'framer-motion';
 import { supabase } from '../../lib/supabase';
 import { chatService } from '../../lib/chatService';
 import { useAuth } from '../../context/AuthContext';
-import { Send, Users, User as UserIcon, Search, Check, CheckCheck, Loader, MessageSquare, FileText, Image as ImageIcon, Play, Pause, MoreVertical, Pencil, Trash2, X, Ban, ArrowRight, Reply } from 'lucide-react';
+import { Send, Users, User as UserIcon, Search, Check, CheckCheck, Loader, MessageSquare, FileText, Image as ImageIcon, Play, Pause, MoreVertical, Pencil, Trash2, X, Ban, ArrowRight, Reply, Calendar } from 'lucide-react';
 import FadeIn from '../../components/FadeIn';
 import ChatInput from '../../components/ChatInput';
 
@@ -526,6 +526,53 @@ export default function AdminChat() {
     }
   };
 
+  const isSameDay = (d1Str, d2Str) => {
+    if (!d1Str || !d2Str) return false;
+    const d1 = new Date(d1Str);
+    const d2 = new Date(d2Str);
+    if (isNaN(d1.getTime()) || isNaN(d2.getTime())) return false;
+    return (
+      d1.getFullYear() === d2.getFullYear() &&
+      d1.getMonth() === d2.getMonth() &&
+      d1.getDate() === d2.getDate()
+    );
+  };
+
+  const formatChatDateDivider = (dateStr) => {
+    try {
+      if (!dateStr) return '';
+      const date = new Date(dateStr);
+      if (isNaN(date.getTime())) return '';
+
+      const now = new Date();
+      const isToday = 
+        date.getDate() === now.getDate() &&
+        date.getMonth() === now.getMonth() &&
+        date.getFullYear() === now.getFullYear();
+
+      if (isToday) return t('chat_today', 'اليوم');
+
+      const yesterday = new Date(now);
+      yesterday.setDate(yesterday.getDate() - 1);
+      const isYesterday = 
+        date.getDate() === yesterday.getDate() &&
+        date.getMonth() === yesterday.getMonth() &&
+        date.getFullYear() === yesterday.getFullYear();
+
+      if (isYesterday) return t('chat_yesterday', 'أمس');
+
+      const locale = (i18n?.language === 'ar' || isRTL) ? 'ar-EG-u-nu-latn' : 'en-US';
+      return date.toLocaleDateString(locale, {
+        weekday: 'long',
+        day: 'numeric',
+        month: 'long',
+        year: 'numeric'
+      });
+    } catch (e) {
+      return '';
+    }
+  };
+
   return (
     <>
       <div className="flex h-[calc(100dvh-8rem)] md:h-[calc(100vh-80px)] mt-16 md:mt-20 mb-16 md:mb-0 bg-gray-50 dark:bg-slate-900 rounded-none md:rounded-3xl overflow-hidden border-0 md:border border-gray-200 dark:border-slate-800 shadow-xl relative z-10">
@@ -718,8 +765,9 @@ export default function AdminChat() {
                   const isMe = msg.sender_id === user.id;
                   const prevMsg = messages[index - 1];
                   const nextMsg = messages[index + 1];
+                  const showDateDivider = index === 0 || !isSameDay(prevMsg?.created_at, msg.created_at);
                   const showAvatar = !isMe && (!nextMsg || nextMsg.sender_id !== msg.sender_id);
-                  const isFirstInGroup = index === 0 || prevMsg?.sender_id !== msg.sender_id;
+                  const isFirstInGroup = index === 0 || prevMsg?.sender_id !== msg.sender_id || showDateDivider;
                   const hasMention = Boolean(msg.content && msg.content.includes('@'));
                   const shouldShowSenderName = isFirstInGroup || hasMention;
                   const msgTime = msg.created_at ? new Date(msg.created_at).getTime() : Date.now();
@@ -729,8 +777,18 @@ export default function AdminChat() {
                   const senderInitial = senderName.charAt(0);
 
                   return (
-                    <FadeIn key={msg.id} delay={index * 10} className={`flex items-end gap-2 ${isMe ? 'justify-end' : 'justify-start'
-                      } ${activeMessageOptions === msg.id ? 'relative z-50' : 'relative z-10'}`}>
+                    <React.Fragment key={msg.id || index}>
+                      {showDateDivider && (
+                        <div className="flex items-center justify-center my-4 select-none sticky top-2 z-20 pointer-events-none">
+                          <div className="inline-flex items-center gap-1.5 px-3.5 py-1 rounded-full text-[11px] font-bold tracking-wide shadow-xs border bg-white/95 dark:bg-slate-800/95 text-gray-600 dark:text-gray-300 border-gray-200/90 dark:border-slate-700/90 backdrop-blur-md">
+                            <Calendar className="w-3 h-3 text-blue-500 dark:text-blue-400 shrink-0" />
+                            <span>{formatChatDateDivider(msg.created_at)}</span>
+                          </div>
+                        </div>
+                      )}
+
+                      <FadeIn delay={index * 10} className={`flex items-end gap-2 ${isMe ? 'justify-end' : 'justify-start'
+                        } ${activeMessageOptions === msg.id ? 'relative z-50' : 'relative z-10'}`}>
 
                       {/* Avatar for others (WhatsApp style - bottom aligned) */}
                       {!isMe && (
@@ -973,7 +1031,8 @@ export default function AdminChat() {
                       {/* Spacer for my messages side (no avatar) */}
                       {isMe && <div className="w-8 shrink-0" />}
                     </FadeIn>
-                  );
+                  </React.Fragment>
+                );
                 })
               )}
 

@@ -91,10 +91,10 @@ export default function TakeQuiz() {
         setTimeLeft(quizData.duration_minutes * 60);
       }
 
-      // Fetch Questions
+      // Fetch Questions securely using student_quiz_questions view (without leaking correct_option_index)
       const { data: qData, error: qError } = await supabase
-        .from('quiz_questions')
-        .select('id, text, options, marks, question_type') // Selecting needed fields including question_type
+        .from('student_quiz_questions')
+        .select('id, text, options, marks, question_type')
         .eq('quiz_id', id)
         .order('created_at', { ascending: true });
 

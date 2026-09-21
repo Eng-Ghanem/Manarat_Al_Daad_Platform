@@ -10,17 +10,50 @@ const convertArabicNumerals = (str) => {
 const AuthContext = createContext({});
 
 export const AuthProvider = ({ children }) => {
-  const [user, setUser] = useState(null);
-  const [profile, setProfile] = useState(null);
-  const [loading, setLoading] = useState(true);
+  const [user, setUser] = useState(() => {
+    try {
+      const cached = localStorage.getItem('manarat_cached_user');
+      return cached ? JSON.parse(cached) : null;
+    } catch {
+      return null;
+    }
+  });
+
+  const [profile, setProfile] = useState(() => {
+    try {
+      const cached = localStorage.getItem('manarat_cached_profile');
+      return cached ? JSON.parse(cached) : null;
+    } catch {
+      return null;
+    }
+  });
+
+  const [loading, setLoading] = useState(() => {
+    try {
+      const cachedProfile = localStorage.getItem('manarat_cached_profile');
+      const cachedUser = localStorage.getItem('manarat_cached_user');
+      return !(cachedProfile && cachedUser);
+    } catch {
+      return true;
+    }
+  });
 
   useEffect(() => {
     // Check active session
     supabase.auth.getSession().then(({ data: { session } }) => {
-      setUser(session?.user ?? null);
-      if (session?.user) {
-        fetchProfile(session.user.id);
+      const activeUser = session?.user ?? null;
+      setUser(activeUser);
+      if (activeUser) {
+        try {
+          localStorage.setItem('manarat_cached_user', JSON.stringify(activeUser));
+        } catch {}
+        fetchProfile(activeUser.id);
       } else {
+        try {
+          localStorage.removeItem('manarat_cached_user');
+          localStorage.removeItem('manarat_cached_profile');
+        } catch {}
+        setProfile(null);
         setLoading(false);
       }
     });
@@ -30,9 +63,16 @@ export const AuthProvider = ({ children }) => {
       if (event === 'SIGNED_OUT') {
         setUser(null);
         setProfile(null);
+        try {
+          localStorage.removeItem('manarat_cached_user');
+          localStorage.removeItem('manarat_cached_profile');
+        } catch {}
         setLoading(false);
       } else if (session?.user) {
         setUser(session.user);
+        try {
+          localStorage.setItem('manarat_cached_user', JSON.stringify(session.user));
+        } catch {}
         fetchProfile(session.user.id);
       }
     });
@@ -50,13 +90,16 @@ export const AuthProvider = ({ children }) => {
         
       if (error) {
         console.error('Error fetching profile:', error);
-      } else {
+      } else if (data) {
         // Platform Admins & Teachers should NEVER accumulate student XP or be ranked with students
         if ((data.role === 'admin' || data.role === 'teacher') && data.xp_points > 0) {
           supabase.from('profiles').update({ xp_points: 0 }).eq('id', userId).then(() => {});
           data.xp_points = 0;
         }
         setProfile(data);
+        try {
+          localStorage.setItem('manarat_cached_profile', JSON.stringify(data));
+        } catch {}
       }
     } catch (error) {
       console.error('Error in fetchProfile:', error);

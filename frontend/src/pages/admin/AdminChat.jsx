@@ -755,7 +755,7 @@ export default function AdminChat() {
             </div>
 
             {/* Messages */}
-            <div ref={messagesContainerRef} className="flex-1 overflow-y-auto p-6 space-y-4" style={{ backgroundImage: 'url("https://www.transparenttextures.com/patterns/cubes.png")', backgroundBlendMode: 'overlay' }}>
+            <div ref={messagesContainerRef} className="flex-1 overflow-y-auto px-2 sm:px-6 py-3 sm:py-6 space-y-3 sm:space-y-4" style={{ backgroundImage: 'url("https://www.transparenttextures.com/patterns/cubes.png")', backgroundBlendMode: 'overlay' }}>
               {loading ? (
                 <div className="flex justify-center py-10">
                   <Loader className="w-8 h-8 animate-spin text-blue-500" />
@@ -787,25 +787,25 @@ export default function AdminChat() {
                         </div>
                       )}
 
-                      <FadeIn delay={index * 10} className={`flex items-end gap-2 ${isMe ? 'justify-end' : 'justify-start'
+                      <FadeIn delay={index * 10} className={`flex items-end gap-1.5 sm:gap-2 ${isMe ? 'justify-end' : 'justify-start'
                         } ${activeMessageOptions === msg.id ? 'relative z-50' : 'relative z-10'}`}>
 
                       {/* Avatar for others (WhatsApp style - bottom aligned) */}
                       {!isMe && (
-                        <div className="shrink-0 w-8 h-8 mb-0.5">
+                        <div className="shrink-0 w-7 h-7 sm:w-8 sm:h-8 mb-0.5">
                           {showAvatar ? (
-                            <div className={`w-8 h-8 rounded-full bg-gradient-to-br ${avatarColors[colorIdx]} flex items-center justify-center text-white font-bold text-sm shadow-md`}>
+                            <div className={`w-7 h-7 sm:w-8 sm:h-8 rounded-full bg-gradient-to-br ${avatarColors[colorIdx]} flex items-center justify-center text-white font-bold text-xs sm:text-sm shadow-md`}>
                               {senderInitial}
                             </div>
                           ) : (
-                            <div className="w-8 h-8" />
+                            <div className="w-7 h-7 sm:w-8 sm:h-8" />
                           )}
                         </div>
                       )}
 
                       <div 
                         id={`msg-${msg.id}`}
-                        className={`max-w-[78%] sm:max-w-[68%] flex flex-col ${isMe ? 'items-end' : 'items-start'} relative group`}
+                        className={`max-w-[88%] sm:max-w-[70%] flex flex-col ${isMe ? 'items-end' : 'items-start'} relative group`}
                       >
                         {/* Quick hover reply button on desktop */}
                         {!msg.is_deleted && (

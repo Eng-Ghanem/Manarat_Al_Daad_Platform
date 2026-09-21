@@ -59,6 +59,9 @@ if (typeof window !== 'undefined') {
   const preloadPages = () => {
     import('./pages/Dashboard');
     import('./pages/AdminDashboard');
+    import('./pages/StudentQuizzes');
+    import('./pages/StudentLiveSessions');
+    import('./pages/StudentChat');
     import('./pages/FoundationCourses');
     import('./pages/Certificates');
     import('./pages/Grades');

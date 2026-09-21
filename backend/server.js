@@ -66,11 +66,13 @@ const authLimiter = rateLimit({
 
 const adminRoutes = require('./src/routes/adminRoutes');
 const authRoutes = require('./src/routes/authRoutes');
+const quizRoutes = require('./src/routes/quizRoutes');
 const { getGamificationRulesHandler } = require('./src/controllers/adminController');
 
 // API Routes
 app.use('/api/admin', adminRoutes);
 app.use('/api/auth', authLimiter, authRoutes);
+app.use('/api/quizzes', quizRoutes);
 app.get('/api/gamification/rules', getGamificationRulesHandler);
 
 // Mention Notifications Dispatcher (Service Role Bypasses RLS)

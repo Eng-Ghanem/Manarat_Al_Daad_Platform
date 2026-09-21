@@ -11,7 +11,7 @@ import FadeIn from '../components/FadeIn';
 import { formatQuizTitle, formatCourseTitle, formatGradeName } from '../utils/helpers';
 
 export default function StudentQuizzes() {
-  const { profile } = useAuth();
+  const { user, profile } = useAuth();
   const { t, i18n } = useTranslation();
   const isRTL = i18n.language === 'ar';
   
@@ -22,18 +22,28 @@ export default function StudentQuizzes() {
   // Tabs: 'available' (لم يتم التسليم), 'completed' (تم التسليم)
   const [activeTab, setActiveTab] = useState('available');
 
-  const studentId = profile?.id || user?.id;
+  const studentId = user?.id || profile?.id;
 
   useEffect(() => {
     if (studentId) {
       fetchQuizzes();
+    } else {
+      setLoading(false);
     }
   }, [studentId, profile?.grade_level]);
 
   const fetchQuizzes = async () => {
     try {
       setLoading(true);
-      if (!studentId) return;
+      let currentUserId = studentId;
+      if (!currentUserId) {
+        const { data: sessionData } = await supabase.auth.getSession();
+        currentUserId = sessionData?.session?.user?.id;
+      }
+      if (!currentUserId) {
+        setLoading(false);
+        return;
+      }
 
       // 1. Fetch student courses from subscriptions (active) and enrollments
       let enrolledCourseIds = [];
@@ -41,7 +51,7 @@ export default function StudentQuizzes() {
         const { data: subData } = await supabase
           .from('subscriptions')
           .select('course_id')
-          .eq('user_id', studentId)
+          .eq('user_id', currentUserId)
           .eq('status', 'active');
         if (subData) {
           enrolledCourseIds = [...enrolledCourseIds, ...subData.map(s => s.course_id)];
@@ -54,7 +64,7 @@ export default function StudentQuizzes() {
         const { data: enrollmentData } = await supabase
           .from('enrollments')
           .select('course_id')
-          .eq('user_id', studentId)
+          .eq('user_id', currentUserId)
           .eq('status', 'active');
         if (enrollmentData) {
           enrolledCourseIds = [...enrolledCourseIds, ...enrollmentData.map(e => e.course_id)];
@@ -64,57 +74,59 @@ export default function StudentQuizzes() {
       }
       enrolledCourseIds = Array.from(new Set(enrolledCourseIds.filter(Boolean)));
 
-      // 2. Fetch all student submissions with joined quiz details
+      // 2. Fetch question count map: Tier 1 via backend API, Tier 2 via student_quiz_questions view
+      const questionsCountMap = {};
+      try {
+        const apiBase = import.meta.env.VITE_API_URL || 'http://localhost:5000';
+        const res = await fetch(`${apiBase}/api/quizzes/counts`);
+        if (res.ok) {
+          const resData = await res.json();
+          if (resData?.counts) {
+            Object.assign(questionsCountMap, resData.counts);
+          }
+        }
+      } catch (e) {
+        // Fallback to Supabase view if backend offline
+      }
+
+      if (Object.keys(questionsCountMap).length === 0) {
+        try {
+          const { data: qListData } = await supabase
+            .from('student_quiz_questions')
+            .select('quiz_id');
+          if (qListData) {
+            qListData.forEach(item => {
+              if (item.quiz_id) {
+                questionsCountMap[item.quiz_id] = (questionsCountMap[item.quiz_id] || 0) + 1;
+              }
+            });
+          }
+        } catch (e) {
+          console.warn('Questions count view fetch error:', e);
+        }
+      }
+
+      // 3. Fetch all student submissions directly (100% reliable, no broken join relations)
       const { data: submissionsData, error: sError } = await supabase
         .from('quiz_submissions')
-        .select(`
-          id,
-          quiz_id,
-          score,
-          total_marks,
-          submitted_at,
-          status,
-          quiz:quizzes (
-            id,
-            title,
-            description,
-            course_id,
-            grade_level,
-            duration_minutes,
-            passing_score,
-            is_published,
-            course:courses(title),
-            questions:quiz_questions(count)
-          )
-        `)
-        .eq('student_id', studentId)
+        .select('*')
+        .eq('student_id', currentUserId)
         .order('submitted_at', { ascending: false });
 
       if (sError) console.warn('Error fetching submissions:', sError);
 
       const submissionsMap = {};
-      const completedList = [];
-
       (submissionsData || []).forEach(sub => {
         submissionsMap[sub.quiz_id] = sub;
-        if (sub.quiz) {
-          completedList.push({
-            ...sub.quiz,
-            submission: sub,
-            questionCount: sub.quiz.questions?.[0]?.count || 0
-          });
-        }
       });
 
-      // 3. Fetch published quizzes
+      // 4. Fetch all quizzes with course info
       const { data: quizzesData, error: qError } = await supabase
         .from('quizzes')
         .select(`
           *,
-          course:courses(title),
-          questions:quiz_questions(count)
+          course:courses(title)
         `)
-        .eq('is_published', true)
         .order('created_at', { ascending: false });
 
       if (qError) throw qError;
@@ -139,47 +151,39 @@ export default function StudentQuizzes() {
       };
 
       const userGrade = profile?.grade_level;
-      const allowedQuizzes = (quizzesData || []).filter(quiz => {
-        // 1. Check grade level
-        const matchesGrade = !quiz.grade_level || 
-                             !userGrade ||
-                             quiz.grade_level === userGrade ||
-                             quiz.grade_level === getArabicGrade(userGrade);
-        // 2. Check course
-        const matchesCourse = !quiz.course_id || enrolledCourseIds.includes(quiz.course_id);
-        
-        return matchesGrade && matchesCourse;
-      });
 
-      // Combine: First add all completed quizzes so they are NEVER excluded
+      // Process and classify quizzes:
+      // If student submitted it => COMPLETED (always included regardless of published status)
+      // If not submitted => AVAILABLE (only if published, matching grade and course)
       const combinedQuizzes = [];
       const seenIds = new Set();
 
-      completedList.forEach(q => {
-        if (!seenIds.has(q.id)) {
-          seenIds.add(q.id);
-          combinedQuizzes.push(q);
-        }
-      });
+      (quizzesData || []).forEach(quiz => {
+        const sub = submissionsMap[quiz.id];
+        const qCount = questionsCountMap[quiz.id] || (sub ? sub.total_marks : 0) || 1;
 
-      // Then add allowed quizzes
-      allowedQuizzes.forEach(quiz => {
-        if (submissionsMap[quiz.id]) {
-          if (!seenIds.has(quiz.id)) {
-            seenIds.add(quiz.id);
-            combinedQuizzes.push({
-              ...quiz,
-              submission: submissionsMap[quiz.id],
-              questionCount: quiz.questions?.[0]?.count || 0
-            });
-          }
-        } else {
-          if (!seenIds.has(quiz.id)) {
+        if (sub) {
+          // Completed quiz
+          seenIds.add(quiz.id);
+          combinedQuizzes.push({
+            ...quiz,
+            submission: sub,
+            questionCount: qCount
+          });
+        } else if (quiz.is_published) {
+          // Check grade level & course eligibility for available quiz
+          const matchesGrade = !quiz.grade_level || 
+                               !userGrade ||
+                               quiz.grade_level === userGrade ||
+                               quiz.grade_level === getArabicGrade(userGrade);
+          const matchesCourse = !quiz.course_id || enrolledCourseIds.includes(quiz.course_id);
+
+          if (matchesGrade && matchesCourse) {
             seenIds.add(quiz.id);
             combinedQuizzes.push({
               ...quiz,
               submission: null,
-              questionCount: quiz.questions?.[0]?.count || 0
+              questionCount: qCount
             });
           }
         }
@@ -251,13 +255,22 @@ export default function StudentQuizzes() {
             </button>
             <button
               onClick={() => setActiveTab('completed')}
-              className={`flex-1 md:flex-none px-6 py-2.5 rounded-xl font-bold text-sm transition-all ${
+              className={`flex-1 md:flex-none px-6 py-2.5 rounded-xl font-bold text-sm transition-all flex items-center justify-center gap-2 ${
                 activeTab === 'completed' 
                   ? 'bg-blue-600 text-white shadow-md' 
                   : 'text-gray-600 dark:text-gray-400 hover:bg-gray-50 dark:hover:bg-slate-700/50'
               }`}
             >
-              {t('student_quizzes_tab_completed')}
+              <span>{t('student_quizzes_tab_completed')}</span>
+              {completedQuizzes.length > 0 && (
+                <span className={`inline-flex items-center justify-center min-w-[20px] h-5 px-1.5 rounded-full text-xs font-black ${
+                  activeTab === 'completed' 
+                    ? 'bg-white/20 text-white' 
+                    : 'bg-emerald-500 text-white'
+                }`}>
+                  {completedQuizzes.length}
+                </span>
+              )}
             </button>
           </div>
 
@@ -275,8 +288,20 @@ export default function StudentQuizzes() {
 
         {/* Quizzes Grid */}
         {loading ? (
-          <div className="flex justify-center items-center py-20">
-            <div className="animate-spin rounded-full h-12 w-12 border-4 border-blue-500 border-t-transparent"></div>
+          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+            {[1, 2, 3].map((n) => (
+              <div key={n} className="bg-white dark:bg-slate-800 rounded-3xl p-6 shadow-sm border border-gray-100 dark:border-slate-700/50 flex flex-col h-72 animate-pulse">
+                <div className="w-28 h-6 bg-gray-200 dark:bg-slate-700 rounded-full mb-4"></div>
+                <div className="w-3/4 h-7 bg-gray-200 dark:bg-slate-700 rounded-xl mb-3"></div>
+                <div className="w-full h-4 bg-gray-100 dark:bg-slate-700/60 rounded-lg mb-2"></div>
+                <div className="w-2/3 h-4 bg-gray-100 dark:bg-slate-700/60 rounded-lg mb-auto"></div>
+                <div className="space-y-2 mb-6">
+                  <div className="w-36 h-4 bg-gray-100 dark:bg-slate-700/60 rounded-lg"></div>
+                  <div className="w-28 h-4 bg-gray-100 dark:bg-slate-700/60 rounded-lg"></div>
+                </div>
+                <div className="w-full h-12 bg-gray-200 dark:bg-slate-700 rounded-xl"></div>
+              </div>
+            ))}
           </div>
         ) : displayQuizzes.length === 0 ? (
           <FadeIn>

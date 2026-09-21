@@ -51,16 +51,43 @@ export default function QuizResult() {
       if (quizError) throw quizError;
       setQuiz(quizData);
 
-      // Fetch Questions for Answer Review
-      const { data: qData, error: qError } = await supabase
-        .from('quiz_questions')
-        .select('*')
-        .eq('quiz_id', id)
-        .order('created_at', { ascending: true });
-
-      if (!qError && qData) {
-        setQuestions(qData);
+      // Fetch Questions for Answer Review via secure backend endpoint
+      let fetchedQuestions = [];
+      try {
+        const { data: { session } } = await supabase.auth.getSession();
+        const token = session?.access_token;
+        if (token) {
+          const apiBase = import.meta.env.VITE_API_URL || 'http://localhost:5000';
+          const res = await fetch(`${apiBase}/api/quizzes/${id}/review`, {
+            headers: {
+              'Authorization': `Bearer ${token}`
+            }
+          });
+          if (res.ok) {
+            const result = await res.json();
+            if (result?.questions?.length > 0) {
+              fetchedQuestions = result.questions;
+            }
+          }
+        }
+      } catch (err) {
+        console.warn('Backend review fetch error:', err);
       }
+
+      // Fallback if backend wasn't reached or returned empty (e.g. admins)
+      if (fetchedQuestions.length === 0) {
+        const { data: qData } = await supabase
+          .from('quiz_questions')
+          .select('*')
+          .eq('quiz_id', id)
+          .order('created_at', { ascending: true });
+
+        if (qData) {
+          fetchedQuestions = qData;
+        }
+      }
+
+      setQuestions(fetchedQuestions);
 
       // Automatically award student XP based on dynamic platform rules
       if (subData && user) {

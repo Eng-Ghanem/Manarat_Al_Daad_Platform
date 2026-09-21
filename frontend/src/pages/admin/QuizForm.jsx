@@ -49,7 +49,7 @@ export default function QuizForm() {
       }
 
       // Fetch Courses for Dropdown
-      const { data: coursesData } = await supabase.from('courses').select('id, title, grade_level');
+      const { data: coursesData } = await supabase.from('courses').select('id, title, category');
       setCourses(coursesData || []);
 
       if (isEditing) {
@@ -303,7 +303,7 @@ export default function QuizForm() {
                   >
                     <option value="">{isRTL ? '-- بدون كورس (امتحان عام) --' : '-- No Course (General Quiz) --'}</option>
                     {courses.map(c => (
-                      <option key={c.id} value={c.id}>{c.title} ({c.grade_level})</option>
+                      <option key={c.id} value={c.id}>{c.title} {c.category ? `(${c.category})` : ''}</option>
                     ))}
                   </select>
                 </div>

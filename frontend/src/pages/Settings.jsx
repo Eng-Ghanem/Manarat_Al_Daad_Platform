@@ -4,6 +4,7 @@ import { User, Save, Loader, ArrowRight, Mail, Lock, GraduationCap } from 'lucid
 import { useAuth } from '../context/AuthContext';
 import { useNavigate, Link } from 'react-router-dom';
 import FadeIn from '../components/FadeIn';
+import BackButton from '../components/BackButton';
 import { supabase } from '../lib/supabase';
 
 export default function Settings() {
@@ -77,10 +78,8 @@ export default function Settings() {
       <div className="max-w-3xl mx-auto px-4 sm:px-6 lg:px-8">
         
         <div className="mb-6 flex items-center gap-4">
-          <Link to={profile?.role === 'admin' ? "/admin-dashboard" : "/dashboard"} className="w-10 h-10 flex items-center justify-center rounded-full bg-white dark:bg-slate-800 text-gray-500 hover:text-blue-600 shadow-sm transition-colors border border-gray-100 dark:border-slate-700">
-            <ArrowRight className="w-5 h-5" />
-          </Link>
-          <h1 className="text-3xl font-extrabold text-gray-900 dark:text-white font-arabic tracking-tight">
+          <BackButton to={profile?.role === 'admin' ? "/admin-dashboard" : "/dashboard"} text={t('back') || 'الرجوع'} />
+          <h1 className="text-2xl sm:text-3xl font-extrabold text-gray-900 dark:text-white font-arabic tracking-tight">
             {t('settings_title')}
           </h1>
         </div>

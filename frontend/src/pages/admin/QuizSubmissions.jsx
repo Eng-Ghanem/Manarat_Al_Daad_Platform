@@ -7,6 +7,7 @@ import {
 } from 'lucide-react';
 import { supabase } from '../../lib/supabase';
 import FadeIn from '../../components/FadeIn';
+import BackButton from '../../components/BackButton';
 import toast from 'react-hot-toast';
 import GradeSubmissionModal from '../../components/admin/GradeSubmissionModal';
 
@@ -70,20 +71,17 @@ export default function QuizSubmissions() {
       {/* Header */}
       <div className="bg-white dark:bg-slate-800 border-b border-gray-200 dark:border-slate-700 pt-24 pb-8">
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
-          <div className="flex items-center gap-4">
-            <Link 
-              to="/admin-dashboard/quizzes"
-              className="p-2 bg-gray-100 dark:bg-slate-700 text-gray-600 dark:text-gray-300 rounded-full hover:bg-gray-200 dark:hover:bg-slate-600 transition-colors"
-            >
-              <ArrowRight className="w-5 h-5 rtl:rotate-0 ltr:rotate-180" />
-            </Link>
-            <div>
-              <h1 className="text-3xl font-bold text-gray-900 dark:text-white font-arabic">
-                {t('quiz_submissions_title')}
-              </h1>
-              <p className="text-gray-500 dark:text-gray-400 mt-1 font-bold text-lg text-blue-600 dark:text-blue-400">
-                {quiz?.title}
-              </p>
+          <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
+            <div className="flex items-center gap-4">
+              <BackButton to="/admin-dashboard/quizzes" text={isRTL ? 'الرجوع للامتحانات' : 'Back to Quizzes'} />
+              <div>
+                <h1 className="text-2xl sm:text-3xl font-bold text-gray-900 dark:text-white font-arabic">
+                  {t('quiz_submissions_title')}
+                </h1>
+                <p className="text-gray-500 dark:text-gray-400 mt-0.5 font-bold text-base text-blue-600 dark:text-blue-400">
+                  {quiz?.title}
+                </p>
+              </div>
             </div>
           </div>
         </div>

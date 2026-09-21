@@ -146,3 +146,46 @@ export const getStudentBadge = (xp, isRTL = true) => {
     icon: '🌱'
   };
 };
+
+/**
+ * Award XP points to a student, updates profiles table,
+ * and creates a real-time notification with a red bell dot indicator.
+ */
+export const awardStudentXp = async (userId, amount, reason = '', link = '/dashboard') => {
+  if (!userId || !amount || amount <= 0) return 0;
+
+  try {
+    const { data: profileData } = await supabase
+      .from('profiles')
+      .select('xp_points, full_name, role')
+      .eq('id', userId)
+      .single();
+
+    if (profileData?.role === 'admin' || profileData?.role === 'teacher') return 0;
+
+    const currentXp = Number(profileData?.xp_points) || 0;
+    const newXp = currentXp + Number(amount);
+
+    await supabase
+      .from('profiles')
+      .update({ xp_points: newXp })
+      .eq('id', userId);
+
+    const notifPayload = {
+      user_id: userId,
+      title: '🎉 نقاط تميز جديدة!',
+      message: `مبروك! حصلت على +${amount} نقطة XP ${reason ? `مقابل ${reason}` : ''}. إجمالي نقاطك الآن ${newXp} نقطة!`,
+      type: 'xp_reward',
+      link: link || '/dashboard',
+      is_read: false,
+      created_at: new Date().toISOString()
+    };
+
+    await supabase.from('notifications').insert([notifPayload]);
+    return newXp;
+  } catch (err) {
+    console.error('Error awarding student XP:', err);
+    return 0;
+  }
+};
+

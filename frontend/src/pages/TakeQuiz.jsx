@@ -3,7 +3,7 @@ import { useParams, useNavigate } from 'react-router-dom';
 import { useTranslation } from 'react-i18next';
 import { 
   Clock, AlertTriangle, CheckCircle, HelpCircle, 
-  ChevronRight, ChevronLeft, Send, AlertCircle
+  ChevronRight, ChevronLeft, Send, AlertCircle, ArrowRight, Sparkles
 } from 'lucide-react';
 import { supabase } from '../lib/supabase';
 import { useAuth } from '../context/AuthContext';
@@ -191,24 +191,49 @@ export default function TakeQuiz() {
       
       {/* Top Navbar */}
       <div className="bg-white dark:bg-slate-800 border-b border-gray-200 dark:border-slate-700 sticky top-0 z-40 shadow-sm">
-        <div className="max-w-4xl mx-auto px-4 sm:px-6 lg:px-8 py-4 flex items-center justify-between">
-          <div>
-            <h1 className="text-lg font-bold text-gray-900 dark:text-white line-clamp-1">{quiz?.title}</h1>
-            <p className="text-sm text-gray-500 dark:text-gray-400">
-              {t('quiz_question_num', { current: currentQuestionIndex + 1, total: questions.length })}
-            </p>
+        <div className="max-w-4xl mx-auto px-4 sm:px-6 lg:px-8 py-3.5 flex items-center justify-between gap-3">
+          <div className="flex items-center gap-3 min-w-0">
+            <button
+              onClick={() => {
+                if (Object.keys(answers).length > 0) {
+                  if (window.confirm(isRTL ? 'هل أنت متأكد من رغبتك في الخروج من الامتحان؟ لن يتم حفظ إجاباتك الحالية.' : 'Are you sure you want to exit? Your current answers will not be saved.')) {
+                    navigate('/quizzes');
+                  }
+                } else {
+                  navigate('/quizzes');
+                }
+              }}
+              className="p-2 rounded-xl text-gray-600 dark:text-gray-300 bg-gray-100 dark:bg-slate-700 hover:bg-gray-200 dark:hover:bg-slate-600 transition-colors flex items-center gap-1 font-bold text-xs shrink-0"
+              title={isRTL ? 'خروج للامتحانات' : 'Exit to quizzes'}
+            >
+              <ArrowRight className="w-4 h-4 rtl:rotate-0 ltr:rotate-180" />
+              <span>{isRTL ? 'خروج' : 'Exit'}</span>
+            </button>
+            <div className="min-w-0">
+              <h1 className="text-base sm:text-lg font-bold text-gray-900 dark:text-white truncate">{quiz?.title}</h1>
+              <p className="text-xs sm:text-sm text-gray-500 dark:text-gray-400">
+                {t('quiz_question_num', { current: currentQuestionIndex + 1, total: questions.length })}
+              </p>
+            </div>
           </div>
           
-          {timeLeft !== null && (
-            <div className={`flex items-center gap-2 px-4 py-2 rounded-full font-bold ${
-              isTimeCritical 
-                ? 'bg-red-100 text-red-600 dark:bg-red-900/30 dark:text-red-400 animate-pulse' 
-                : 'bg-blue-50 text-blue-600 dark:bg-blue-900/30 dark:text-blue-400'
-            }`}>
-              <Clock className="w-5 h-5" />
-              <span className="text-lg font-mono tracking-widest">{formatTime(timeLeft)}</span>
+          <div className="flex items-center gap-2 sm:gap-3 shrink-0">
+            <div className="hidden sm:flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-amber-50 dark:bg-amber-950/40 text-amber-600 dark:text-amber-400 border border-amber-200/50 text-xs font-bold">
+              <Sparkles className="w-3.5 h-3.5 text-amber-500 animate-pulse" />
+              <span>{isRTL ? 'حتى +50 XP' : 'Up to +50 XP'}</span>
             </div>
-          )}
+
+            {timeLeft !== null && (
+              <div className={`flex items-center gap-2 px-3 sm:px-4 py-1.5 sm:py-2 rounded-xl font-bold text-sm ${
+                isTimeCritical 
+                  ? 'bg-red-100 text-red-600 dark:bg-red-900/30 dark:text-red-400 animate-pulse' 
+                  : 'bg-blue-50 text-blue-600 dark:bg-blue-900/30 dark:text-blue-400'
+              }`}>
+                <Clock className="w-4 h-4 sm:w-5 sm:h-5" />
+                <span className="text-base sm:text-lg font-mono tracking-widest">{formatTime(timeLeft)}</span>
+              </div>
+            )}
+          </div>
         </div>
         
         {/* Progress Bar */}

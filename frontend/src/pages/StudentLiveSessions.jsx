@@ -7,6 +7,7 @@ import {
 import FadeIn from '../components/FadeIn';
 import { supabase } from '../lib/supabase';
 import { Link } from 'react-router-dom';
+import BackButton from '../components/BackButton';
 import { formatSessionTitle, formatSessionDesc, formatGradeName } from '../utils/helpers';
 
 export default function StudentLiveSessions() {
@@ -204,6 +205,10 @@ export default function StudentLiveSessions() {
   return (
     <div className="min-h-screen bg-gray-50 dark:bg-slate-900 pb-12 pt-24">
       <div className="max-w-5xl mx-auto px-4 sm:px-6 lg:px-8">
+
+        <div className="mb-6 flex justify-start">
+          <BackButton to="/dashboard" text="العودة للرئيسية" />
+        </div>
 
         <FadeIn>
           <div className="text-center mb-12">

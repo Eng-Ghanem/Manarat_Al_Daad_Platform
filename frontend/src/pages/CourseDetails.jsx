@@ -10,7 +10,7 @@ import {
 import { supabase } from '../lib/supabase';
 import FadeIn from '../components/FadeIn';
 import { getDirectImageUrl, calculateSubscriptionStatus, formatCourseTitle, formatCourseDescription } from '../utils/helpers';
-import { getXpRules } from '../utils/gamification';
+import { getXpRules, awardStudentXp } from '../utils/gamification';
 import BackButton from '../components/BackButton';
 import { motion, AnimatePresence } from 'framer-motion';
 import { useAuth } from '../context/AuthContext';
@@ -228,9 +228,12 @@ export default function CourseDetails() {
         // Award XP & trigger student celebrations ONLY for actual active students
         if (!isStaffUser && isSubscribed) {
           try {
-            const { data: prof } = await supabase.from('profiles').select('xp_points').eq('id', user.id).single();
-            const currentXp = prof?.xp_points || 0;
-            await supabase.from('profiles').update({ xp_points: currentXp + xpRules.lesson_completed }).eq('id', user.id);
+            await awardStudentXp(
+              user.id, 
+              xpRules.lesson_completed, 
+              isRTL ? `إكمال درس "${activeLesson.title}"` : `completing lesson "${activeLesson.title}"`,
+              `/courses/${id}`
+            );
           } catch (e) {
             console.warn('Could not update XP:', e);
           }
@@ -239,9 +242,12 @@ export default function CourseDetails() {
           if (nextSet.size === lessons.length && lessons.length > 0) {
             setShowCertCelebration(true);
             try {
-              const { data: prof } = await supabase.from('profiles').select('xp_points').eq('id', user.id).single();
-              const currentXp = prof?.xp_points || 0;
-              await supabase.from('profiles').update({ xp_points: currentXp + xpRules.course_completed }).eq('id', user.id);
+              await awardStudentXp(
+                user.id, 
+                xpRules.course_completed, 
+                isRTL ? `إتمام كورس "${course.title}" بنجاح` : `completing course "${course.title}"`,
+                `/courses/${id}`
+              );
             } catch (e) {}
           }
         }
@@ -272,11 +278,12 @@ export default function CourseDetails() {
       setIsSavingNote(false);
       if (!isStaffUser && !localStorage.getItem(noteXpKey) && notes.trim().length >= 10) {
         localStorage.setItem(noteXpKey, 'true');
-        supabase.from('profiles').select('xp_points').eq('id', user.id).single().then(({ data }) => {
-          if (data) {
-            supabase.from('profiles').update({ xp_points: (data.xp_points || 0) + xpRules.notes_saved }).eq('id', user.id);
-          }
-        });
+        awardStudentXp(
+          user.id,
+          xpRules.notes_saved,
+          isRTL ? `تدوين ملاحظات درس "${activeLesson.title}"` : `saving notes for "${activeLesson.title}"`,
+          `/courses/${id}`
+        );
         toast.success(isRTL ? `تم حفظ الملاحظات بنجاح (+${xpRules.notes_saved} نقطة تميز)` : `Notes saved! (+${xpRules.notes_saved} XP)`);
       } else {
         toast.success(t('cd_notes_saved'));

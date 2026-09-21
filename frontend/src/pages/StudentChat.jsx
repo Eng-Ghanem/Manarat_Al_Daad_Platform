@@ -1,4 +1,5 @@
 import React, { useState, useEffect, useRef } from 'react';
+import { useNavigate } from 'react-router-dom';
 import { useTranslation } from 'react-i18next';
 import { motion } from 'framer-motion';
 import { supabase } from '../lib/supabase';
@@ -12,6 +13,7 @@ export default function StudentChat() {
   const { t, i18n } = useTranslation();
   const isRTL = i18n?.language === 'ar';
   const { user, profile } = useAuth();
+  const navigate = useNavigate();
 
   const [adminProfile, setAdminProfile] = useState(null);
   const [activeChat, setActiveChat] = useState(null); // { type: 'general' | 'private' }
@@ -571,13 +573,21 @@ export default function StudentChat() {
     <>
       <div className="flex h-[calc(100dvh-8rem)] md:h-[calc(100vh-80px)] mt-16 md:mt-20 mb-16 md:mb-0 max-w-7xl mx-auto rounded-none md:rounded-3xl overflow-hidden shadow-2xl border-0 md:border border-gray-200 dark:border-slate-700 font-arabic relative z-10">
 
-      {/* Sidebar */}
-      <div className={`w-full md:w-80 bg-white dark:bg-slate-900 border-l border-gray-200 dark:border-slate-800 flex flex-col shrink-0 transition-transform ${activeChat ? 'hidden md:flex' : 'flex'}`}>
-        <div className="p-6 border-b border-gray-100 dark:border-slate-800 bg-white/50 dark:bg-slate-900/50 backdrop-blur-md">
-          <h2 className="text-2xl font-bold font-arabic text-gray-900 dark:text-white flex items-center gap-2">
+        {/* Sidebar */}
+        <div className={`w-full md:w-80 bg-white dark:bg-slate-900 border-l border-gray-200 dark:border-slate-800 flex flex-col shrink-0 transition-transform ${activeChat ? 'hidden md:flex' : 'flex'}`}>
+          <div className="p-4 sm:p-6 border-b border-gray-100 dark:border-slate-800 bg-white/50 dark:bg-slate-900/50 backdrop-blur-md flex items-center justify-between">
+          <h2 className="text-xl sm:text-2xl font-bold font-arabic text-gray-900 dark:text-white flex items-center gap-2">
             <MessageSquare className="w-6 h-6 text-blue-600 dark:text-blue-500" />
             {t('chat_sidebar_title')}
           </h2>
+          <button
+            onClick={() => navigate('/dashboard')}
+            className="p-2 rounded-xl text-gray-600 dark:text-gray-300 hover:text-gray-900 dark:hover:text-white hover:bg-gray-100 dark:hover:bg-slate-800 transition-colors flex items-center gap-1.5 text-xs font-bold"
+            title={t('back') || 'الرئيسية'}
+          >
+            <ArrowRight className="w-4 h-4 rtl:rotate-0 ltr:rotate-180" />
+            <span>{isRTL ? 'الرئيسية' : 'Home'}</span>
+          </button>
         </div>
 
         <div className="flex-1 overflow-y-auto p-4 space-y-3">
@@ -628,12 +638,14 @@ export default function StudentChat() {
         {activeChat ? (
           <>
             {/* Chat Header */}
-            <div className="h-20 px-4 sm:px-6 bg-white dark:bg-slate-800 border-b border-gray-200 dark:border-slate-700 flex items-center gap-3 sm:gap-4 z-10 shadow-sm shrink-0">
+            <div className="h-20 px-3 sm:px-6 bg-white dark:bg-slate-800 border-b border-gray-200 dark:border-slate-700 flex items-center gap-2.5 sm:gap-4 z-10 shadow-sm shrink-0">
               <button
                 onClick={() => setActiveChat(null)}
-                className="md:hidden p-2 -mr-2 rounded-full text-gray-500 hover:bg-gray-100 dark:hover:bg-slate-700"
+                className="md:hidden p-2 rounded-xl text-gray-600 dark:text-gray-300 bg-gray-100 dark:bg-slate-700/80 hover:bg-gray-200 dark:hover:bg-slate-600 transition-colors flex items-center gap-1 font-bold text-xs shrink-0"
+                title={t('back') || 'رجوع'}
               >
-                <ArrowRight className="w-5 h-5" />
+                <ArrowRight className="w-4 h-4 rtl:rotate-0 ltr:rotate-180" />
+                <span>{isRTL ? 'رجوع' : 'Back'}</span>
               </button>
               {activeChat.type === 'general' ? (
                 <div className="w-10 h-10 sm:w-12 sm:h-12 rounded-full bg-blue-100 dark:bg-blue-900/50 flex items-center justify-center text-blue-600 dark:text-blue-400 shrink-0">
@@ -688,31 +700,11 @@ export default function StudentChat() {
                         </div>
                       )}
 
-                      <FadeIn delay={index * 10} className={`flex items-end gap-1.5 sm:gap-2 ${isMe ? 'justify-end' : 'justify-start'
-                        } ${activeMessageOptions === msg.id ? 'relative z-50' : 'relative z-10'}`}>
-
-                      {/* Avatar for others (WhatsApp style - bottom aligned) */}
-                      {!isMe && (
-                        <div className="shrink-0 w-7 h-7 sm:w-8 sm:h-8 mb-0.5">
-                          {showAvatar ? (
-                            isAdmin ? (
-                              <div className="w-7 h-7 sm:w-8 sm:h-8 rounded-full bg-gradient-to-br from-slate-700 to-slate-900 flex items-center justify-center text-white shadow-md">
-                                <Shield className="w-3.5 h-3.5 sm:w-4 sm:h-4" />
-                              </div>
-                            ) : (
-                              <div className={`w-7 h-7 sm:w-8 sm:h-8 rounded-full bg-gradient-to-br ${avatarColors[colorIdx]} flex items-center justify-center text-white font-bold text-xs sm:text-sm shadow-md`}>
-                                {senderInitial}
-                              </div>
-                            )
-                          ) : (
-                            <div className="w-7 h-7 sm:w-8 sm:h-8" />
-                          )}
-                        </div>
-                      )}
+                      <FadeIn delay={index * 10} className={`flex items-end ${isMe ? 'justify-end' : 'justify-start'} ${activeMessageOptions === msg.id ? 'relative z-50' : 'relative z-10'}`}>
 
                       <div 
                         id={`msg-${msg.id}`}
-                        className={`max-w-[88%] sm:max-w-[70%] flex flex-col ${isMe ? 'items-end' : 'items-start'} relative group`}
+                        className={`max-w-[94%] sm:max-w-[76%] flex flex-col ${isMe ? 'items-end' : 'items-start'} relative group`}
                       >
                         {/* Quick hover reply button on desktop */}
                         {!msg.is_deleted && (
@@ -747,28 +739,45 @@ export default function StudentChat() {
                               : 'bg-white dark:bg-slate-800 text-gray-900 dark:text-white rounded-tr-none border border-gray-200 dark:border-slate-700'
                           }`}>
 
-                          {/* Sender Name - Clean WhatsApp Style */}
-                          {shouldShowSenderName && (() => {
+                          {/* Sender Name - Highlighted & Decorated Badge */}
+                          {(() => {
                             const nameColorClasses = [
-                              'text-rose-600 dark:text-rose-400', 'text-violet-600 dark:text-violet-400',
-                              'text-amber-600 dark:text-amber-400', 'text-emerald-600 dark:text-emerald-400',
-                              'text-sky-600 dark:text-sky-400', 'text-pink-600 dark:text-pink-400',
-                              'text-indigo-600 dark:text-indigo-400', 'text-teal-600 dark:text-teal-400',
-                              'text-orange-600 dark:text-orange-400', 'text-cyan-600 dark:text-cyan-400',
-                              'text-lime-600 dark:text-lime-400', 'text-fuchsia-600 dark:text-fuchsia-400',
+                              'text-rose-500 dark:text-rose-400', 'text-violet-500 dark:text-violet-400',
+                              'text-amber-500 dark:text-amber-400', 'text-emerald-500 dark:text-emerald-400',
+                              'text-sky-500 dark:text-sky-400', 'text-pink-500 dark:text-pink-400',
+                              'text-indigo-500 dark:text-indigo-400', 'text-teal-500 dark:text-teal-400',
+                              'text-orange-500 dark:text-orange-400', 'text-cyan-500 dark:text-cyan-400',
+                              'text-lime-500 dark:text-lime-400', 'text-fuchsia-500 dark:text-fuchsia-400',
                             ];
                             return (
-                              <div className="flex items-center gap-1.5 mb-1.5">
-                                <span className={`text-[13px] font-black tracking-wide font-arabic ${isMe ? 'text-blue-100' : isAdmin ? 'text-purple-100' : nameColorClasses[colorIdx]
+                              <div className="flex items-center gap-1.5 mb-2 select-none">
+                                <div className={`inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-lg text-xs font-black shadow-xs border ${
+                                  isMe
+                                    ? 'bg-blue-700/60 text-white border-blue-400/40 shadow-blue-900/20'
+                                    : isAdmin
+                                    ? 'bg-gradient-to-r from-purple-900/50 to-indigo-900/50 text-purple-100 border-purple-400/40 shadow-purple-900/20'
+                                    : 'bg-black/10 dark:bg-white/10 text-gray-800 dark:text-gray-100 border-black/5 dark:border-white/10'
+                                }`}>
+                                  <span className={`tracking-wide font-arabic font-black ${
+                                    isMe 
+                                      ? 'text-white' 
+                                      : isAdmin 
+                                      ? 'text-purple-100 font-extrabold' 
+                                      : nameColorClasses[colorIdx]
                                   }`}>
-                                  {senderName}
-                                </span>
-                                {isMe && (
-                                  <span className="text-[10px] text-blue-200 bg-black/20 px-1.5 py-0.5 rounded-full font-bold">• {t('chat_you')}</span>
-                                )}
-                                {isAdmin && !isMe && (
-                                  <span className="text-[10px] text-purple-100 bg-black/20 px-1.5 py-0.5 rounded-full font-bold shadow-sm">• {t('chat_admin_sender')}</span>
-                                )}
+                                    {senderName}
+                                  </span>
+                                  {isMe && (
+                                    <span className="text-[10px] text-blue-200 bg-black/20 px-1.5 py-0.2 rounded-md font-bold">
+                                      • {t('chat_you')}
+                                    </span>
+                                  )}
+                                  {isAdmin && !isMe && (
+                                    <span className="text-[10px] text-amber-300 bg-black/30 px-1.5 py-0.2 rounded-md font-bold border border-amber-400/30">
+                                      • {t('chat_admin_sender')}
+                                    </span>
+                                  )}
+                                </div>
                               </div>
                             );
                           })()}
@@ -937,9 +946,6 @@ export default function StudentChat() {
                           )}
                         </motion.div>
                       </div>
-
-                      {/* Spacer for my messages (no avatar on right side) */}
-                      {isMe && <div className="w-8 shrink-0" />}
                     </FadeIn>
                   </React.Fragment>
                 );

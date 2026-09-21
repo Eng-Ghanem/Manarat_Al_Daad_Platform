@@ -8,9 +8,10 @@ import {
 } from 'lucide-react';
 import { supabase } from '../lib/supabase';
 import { useAuth } from '../context/AuthContext';
-import { getXpRules } from '../utils/gamification';
+import { getXpRules, awardStudentXp } from '../utils/gamification';
 import toast from 'react-hot-toast';
 import FadeIn from '../components/FadeIn';
+import BackButton from '../components/BackButton';
 
 export default function QuizResult() {
   const { t, i18n } = useTranslation();
@@ -22,7 +23,7 @@ export default function QuizResult() {
   const [quiz, setQuiz] = useState(null);
   const [questions, setQuestions] = useState([]);
   const [loading, setLoading] = useState(true);
-  const [showReview, setShowReview] = useState(false);
+  const [showReview, setShowReview] = useState(true);
 
   useEffect(() => {
     fetchResult();
@@ -104,11 +105,10 @@ export default function QuizResult() {
           }
           if (bonus > 0) {
             localStorage.setItem(subXpKey, 'true');
-            supabase.from('profiles').select('xp_points').eq('id', user.id).single().then(({ data }) => {
-              if (data) {
-                supabase.from('profiles').update({ xp_points: (data.xp_points || 0) + bonus }).eq('id', user.id);
-              }
-            });
+            const reason = pct === 100 
+              ? (isRTL ? `تقفيل امتحان "${quizData?.title || 'الامتحان'}" بالدرجة النهائية` : `full score on "${quizData?.title || 'Quiz'}"`)
+              : (isRTL ? `اجتياز امتحان "${quizData?.title || 'الامتحان'}"` : `passing "${quizData?.title || 'Quiz'}"`);
+            awardStudentXp(user.id, bonus, reason, `/quizzes/${id}/result`);
             toast.success(isRTL ? `🎉 أحسنت! تم إضافة +${bonus} نقطة تميز لرصيدك!` : `🎉 Great job! +${bonus} XP awarded!`);
           }
         }
@@ -161,6 +161,9 @@ export default function QuizResult() {
       )}
 
       <div className="max-w-3xl w-full relative z-10">
+        <div className="mb-4 flex justify-start">
+          <BackButton to="/quizzes" text={isRTL ? 'العودة للامتحانات' : 'Back to Quizzes'} />
+        </div>
         <FadeIn>
           <div className="bg-white dark:bg-slate-800 rounded-[3rem] shadow-2xl border border-gray-100 dark:border-slate-700/50 overflow-hidden text-center relative mb-8">
             

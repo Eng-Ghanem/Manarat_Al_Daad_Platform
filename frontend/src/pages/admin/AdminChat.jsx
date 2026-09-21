@@ -1,4 +1,5 @@
 import React, { useState, useEffect, useRef } from 'react';
+import { useNavigate } from 'react-router-dom';
 import { useTranslation } from 'react-i18next';
 import { motion } from 'framer-motion';
 import { supabase } from '../../lib/supabase';
@@ -12,6 +13,7 @@ export default function AdminChat() {
   const { t, i18n } = useTranslation();
   const isRTL = i18n.language === 'ar';
   const { user, profile } = useAuth();
+  const navigate = useNavigate();
 
   const [students, setStudents] = useState([]);
   const [searchQuery, setSearchQuery] = useState('');
@@ -580,7 +582,17 @@ export default function AdminChat() {
       {/* Sidebar */}
       <div className={`w-full lg:w-80 bg-white dark:bg-slate-800 flex flex-col border-l border-gray-200 dark:border-slate-700 shrink-0 transition-transform ${activeChat ? 'hidden lg:flex' : 'flex'}`}>
         <div className="p-4 border-b border-gray-100 dark:border-slate-700 bg-white/50 dark:bg-slate-800/50 backdrop-blur-md">
-          <h2 className="text-xl font-bold font-arabic text-gray-900 dark:text-white mb-4">{t('chat_sidebar_title')}</h2>
+          <div className="flex items-center justify-between mb-4">
+            <h2 className="text-xl font-bold font-arabic text-gray-900 dark:text-white">{t('chat_sidebar_title')}</h2>
+            <button
+              onClick={() => navigate('/admin-dashboard')}
+              className="p-1.5 px-2.5 rounded-xl text-gray-600 dark:text-gray-300 hover:text-gray-900 dark:hover:text-white hover:bg-gray-100 dark:hover:bg-slate-700 transition-colors flex items-center gap-1.5 text-xs font-bold"
+              title={t('back') || 'لوحة التحكم'}
+            >
+              <ArrowRight className="w-4 h-4 rtl:rotate-0 ltr:rotate-180" />
+              <span>{isRTL ? 'لوحة التحكم' : 'Dashboard'}</span>
+            </button>
+          </div>
 
           {/* Tabs */}
           <div className="flex bg-gray-100 dark:bg-slate-900 rounded-xl p-1 mb-4 relative">
@@ -598,28 +610,30 @@ export default function AdminChat() {
               className={`relative flex-1 py-2 text-sm font-bold rounded-lg transition-colors ${sidebarTab === 'private' ? 'bg-white dark:bg-slate-700 text-blue-600 dark:text-blue-400 shadow-sm' : 'text-gray-500 hover:text-gray-700 dark:hover:text-gray-300'}`}
             >
               {t('chat_tab_private')}
-              {Object.keys(unreadCounts).some(key => !grades.some(g => g.id === key)) && (
+              {unreadCounts.private > 0 && (
                 <span className="absolute top-2 left-2 w-2 h-2 bg-red-500 rounded-full animate-pulse"></span>
               )}
             </button>
           </div>
 
+          {/* Search Box (Only in private chats) */}
           {sidebarTab === 'private' && (
             <div className="relative">
-              <Search className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-400 w-4 h-4" />
+              <Search className="w-4 h-4 absolute top-3 right-3 text-gray-400" />
               <input
                 type="text"
-                placeholder={t('chat_search_student_ph')}
+                placeholder={t('chat_search_placeholder')}
                 value={searchQuery}
                 onChange={(e) => setSearchQuery(e.target.value)}
-                className="w-full pr-10 pl-4 py-2 bg-gray-50 dark:bg-slate-900 border border-gray-200 dark:border-slate-700 rounded-xl text-sm focus:ring-2 focus:ring-blue-500 outline-none text-gray-900 dark:text-white"
+                className="w-full pl-3 pr-9 py-2 bg-gray-50 dark:bg-slate-900 border border-gray-200 dark:border-slate-700 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 text-gray-900 dark:text-white placeholder-gray-400"
               />
             </div>
           )}
         </div>
 
-        <div className="flex-1 overflow-y-auto p-2 space-y-4">
-          {sidebarTab === 'general' && (
+        {/* List of Chats */}
+        <div className="flex-1 overflow-y-auto p-3 space-y-4">
+          {sidebarTab === 'general' ? (
             <div className="space-y-6">
               {/* Primary */}
               <div>
@@ -693,33 +707,35 @@ export default function AdminChat() {
                 </div>
               </div>
             </div>
-          )}
-
-          {sidebarTab === 'private' && (
-            <div>
-              <div className="space-y-1">
-                {filteredStudents.map(student => (
+          ) : (
+            /* Private Students List */
+            <div className="space-y-1">
+              {filteredStudents.length === 0 ? (
+                <div className="text-center py-8 text-gray-400 dark:text-gray-500 text-sm">
+                  {t('chat_no_students')}
+                </div>
+              ) : (
+                filteredStudents.map(student => (
                   <button
                     key={student.id}
-                    onClick={() => handleSelectChat('private', student.id, student.full_name || t('chat_student_default'))}
-                    className={`w-full flex items-center gap-3 px-3 py-3 rounded-xl transition-colors relative ${activeChat?.id === student.id ? 'bg-blue-50 dark:bg-blue-900/40 text-blue-700 dark:text-blue-400' : 'hover:bg-gray-50 dark:hover:bg-slate-700/50 text-gray-700 dark:text-gray-300'}`}
+                    onClick={() => handleSelectChat('private', student.id, student.full_name)}
+                    className={`w-full flex items-center justify-between gap-3 px-3 py-3 rounded-xl transition-colors ${activeChat?.id === student.id ? 'bg-purple-50 dark:bg-purple-900/40 text-purple-700 dark:text-purple-400' : 'hover:bg-gray-50 dark:hover:bg-slate-700/50 text-gray-700 dark:text-gray-300'}`}
                   >
-                    <div className="w-8 h-8 rounded-full bg-gradient-to-tr from-blue-600 to-indigo-600 flex items-center justify-center text-white font-bold text-sm shrink-0">
-                      {student.full_name?.charAt(0) || <UserIcon className="w-4 h-4" />}
-                    </div>
-                    <div className="rtl:text-right ltr:text-left flex-1 min-w-0 pr-2">
-                      <h4 className="font-bold text-sm truncate">{student.full_name || t('chat_nameless_default')}</h4>
-                      {student.grade_level && <p className="text-xs opacity-70 truncate">{t(`grade_${student.grade_level}`)}</p>}
+                    <div className="flex items-center gap-3 min-w-0">
+                      <div className="w-10 h-10 rounded-full bg-gradient-to-tr from-purple-500 to-indigo-500 flex items-center justify-center text-white font-bold shrink-0">
+                        {student.full_name?.charAt(0) || 'ط'}
+                      </div>
+                      <div className="text-right min-w-0">
+                        <p className="font-bold text-sm truncate">{student.full_name}</p>
+                        <p className="text-xs text-gray-400 truncate">{student.grade_level ? t(`grade_${student.grade_level}`) : student.email}</p>
+                      </div>
                     </div>
                     {unreadCounts[student.id] > 0 && (
-                      <span className="absolute left-4 w-2.5 h-2.5 bg-red-500 rounded-full animate-pulse shadow-[0_0_8px_rgba(239,68,68,0.6)]"></span>
+                      <span className="w-2.5 h-2.5 bg-red-500 rounded-full animate-pulse shadow-[0_0_8px_rgba(239,68,68,0.6)]"></span>
                     )}
                   </button>
-                ))}
-                {filteredStudents.length === 0 && (
-                  <p className="text-center text-gray-500 dark:text-gray-400 text-sm py-4">{t('chat_no_matching_students')}</p>
-                )}
-              </div>
+                ))
+              )}
             </div>
           )}
         </div>
@@ -730,12 +746,14 @@ export default function AdminChat() {
         {activeChat ? (
           <>
             {/* Chat Header */}
-            <div className="h-16 px-4 sm:px-6 bg-white dark:bg-slate-800 border-b border-gray-200 dark:border-slate-700 flex items-center gap-3 sm:gap-4 z-10 shadow-sm shrink-0">
+            <div className="h-16 px-3 sm:px-6 bg-white dark:bg-slate-800 border-b border-gray-200 dark:border-slate-700 flex items-center gap-2.5 sm:gap-4 z-10 shadow-sm shrink-0">
               <button 
                 onClick={() => setActiveChat(null)}
-                className="lg:hidden p-2 -mr-2 rounded-full text-gray-500 hover:bg-gray-100 dark:hover:bg-slate-700"
+                className="lg:hidden p-2 rounded-xl text-gray-600 dark:text-gray-300 bg-gray-100 dark:bg-slate-700 hover:bg-gray-200 dark:hover:bg-slate-600 transition-colors flex items-center gap-1 font-bold text-xs shrink-0"
+                title={t('back') || 'رجوع'}
               >
-                <ArrowRight className="w-5 h-5" />
+                <ArrowRight className="w-4 h-4 rtl:rotate-0 ltr:rotate-180" />
+                <span>{isRTL ? 'رجوع' : 'Back'}</span>
               </button>
               {activeChat.type === 'general' ? (
                 <div className="w-10 h-10 rounded-full bg-blue-100 dark:bg-blue-900/50 flex items-center justify-center text-blue-600 dark:text-blue-400">
@@ -787,25 +805,11 @@ export default function AdminChat() {
                         </div>
                       )}
 
-                      <FadeIn delay={index * 10} className={`flex items-end gap-1.5 sm:gap-2 ${isMe ? 'justify-end' : 'justify-start'
-                        } ${activeMessageOptions === msg.id ? 'relative z-50' : 'relative z-10'}`}>
-
-                      {/* Avatar for others (WhatsApp style - bottom aligned) */}
-                      {!isMe && (
-                        <div className="shrink-0 w-7 h-7 sm:w-8 sm:h-8 mb-0.5">
-                          {showAvatar ? (
-                            <div className={`w-7 h-7 sm:w-8 sm:h-8 rounded-full bg-gradient-to-br ${avatarColors[colorIdx]} flex items-center justify-center text-white font-bold text-xs sm:text-sm shadow-md`}>
-                              {senderInitial}
-                            </div>
-                          ) : (
-                            <div className="w-7 h-7 sm:w-8 sm:h-8" />
-                          )}
-                        </div>
-                      )}
+                      <FadeIn delay={index * 10} className={`flex items-end ${isMe ? 'justify-end' : 'justify-start'} ${activeMessageOptions === msg.id ? 'relative z-50' : 'relative z-10'}`}>
 
                       <div 
                         id={`msg-${msg.id}`}
-                        className={`max-w-[88%] sm:max-w-[70%] flex flex-col ${isMe ? 'items-end' : 'items-start'} relative group`}
+                        className={`max-w-[94%] sm:max-w-[76%] flex flex-col ${isMe ? 'items-end' : 'items-start'} relative group`}
                       >
                         {/* Quick hover reply button on desktop */}
                         {!msg.is_deleted && (
@@ -838,26 +842,34 @@ export default function AdminChat() {
                             : 'bg-white dark:bg-slate-800 text-gray-900 dark:text-white rounded-tr-none border border-gray-200 dark:border-slate-700'
                           }`}>
 
-                          {/* Sender Name - Clean WhatsApp Style */}
+                          {/* Sender Name - Highlighted & Decorated Badge */}
                           {shouldShowSenderName && (() => {
                             const nameColorClasses = [
-                              'text-rose-600 dark:text-rose-400', 'text-violet-600 dark:text-violet-400',
-                              'text-amber-600 dark:text-amber-400', 'text-emerald-600 dark:text-emerald-400',
-                              'text-sky-600 dark:text-sky-400', 'text-pink-600 dark:text-pink-400',
-                              'text-indigo-600 dark:text-indigo-400', 'text-teal-600 dark:text-teal-400',
-                              'text-orange-600 dark:text-orange-400', 'text-cyan-600 dark:text-cyan-400',
-                              'text-lime-600 dark:text-lime-400', 'text-fuchsia-600 dark:text-fuchsia-400',
+                              'text-rose-500 dark:text-rose-400', 'text-violet-500 dark:text-violet-400',
+                              'text-amber-500 dark:text-amber-400', 'text-emerald-500 dark:text-emerald-400',
+                              'text-sky-500 dark:text-sky-400', 'text-pink-500 dark:text-pink-400',
+                              'text-indigo-500 dark:text-indigo-400', 'text-teal-500 dark:text-teal-400',
+                              'text-orange-500 dark:text-orange-400', 'text-cyan-500 dark:text-cyan-400',
+                              'text-lime-500 dark:text-lime-400', 'text-fuchsia-500 dark:text-fuchsia-400',
                             ];
                             return (
-                              <div className="flex items-center gap-1.5 mb-1.5">
-                                <span className={`text-[13px] font-black tracking-wide font-arabic ${
-                                  isMe ? 'text-purple-100' : nameColorClasses[colorIdx]
+                              <div className="flex items-center gap-1.5 mb-2 select-none">
+                                <div className={`inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-lg text-xs font-black shadow-xs border ${
+                                  isMe
+                                    ? 'bg-gradient-to-r from-purple-900/60 to-indigo-900/60 text-purple-100 border-purple-400/40 shadow-purple-900/20'
+                                    : 'bg-black/10 dark:bg-white/10 text-gray-800 dark:text-gray-100 border-black/5 dark:border-white/10'
                                 }`}>
-                                  {senderName}
-                                </span>
-                                {isMe && (
-                                  <span className="text-[10px] text-purple-200 bg-black/20 px-1.5 py-0.5 rounded-full font-bold shadow-sm">• {t('chat_admin_sender')}</span>
-                                )}
+                                  <span className={`tracking-wide font-arabic font-black ${
+                                    isMe ? 'text-purple-100' : nameColorClasses[colorIdx]
+                                  }`}>
+                                    {senderName}
+                                  </span>
+                                  {isMe && (
+                                    <span className="text-[10px] text-amber-300 bg-black/30 px-1.5 py-0.2 rounded-md font-bold border border-amber-400/30">
+                                      • {t('chat_admin_sender')}
+                                    </span>
+                                  )}
+                                </div>
                               </div>
                             );
                           })()}
@@ -1027,9 +1039,6 @@ export default function AdminChat() {
                           )}
                         </motion.div>
                       </div>
-
-                      {/* Spacer for my messages side (no avatar) */}
-                      {isMe && <div className="w-8 shrink-0" />}
                     </FadeIn>
                   </React.Fragment>
                 );

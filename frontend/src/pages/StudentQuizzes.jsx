@@ -3,11 +3,12 @@ import { Link } from 'react-router-dom';
 import { useTranslation } from 'react-i18next';
 import { 
   ClipboardList, CheckCircle, Clock, PlayCircle, 
-  Search, AlertCircle, Calendar 
+  Search, AlertCircle, Calendar, Sparkles
 } from 'lucide-react';
 import { supabase } from '../lib/supabase';
 import { useAuth } from '../context/AuthContext';
 import FadeIn from '../components/FadeIn';
+import BackButton from '../components/BackButton';
 import { formatQuizTitle, formatCourseTitle, formatGradeName } from '../utils/helpers';
 
 export default function StudentQuizzes() {
@@ -214,6 +215,10 @@ export default function StudentQuizzes() {
     <div className="min-h-screen bg-gray-50 dark:bg-slate-900 pb-20 pt-24 font-arabic">
       <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
         
+        <div className="mb-4 flex justify-start">
+          <BackButton to="/dashboard" text={isRTL ? 'العودة للرئيسية' : 'Back to Dashboard'} />
+        </div>
+
         {/* Header */}
         <FadeIn>
           <div className="bg-white dark:bg-slate-800 rounded-3xl p-5 sm:p-8 shadow-sm border border-gray-100 dark:border-slate-700/50 mb-8 flex flex-col md:flex-row items-center justify-between gap-6 relative overflow-hidden">
@@ -354,6 +359,13 @@ export default function StudentQuizzes() {
                       <Clock className="w-4 h-4 text-blue-500" />
                       <span>{quiz.duration_minutes ? `${quiz.duration_minutes} ${t('quiz_minutes_unit')}` : t('quiz_no_timer')}</span>
                     </div>
+
+                    {activeTab === 'available' && (
+                      <div className="flex items-center gap-2 text-xs font-bold text-amber-600 dark:text-amber-400 bg-amber-50 dark:bg-amber-950/40 px-3 py-2 rounded-xl border border-amber-200/60 dark:border-amber-800/50">
+                        <Sparkles className="w-4 h-4 text-amber-500 shrink-0 animate-pulse" />
+                        <span>{isRTL ? 'مكافأة الامتحان: حتى +50 XP' : 'Earn up to +50 XP'}</span>
+                      </div>
+                    )}
                     
                     {activeTab === 'completed' && quiz.submission && (
                       <div className="space-y-2 mt-4 pt-3 border-t border-gray-100 dark:border-slate-700/60">

@@ -59,6 +59,25 @@ export default function Checkout() {
     }, 2000);
   };
 
+  const handleReceiptSelect = (e) => {
+    const file = e.target.files[0];
+    if (!file) return;
+
+    if (file.size > 10 * 1024 * 1024) {
+      alert('حجم صورة الإيصال كبير جداً (الحد الأقصى 10 ميجابايت).');
+      e.target.value = '';
+      return;
+    }
+
+    if (!file.type.startsWith('image/')) {
+      alert('يرجى اختيار ملف صورة صالح (JPEG, PNG, WebP).');
+      e.target.value = '';
+      return;
+    }
+
+    setReceiptFile(file);
+  };
+
   const handleEWalletCheckout = async () => {
     if (!walletNumber) {
       alert('يرجى إدخال رقم المحفظة المحول منها.');
@@ -316,7 +335,7 @@ export default function Checkout() {
                                         />
                                         <div className="mt-4">
                                           <label className="block text-sm font-bold text-gray-700 dark:text-gray-300 mb-2">صورة الإيصال *</label>
-                                          <input type="file" className="w-full text-sm text-slate-500 file:mr-4 file:py-2 file:px-4 file:rounded-full file:border-0 file:text-sm file:font-semibold file:bg-blue-50 file:text-blue-700 hover:file:bg-blue-100 dark:file:bg-slate-700 dark:file:text-slate-300" accept="image/*" onChange={(e) => setReceiptFile(e.target.files[0])} />
+                                          <input type="file" className="w-full text-sm text-slate-500 file:mr-4 file:py-2 file:px-4 file:rounded-full file:border-0 file:text-sm file:font-semibold file:bg-blue-50 file:text-blue-700 hover:file:bg-blue-100 dark:file:bg-slate-700 dark:file:text-slate-300" accept="image/jpeg,image/png,image/webp" onChange={handleReceiptSelect} />
                                         </div>
                                       </div>
                                     )}
@@ -344,7 +363,7 @@ export default function Checkout() {
                                         <div>
                                           <label className="block text-sm font-bold text-gray-700 dark:text-gray-300 mb-2">إيصال التحويل *</label>
                                           <div className="w-full relative border-2 border-dashed border-gray-300 dark:border-slate-600 rounded-xl p-4 text-center hover:bg-gray-50 dark:hover:bg-slate-800 transition-colors cursor-pointer">
-                                            <input type="file" className="absolute inset-0 w-full h-full opacity-0 cursor-pointer" accept="image/*" onChange={(e) => setReceiptFile(e.target.files[0])} />
+                                            <input type="file" className="absolute inset-0 w-full h-full opacity-0 cursor-pointer" accept="image/jpeg,image/png,image/webp" onChange={handleReceiptSelect} />
                                             <div className="flex flex-col items-center justify-center gap-2 text-gray-500">
                                               <UploadCloud className="w-6 h-6" />
                                               <span className="text-sm font-bold">{receiptFile ? receiptFile.name : 'اضغط هنا لرفع صورة الإيصال'}</span>

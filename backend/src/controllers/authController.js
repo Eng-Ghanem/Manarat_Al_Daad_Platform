@@ -42,7 +42,6 @@ const lookupEmailByPhone = async (req, res) => {
     res.json({ 
       success: true, 
       data: { 
-        email: data.email,
         maskedEmail: maskEmail(data.email) 
       } 
     });

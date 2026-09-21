@@ -67,20 +67,34 @@ const authLimiter = rateLimit({
 const adminRoutes = require('./src/routes/adminRoutes');
 const authRoutes = require('./src/routes/authRoutes');
 const quizRoutes = require('./src/routes/quizRoutes');
-const { getGamificationRulesHandler } = require('./src/controllers/adminController');
+const gamificationRoutes = require('./src/routes/gamificationRoutes');
+const { protect } = require('./src/middlewares/authMiddleware');
 
 // API Routes
 app.use('/api/admin', adminRoutes);
 app.use('/api/auth', authLimiter, authRoutes);
 app.use('/api/quizzes', quizRoutes);
-app.get('/api/gamification/rules', getGamificationRulesHandler);
+app.use('/api/gamification', gamificationRoutes);
 
-// Mention Notifications Dispatcher (Service Role Bypasses RLS)
-app.post('/api/chat/mention-notify', async (req, res) => {
+// Secure Mention Notifications Dispatcher (Requires Authentication)
+app.post('/api/chat/mention-notify', protect, async (req, res) => {
   try {
-    const { mentionedUserIds, senderName, senderId, messageSnippet, isRTL } = req.body;
+    const { mentionedUserIds, senderName, messageSnippet, isRTL } = req.body;
+    
+    // Sender identity is strictly bound to the authenticated JWT token to prevent spoofing
+    const senderId = req.user.id;
+
     if (!mentionedUserIds || !Array.isArray(mentionedUserIds) || mentionedUserIds.length === 0) {
       return res.status(400).json({ success: false, error: 'No mentioned users provided' });
+    }
+
+    // Rate / Payload limit: Maximum 20 mentions per single message to prevent notification flooding
+    const safeMentionIds = mentionedUserIds
+      .filter(id => id && typeof id === 'string' && id !== senderId)
+      .slice(0, 20);
+
+    if (safeMentionIds.length === 0) {
+      return res.json({ success: true, count: 0 });
     }
 
     const supabaseAdmin = require('./src/lib/supabaseAdmin');
@@ -88,41 +102,61 @@ app.post('/api/chat/mention-notify', async (req, res) => {
       return res.status(500).json({ success: false, error: 'Supabase admin client not available' });
     }
 
-    const notificationsToInsert = mentionedUserIds
-      .filter(id => id && id !== senderId)
-      .map(userId => ({
-        user_id: userId,
-        title: isRTL ? 'إشارة في المحادثة' : 'Mention in Chat',
-        message: isRTL 
-          ? `قام ${senderName || 'أحد الأعضاء'} بالإشارة إليك في المحادثة: "${(messageSnippet || '').slice(0, 60)}"`
-          : `${senderName || 'Someone'} mentioned you in the chat: "${(messageSnippet || '').slice(0, 60)}"`,
-        type: 'chat_mention',
-        link: '/chat'
-      }));
+    const safeSenderName = typeof senderName === 'string' && senderName.trim()
+      ? senderName.trim().slice(0, 50)
+      : 'أحد الأعضاء';
 
-    if (notificationsToInsert.length > 0) {
-      const { data, error } = await supabaseAdmin
-        .from('notifications')
-        .insert(notificationsToInsert);
-      if (error) {
-        console.error('Error inserting mention notifications via supabaseAdmin:', error);
-        return res.status(500).json({ success: false, error: error.message });
-      }
+    const cleanSnippet = typeof messageSnippet === 'string'
+      ? messageSnippet.trim().slice(0, 70)
+      : '';
+
+    const notificationsToInsert = safeMentionIds.map(userId => ({
+      user_id: userId,
+      title: isRTL ? 'إشارة في المحادثة' : 'Mention in Chat',
+      message: isRTL 
+        ? `قام ${safeSenderName} بالإشارة إليك في المحادثة: "${cleanSnippet}"`
+        : `${safeSenderName} mentioned you in the chat: "${cleanSnippet}"`,
+      type: 'chat_mention',
+      link: '/chat'
+    }));
+
+    const { error } = await supabaseAdmin
+      .from('notifications')
+      .insert(notificationsToInsert);
+
+    if (error) {
+      console.error('Error inserting mention notifications:', error);
+      return res.status(500).json({ success: false, error: 'فشل إرسال الإشعارات' });
     }
 
     return res.json({ success: true, count: notificationsToInsert.length });
   } catch (err) {
     console.error('Mention notify error:', err);
-    return res.status(500).json({ success: false, error: err.message });
+    return res.status(500).json({ success: false, error: 'حدث خطأ في الخادم' });
   }
 });
 
-// Test Route
+// Test / Health Route
 app.get('/', (req, res) => {
   res.send('مرحباً بك في الخادم الخلفي لمنصة مَنَارَةُ الضَّادِ!');
+});
+
+// Central 404 Handler
+app.use((req, res) => {
+  res.status(404).json({ success: false, error: 'المسار غير موجود' });
+});
+
+// Central Error Handler (Avoids leaking stack traces in production)
+app.use((err, req, res, next) => {
+  console.error('Unhandled server error:', err);
+  res.status(err.status || 500).json({ 
+    success: false, 
+    error: process.env.NODE_ENV === 'production' ? 'حدث خطأ غير متوقع في الخادم' : err.message 
+  });
 });
 
 // Start Server
 app.listen(port, () => {
   console.log(`Server is running on port ${port}`);
 });
+

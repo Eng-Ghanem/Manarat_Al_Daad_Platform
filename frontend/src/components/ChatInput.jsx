@@ -2,6 +2,7 @@ import React, { useState, useRef, useEffect } from 'react';
 import { useTranslation } from 'react-i18next';
 import { Send, Paperclip, Mic, Square, X, Image as ImageIcon, FileText, Loader, Reply, AtSign } from 'lucide-react';
 import { chatService } from '../lib/chatService';
+import toast from 'react-hot-toast';
 
 export default function ChatInput({ onSendMessage, replyingTo = null, onCancelReply = null, participants = [] }) {
   const { t, i18n } = useTranslation();
@@ -40,6 +41,23 @@ export default function ChatInput({ onSendMessage, replyingTo = null, onCancelRe
   const handleFileSelect = (e) => {
     const file = e.target.files[0];
     if (!file) return;
+
+    // Security validation: File size cap (15MB)
+    const MAX_SIZE = 15 * 1024 * 1024;
+    if (file.size > MAX_SIZE) {
+      toast.error(isRTL ? 'حجم الملف كبير جداً (الحد الأقصى 15 ميجابايت)' : 'File is too large (max 15MB)');
+      if (fileInputRef.current) fileInputRef.current.value = '';
+      return;
+    }
+
+    // Security validation: Disallow dangerous executable extensions
+    const fileExt = (file.name.split('.').pop() || '').toLowerCase();
+    const disallowedExts = ['exe', 'bat', 'cmd', 'sh', 'php', 'pl', 'cgi', 'js', 'html', 'htm', 'vbs', 'ps1', 'msi', 'com'];
+    if (disallowedExts.includes(fileExt)) {
+      toast.error(isRTL ? 'نوع هذا الملف غير مسموح به لأسباب أمنية' : 'This file type is not allowed for security reasons');
+      if (fileInputRef.current) fileInputRef.current.value = '';
+      return;
+    }
 
     setMediaFile(file);
     setShowAttachMenu(false);

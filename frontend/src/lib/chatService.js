@@ -167,9 +167,23 @@ export const chatService = {
     }
   },
 
-  // Upload media file to Supabase Storage
+  // Upload media file to Supabase Storage with size and type security checks
   async uploadMedia(file, path) {
-    const fileExt = file.name.split('.').pop();
+    if (!file) throw new Error('لا يوجد ملف للرفع');
+
+    // Security validation: File size cap (15MB)
+    const MAX_SIZE = 15 * 1024 * 1024;
+    if (file.size > MAX_SIZE) {
+      throw new Error('حجم الملف كبير جداً. الحد الأقصى هو 15 ميجابايت.');
+    }
+
+    // Security validation: Disallow dangerous executable/script extensions
+    const fileExt = (file.name.split('.').pop() || '').toLowerCase();
+    const disallowedExts = ['exe', 'bat', 'cmd', 'sh', 'php', 'pl', 'cgi', 'js', 'html', 'htm', 'vbs', 'ps1', 'msi', 'com'];
+    if (disallowedExts.includes(fileExt)) {
+      throw new Error('نوع هذا الملف غير مسموح به لدواعي الأمان.');
+    }
+
     const fileName = `${Math.random().toString(36).substring(2, 15)}_${Date.now()}.${fileExt}`;
     const filePath = `${path}/${fileName}`;
 
@@ -189,18 +203,25 @@ export const chatService = {
     return publicUrlData.publicUrl;
   },
 
-  // Notify mentioned users reliably through backend (with client-side fallback)
+  // Notify mentioned users reliably through authenticated backend (with client-side fallback)
   async notifyMentions({ mentionedUsers, senderName, senderId, messageSnippet, isRTL }) {
     if (!mentionedUsers || !Array.isArray(mentionedUsers) || mentionedUsers.length === 0) return;
     const targetIds = mentionedUsers.map(u => (typeof u === 'string' ? u : u.id)).filter(id => id && id !== senderId);
     if (targetIds.length === 0) return;
 
-    // 1. Try backend service-role endpoint (bypasses RLS)
+    // 1. Try backend service-role endpoint (authenticated with user token)
     try {
+      const { data: { session } } = await supabase.auth.getSession();
+      const token = session?.access_token;
+      if (!token) throw new Error('No active user session');
+
       const apiUrl = import.meta.env.VITE_API_URL || 'http://localhost:5000';
       const res = await fetch(`${apiUrl}/api/chat/mention-notify`, {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
+        headers: { 
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${token}`
+        },
         body: JSON.stringify({
           mentionedUserIds: targetIds,
           senderName,

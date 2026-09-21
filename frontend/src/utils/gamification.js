@@ -148,13 +148,60 @@ export const getStudentBadge = (xp, isRTL = true) => {
 };
 
 /**
- * Award XP points to a student, updates profiles table,
- * and creates a real-time notification with a red bell dot indicator.
+ * Award XP points to a student securely via backend service-role endpoint,
+ * updates profiles table, and creates a real-time notification.
  */
 export const awardStudentXp = async (userId, amount, reason = '', link = '/dashboard') => {
   if (!userId || !amount || amount <= 0) return 0;
 
   try {
+    // 1. Try secure backend endpoint first (bypasses student RLS and validates bounds)
+    const { data: { session } } = await supabase.auth.getSession();
+    const token = session?.access_token;
+
+    if (token) {
+      try {
+        const apiUrl = import.meta.env.VITE_API_URL || 'http://localhost:5000';
+        const res = await fetch(`${apiUrl}/api/gamification/award-xp`, {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+            'Authorization': `Bearer ${token}`
+          },
+          body: JSON.stringify({
+            userId,
+            amount: Number(amount),
+            reason,
+            link: link || '/dashboard'
+          })
+        });
+
+        if (res.ok) {
+          const result = await res.json();
+          if (result && result.success) {
+            return result.xp_points;
+          }
+        }
+      } catch (backendErr) {
+        console.warn('Backend XP endpoint unavailable, attempting database RPC fallback:', backendErr);
+      }
+    }
+
+    // 2. Database RPC fallback (if award_student_xp SQL function is installed)
+    try {
+      const { data: rpcXp, error: rpcErr } = await supabase.rpc('award_student_xp', {
+        p_user_id: userId,
+        p_amount: Number(amount),
+        p_reason: reason || ''
+      });
+      if (!rpcErr && typeof rpcXp === 'number') {
+        return rpcXp;
+      }
+    } catch (rpcEx) {
+      // Continue to direct client fallback if trigger allows it
+    }
+
+    // 3. Fallback to direct client insert/update (for local dev or if backend is offline)
     const { data: profileData } = await supabase
       .from('profiles')
       .select('xp_points, full_name, role')

@@ -136,6 +136,54 @@ export const chatService = {
     return true;
   },
 
+  // Clear all messages in a specific chat (general grade or private student)
+  async clearChat({ type, id, adminId }) {
+    if (!type || !id) throw new Error('نوع ومعرف المحادثة مطلوبان');
+
+    // 1. Try secure backend admin endpoint
+    try {
+      const { data: { session } } = await supabase.auth.getSession();
+      const token = session?.access_token;
+      if (token) {
+        const apiUrl = import.meta.env.VITE_API_URL || 'http://localhost:5000';
+        const res = await fetch(`${apiUrl}/api/admin/chat/clear`, {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+            'Authorization': `Bearer ${token}`
+          },
+          body: JSON.stringify({ type, id })
+        });
+        if (res.ok) {
+          const json = await res.json();
+          if (json && json.success) return json;
+        }
+      }
+    } catch (backendErr) {
+      console.warn('Backend clear chat failed, falling back to direct Supabase query:', backendErr);
+    }
+
+    // 2. Direct Supabase query fallback
+    if (type === 'general') {
+      const { error, count } = await supabase
+        .from('chat_messages')
+        .delete({ count: 'exact' })
+        .eq('grade_level', id)
+        .is('receiver_id', null);
+      if (error) throw error;
+      return { success: true, deletedCount: count || 0 };
+    } else if (type === 'private') {
+      const { error, count } = await supabase
+        .from('chat_messages')
+        .delete({ count: 'exact' })
+        .or(`and(sender_id.eq.${adminId},receiver_id.eq.${id}),and(sender_id.eq.${id},receiver_id.eq.${adminId}),and(receiver_id.eq.${id},grade_level.is.null),and(sender_id.eq.${id},grade_level.is.null)`);
+      if (error) throw error;
+      return { success: true, deletedCount: count || 0 };
+    }
+
+    return { success: true };
+  },
+
   // Subscribe to real-time message changes (INSERT, UPDATE, DELETE)
   subscribeToMessages(callback) {
     const subscription = supabase

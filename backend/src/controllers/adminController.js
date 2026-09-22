@@ -483,6 +483,79 @@ const updateGamificationRulesHandler = async (req, res) => {
   }
 };
 
+// @desc    Clear all messages in a specific chat (general grade or private student)
+// @route   POST /api/admin/chat/clear
+// @access  Private/Admin
+const clearChatHandler = async (req, res) => {
+  try {
+    const { type, id } = req.body;
+    const adminId = req.user.id;
+
+    if (!type || !id) {
+      return res.status(400).json({ success: false, error: 'نوع ومعرف المحادثة مطلوبان' });
+    }
+
+    if (!supabaseAdmin) {
+      return res.status(500).json({ success: false, error: 'Supabase admin client not initialized' });
+    }
+
+    // 1. Collect media URLs to delete from storage if any
+    let mediaFilesToDelete = [];
+    try {
+      let selectQuery = supabaseAdmin.from('chat_messages').select('media_url');
+      if (type === 'general') {
+        selectQuery = selectQuery.eq('grade_level', id).is('receiver_id', null);
+      } else {
+        selectQuery = selectQuery.or(`and(sender_id.eq.${adminId},receiver_id.eq.${id}),and(sender_id.eq.${id},receiver_id.eq.${adminId}),and(receiver_id.eq.${id},grade_level.is.null),and(sender_id.eq.${id},grade_level.is.null)`);
+      }
+      const { data: mediaRows } = await selectQuery;
+      if (mediaRows && mediaRows.length > 0) {
+        mediaFilesToDelete = mediaRows
+          .filter(r => r.media_url && typeof r.media_url === 'string' && r.media_url.includes('/chat_media/'))
+          .map(r => {
+            const parts = r.media_url.split('/chat_media/');
+            return parts[parts.length - 1];
+          })
+          .filter(Boolean);
+      }
+    } catch (mErr) {
+      console.warn('Could not list media files to delete from storage:', mErr.message);
+    }
+
+    // 2. Perform DB deletion
+    let deleteQuery = supabaseAdmin.from('chat_messages').delete({ count: 'exact' });
+    if (type === 'general') {
+      deleteQuery = deleteQuery.eq('grade_level', id).is('receiver_id', null);
+    } else if (type === 'private') {
+      deleteQuery = deleteQuery.or(`and(sender_id.eq.${adminId},receiver_id.eq.${id}),and(sender_id.eq.${id},receiver_id.eq.${adminId}),and(receiver_id.eq.${id},grade_level.is.null),and(sender_id.eq.${id},grade_level.is.null)`);
+    } else {
+      return res.status(400).json({ success: false, error: 'نوع المحادثة غير صالح' });
+    }
+
+    const { error: delError, count } = await deleteQuery;
+    if (delError) {
+      console.error('Error clearing chat from database:', delError);
+      return res.status(500).json({ success: false, error: delError.message || 'فشل حذف الرسائل' });
+    }
+
+    // 3. Clean up storage files asynchronously
+    if (mediaFilesToDelete.length > 0) {
+      supabaseAdmin.storage.from('chat_media').remove(mediaFilesToDelete).catch(err => {
+        console.warn('Failed to delete media files from storage:', err.message);
+      });
+    }
+
+    return res.json({
+      success: true,
+      message: type === 'general' ? 'تم تنظيف محادثة الصف بنجاح' : 'تم تنظيف المحادثة الخاصة بنجاح',
+      deletedCount: count || 0
+    });
+  } catch (error) {
+    console.error('Error in clearChatHandler:', error);
+    return res.status(500).json({ success: false, error: error.message || 'حدث خطأ في الخادم أثناء تنظيف المحادثة' });
+  }
+};
+
 module.exports = {
   getDashboardStats,
   updateSubscriptionStatus,
@@ -494,5 +567,6 @@ module.exports = {
   deleteStudent,
   adjustStudentXp,
   getGamificationRulesHandler,
-  updateGamificationRulesHandler
+  updateGamificationRulesHandler,
+  clearChatHandler
 };

@@ -5,9 +5,11 @@ import { motion } from 'framer-motion';
 import { supabase } from '../lib/supabase';
 import { chatService } from '../lib/chatService';
 import { useAuth } from '../context/AuthContext';
-import { Send, Users, ShieldAlert, Shield, MessageSquare, Image as ImageIcon, X, Loader, FileText, Check, CheckCheck, MoreVertical, Pencil, Trash2, Ban, ArrowRight, Reply, Calendar } from 'lucide-react';
+import { Send, Users, ShieldAlert, Shield, MessageSquare, Image as ImageIcon, X, Loader, FileText, Check, CheckCheck, MoreVertical, Pencil, Trash2, Ban, ArrowRight, Reply, Calendar, RotateCcw } from 'lucide-react';
 import FadeIn from '../components/FadeIn';
 import ChatInput from '../components/ChatInput';
+import ConfirmModal from '../components/ConfirmModal';
+import toast from 'react-hot-toast';
 
 export default function StudentChat() {
   const { t, i18n } = useTranslation();
@@ -26,6 +28,8 @@ export default function StudentChat() {
   const [fullscreenImage, setFullscreenImage] = useState(null);
   const [messageToDelete, setMessageToDelete] = useState(null);
   const [replyingTo, setReplyingTo] = useState(null);
+  const [clearChatModalOpen, setClearChatModalOpen] = useState(false);
+  const [isClearingChat, setIsClearingChat] = useState(false);
   const messagesEndRef = useRef(null);
   const messagesContainerRef = useRef(null);
 
@@ -338,6 +342,32 @@ export default function StudentChat() {
     }
   };
 
+  const handleConfirmClearChat = async () => {
+    if (!activeChat) return;
+    try {
+      setIsClearingChat(true);
+      const targetId = activeChat.type === 'general' ? profile?.grade_level : adminProfile?.id;
+      await chatService.clearChat({
+        type: activeChat.type,
+        id: targetId,
+        adminId: user.id
+      });
+
+      // Instantly clear local state and cache
+      setMessages([]);
+      const cacheKey = `${activeChat.type}_${targetId}`;
+      chatCacheRef.current[cacheKey] = [];
+
+      toast.success(isRTL ? 'تم تنظيف المحادثة بالكامل والبدء من جديد!' : 'Chat cleared successfully!');
+    } catch (err) {
+      console.error('Error clearing chat:', err);
+      toast.error(isRTL ? 'فشل تنظيف المحادثة' : 'Failed to clear chat');
+    } finally {
+      setIsClearingChat(false);
+      setClearChatModalOpen(false);
+    }
+  };
+
   const chatParticipants = React.useMemo(() => {
     const list = [];
     if (adminProfile) {
@@ -638,32 +668,51 @@ export default function StudentChat() {
         {activeChat ? (
           <>
             {/* Chat Header */}
-            <div className="h-20 px-3 sm:px-6 bg-white dark:bg-slate-800 border-b border-gray-200 dark:border-slate-700 flex items-center gap-2.5 sm:gap-4 z-10 shadow-sm shrink-0">
-              <button
-                onClick={() => setActiveChat(null)}
-                className="md:hidden p-2 rounded-xl text-gray-600 dark:text-gray-300 bg-gray-100 dark:bg-slate-700/80 hover:bg-gray-200 dark:hover:bg-slate-600 transition-colors flex items-center gap-1 font-bold text-xs shrink-0"
-                title={t('back') || 'رجوع'}
-              >
-                <ArrowRight className="w-4 h-4 rtl:rotate-0 ltr:rotate-180" />
-                <span>{isRTL ? 'رجوع' : 'Back'}</span>
-              </button>
-              {activeChat.type === 'general' ? (
-                <div className="w-10 h-10 sm:w-12 sm:h-12 rounded-full bg-blue-100 dark:bg-blue-900/50 flex items-center justify-center text-blue-600 dark:text-blue-400 shrink-0">
-                  <Users className="w-5 h-5 sm:w-6 sm:h-6" />
+            <div className="h-20 px-3 sm:px-6 bg-white dark:bg-slate-800 border-b border-gray-200 dark:border-slate-700 flex items-center justify-between z-10 shadow-sm shrink-0">
+              <div className="flex items-center gap-2.5 sm:gap-4 min-w-0">
+                <button
+                  onClick={() => setActiveChat(null)}
+                  className="md:hidden p-2 rounded-xl text-gray-600 dark:text-gray-300 bg-gray-100 dark:bg-slate-700/80 hover:bg-gray-200 dark:hover:bg-slate-600 transition-colors flex items-center gap-1 font-bold text-xs shrink-0"
+                  title={t('back') || 'رجوع'}
+                >
+                  <ArrowRight className="w-4 h-4 rtl:rotate-0 ltr:rotate-180" />
+                  <span>{isRTL ? 'رجوع' : 'Back'}</span>
+                </button>
+                {activeChat.type === 'general' ? (
+                  <div className="w-10 h-10 sm:w-12 sm:h-12 rounded-full bg-blue-100 dark:bg-blue-900/50 flex items-center justify-center text-blue-600 dark:text-blue-400 shrink-0">
+                    <Users className="w-5 h-5 sm:w-6 sm:h-6" />
+                  </div>
+                ) : (
+                  <div className="w-10 h-10 sm:w-12 sm:h-12 rounded-full bg-gradient-to-tr from-purple-600 to-indigo-600 flex items-center justify-center text-white font-bold text-lg sm:text-xl shrink-0 shadow-md">
+                    أ
+                  </div>
+                )}
+                <div className="min-w-0">
+                  <h2 className="font-bold text-gray-900 dark:text-white text-base sm:text-lg truncate">
+                    {activeChat.type === 'general' ? `${t('chat_general_title')} - ${t(`grade_${profile?.grade_level}`)}` : t('chat_platform_admin')}
+                  </h2>
+                  <p className="text-xs sm:text-sm text-gray-500 dark:text-gray-400 truncate">
+                    {activeChat.type === 'general' ? t('chat_general_subtitle') : t('chat_private_subtitle')}
+                  </p>
                 </div>
-              ) : (
-                <div className="w-10 h-10 sm:w-12 sm:h-12 rounded-full bg-gradient-to-tr from-purple-600 to-indigo-600 flex items-center justify-center text-white font-bold text-lg sm:text-xl shrink-0 shadow-md">
-                  أ
+              </div>
+
+              {/* Action Buttons: Clear Chat (Only visible to admin / teacher) */}
+              {(profile?.role === 'admin' || profile?.role === 'teacher') && (
+                <div className="flex items-center gap-2 shrink-0">
+                  <button
+                    type="button"
+                    onClick={() => setClearChatModalOpen(true)}
+                    disabled={messages.length === 0 || isClearingChat}
+                    className="flex items-center gap-1.5 px-3 py-1.5 sm:px-3.5 sm:py-2 rounded-xl text-xs font-bold font-arabic transition-all border border-red-200 dark:border-red-900/40 text-red-600 dark:text-red-400 bg-red-50/80 dark:bg-red-950/30 hover:bg-red-100 dark:hover:bg-red-900/50 hover:shadow-sm active:scale-95 disabled:opacity-40 disabled:pointer-events-none"
+                    title={isRTL ? 'تنظيف المحادثة بالكامل ومسح كافة الرسائل السابقة' : 'Clear all messages in this chat'}
+                  >
+                    <RotateCcw className={`w-3.5 h-3.5 ${isClearingChat ? 'animate-spin' : ''}`} />
+                    <span className="hidden sm:inline">{isRTL ? 'تنظيف المحادثة' : 'Clear Chat'}</span>
+                    <span className="sm:hidden">{isRTL ? 'تنظيف' : 'Clear'}</span>
+                  </button>
                 </div>
               )}
-              <div className="min-w-0">
-                <h2 className="font-bold text-gray-900 dark:text-white text-lg sm:text-xl truncate">
-                  {activeChat.type === 'general' ? `${t('chat_general_title')} - ${t(`grade_${profile.grade_level}`)}` : t('chat_platform_admin')}
-                </h2>
-                <p className="text-xs sm:text-sm text-gray-500 dark:text-gray-400 truncate">
-                  {activeChat.type === 'general' ? t('chat_general_subtitle') : t('chat_private_subtitle')}
-                </p>
-              </div>
             </div>
 
             {/* Messages */}
@@ -1022,6 +1071,22 @@ export default function StudentChat() {
       </div>
     )
   }
+
+      {/* Clear Chat Confirmation Modal */}
+      <ConfirmModal
+        isOpen={clearChatModalOpen}
+        onClose={() => !isClearingChat && setClearChatModalOpen(false)}
+        onConfirm={handleConfirmClearChat}
+        title={isRTL ? 'تنظيف المحادثة بالكامل؟' : 'Clear Entire Chat?'}
+        message={
+          isRTL
+            ? `هل أنت متأكد من رغبتك في تنظيف هذه المحادثة بالكامل؟ سيتم مسح كافة الرسائل السابقة والصور والوسائط في هذه الغرفة نهائياً من قاعدة البيانات للبدء من جديد.`
+            : `Are you sure you want to clear all messages in this chat? All previous messages, images, and audio will be permanently deleted from the database to start fresh.`
+        }
+        confirmText={isClearingChat ? (isRTL ? 'جاري التنظيف...' : 'Clearing...') : (isRTL ? 'نعم، تنظيف المحادثة' : 'Yes, Clear Chat')}
+        cancelText={isRTL ? 'إلغاء' : 'Cancel'}
+        isDanger={true}
+      />
     </>
   );
 }

@@ -162,9 +162,16 @@ ON public.chat_messages FOR UPDATE
 TO authenticated 
 USING (auth.uid() = sender_id);
 
--- صلاحية الإدارة للتحكم في أي رسالة وحذف المخالف منها
+-- صلاحية الإدارة للتحكم في أي رسالة وتعديلها
 CREATE POLICY "Admins can update any chat message" 
 ON public.chat_messages FOR UPDATE 
+TO authenticated 
+USING (public.is_admin() OR EXISTS (SELECT 1 FROM public.profiles WHERE id = auth.uid() AND role = 'teacher'));
+
+-- صلاحية الإدارة لحذف الرسائل وتنظيف المحادثات بالكامل
+DROP POLICY IF EXISTS "Admins can delete chat messages" ON public.chat_messages;
+CREATE POLICY "Admins can delete chat messages" 
+ON public.chat_messages FOR DELETE 
 TO authenticated 
 USING (public.is_admin() OR EXISTS (SELECT 1 FROM public.profiles WHERE id = auth.uid() AND role = 'teacher'));
 

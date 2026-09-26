@@ -4,6 +4,18 @@ A modern, full-stack Arabic educational e-learning and examination platform engi
 
 ---
 
+## Table of Contents
+
+- [Features](#features)
+- [Tech Stack](#tech-stack)
+- [Architecture](#architecture)
+- [Project Structure](#project-structure)
+- [Installation & Setup](#installation--setup)
+- [License](#license)
+- [Author](#author)
+
+---
+
 ## Features
 
 ### Student Learning & Assessment

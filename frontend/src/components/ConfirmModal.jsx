@@ -10,7 +10,8 @@ export default function ConfirmModal({
   message, 
   confirmText, 
   cancelText, 
-  isDanger = false 
+  isDanger = false,
+  isLoading = false
 }) {
   const { t } = useTranslation();
   const cText = confirmText || t('common_confirm') || 'تأكيد';
@@ -23,7 +24,7 @@ export default function ConfirmModal({
             initial={{ opacity: 0 }}
             animate={{ opacity: 1 }}
             exit={{ opacity: 0 }}
-            onClick={onClose}
+            onClick={isLoading ? undefined : onClose}
             className="fixed inset-0 bg-slate-900/60 backdrop-blur-sm"
           />
           <motion.div
@@ -60,20 +61,28 @@ export default function ConfirmModal({
               
               <div className="flex gap-4 w-full">
                 <button
+                  type="button"
                   onClick={onClose}
-                  className="flex-1 px-6 py-3.5 rounded-2xl font-bold font-arabic text-gray-700 dark:text-gray-300 bg-gray-100 dark:bg-slate-700 hover:bg-gray-200 dark:hover:bg-slate-600 transition-colors shadow-sm"
+                  disabled={isLoading}
+                  className="flex-1 px-6 py-3.5 rounded-2xl font-bold font-arabic text-gray-700 dark:text-gray-300 bg-gray-100 dark:bg-slate-700 hover:bg-gray-200 dark:hover:bg-slate-600 transition-colors shadow-sm disabled:opacity-50 disabled:cursor-not-allowed"
                 >
                   {canText}
                 </button>
                 <button
+                  type="button"
                   onClick={onConfirm}
-                  className={`flex-1 px-6 py-3.5 rounded-2xl font-bold font-arabic text-white transition-all shadow-lg hover:shadow-xl hover:-translate-y-0.5 active:translate-y-0 ${
+                  disabled={isLoading}
+                  className={`flex-1 px-6 py-3.5 rounded-2xl font-bold font-arabic text-white transition-all shadow-lg hover:shadow-xl hover:-translate-y-0.5 active:translate-y-0 flex items-center justify-center gap-2 disabled:opacity-75 disabled:cursor-not-allowed ${
                     isDanger 
                       ? 'bg-gradient-to-r from-red-600 to-red-500 hover:from-red-700 hover:to-red-600 shadow-red-500/30' 
                       : 'bg-gradient-to-r from-blue-600 to-blue-500 hover:from-blue-700 hover:to-blue-600 shadow-blue-500/30'
                   }`}
                 >
-                  {cText}
+                  {isLoading ? (
+                    <div className="w-5 h-5 border-2 border-white border-t-transparent rounded-full animate-spin" />
+                  ) : (
+                    cText
+                  )}
                 </button>
               </div>
             </div>

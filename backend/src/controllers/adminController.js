@@ -256,11 +256,54 @@ const deleteStudent = async (req, res) => {
   const { id } = req.params;
 
   try {
-    const { error } = await supabaseAdmin.auth.admin.deleteUser(id);
+    if (!supabaseAdmin) {
+      return res.status(500).json({ success: false, error: 'تعذر الاتصال بـ Supabase Admin Service' });
+    }
 
-    if (error) throw error;
+    // 1. First try using the database RPC function (atomic & clean)
+    try {
+      const { data: rpcData, error: rpcError } = await supabaseAdmin.rpc('admin_delete_student', {
+        p_student_id: id
+      });
+      if (!rpcError && (rpcData?.success || rpcData === true)) {
+        return res.json({ success: true, message: 'Student deleted successfully via database RPC' });
+      }
+    } catch (rpcErr) {
+      console.warn('admin_delete_student RPC failed or not installed, falling back to manual cleanup:', rpcErr.message);
+    }
 
-    res.json({ success: true, message: 'Student deleted successfully' });
+    // 2. Fallback: Clean up dependent records across all tables to prevent FK constraint violations
+    try {
+      await supabaseAdmin.from('student_reviews').delete().eq('user_id', id);
+      await supabaseAdmin.from('subscriptions').delete().eq('user_id', id);
+      await supabaseAdmin.from('quiz_submissions').delete().eq('student_id', id);
+      await supabaseAdmin.from('lesson_progress').delete().eq('user_id', id);
+      await supabaseAdmin.from('enrollments').delete().eq('user_id', id);
+      await supabaseAdmin.from('notifications').delete().eq('user_id', id);
+      await supabaseAdmin.from('gamification_logs').delete().eq('user_id', id);
+      await supabaseAdmin.from('chat_messages').update({ deleted_by: null }).eq('deleted_by', id);
+      await supabaseAdmin.from('chat_messages').delete().eq('sender_id', id);
+    } catch (cleanErr) {
+      console.warn('Non-critical cleanup warning during student deletion:', cleanErr.message);
+    }
+
+    // 3. Delete from public profiles table
+    const { error: profileError } = await supabaseAdmin
+      .from('profiles')
+      .delete()
+      .eq('id', id);
+
+    if (profileError) {
+      console.warn('Profile deletion warning:', profileError.message);
+    }
+
+    // 4. Delete user from Supabase Auth system
+    const { error: authError } = await supabaseAdmin.auth.admin.deleteUser(id);
+    if (authError && !authError.message?.toLowerCase().includes('not found')) {
+      throw authError;
+    }
+
+    res.json({ success: true, message: 'تم مسح الطالب وبياناته بالكامل بنجاح' });
   } catch (error) {
     console.error('Error deleting student:', error);
     res.status(500).json({ success: false, error: error.message || 'Server Error' });

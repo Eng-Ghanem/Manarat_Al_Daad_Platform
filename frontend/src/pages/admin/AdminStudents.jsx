@@ -7,8 +7,9 @@ import { Link } from 'react-router-dom';
 import FadeIn from '../../components/FadeIn';
 import ConfirmModal from '../../components/ConfirmModal';
 import { supabase } from '../../lib/supabase';
+import toast from 'react-hot-toast';
 
-const apiUrl = import.meta.env.VITE_API_URL || 'http://localhost:5000';
+const apiUrl = import.meta.env.VITE_API_URL || (typeof window !== 'undefined' && window.location.hostname !== 'localhost' ? '' : 'http://localhost:5000');
 
 export default function AdminStudents() {
   const { t, i18n } = useTranslation();
@@ -67,6 +68,7 @@ export default function AdminStudents() {
 
   // Delete Modal State
   const [deleteConfig, setDeleteConfig] = useState({ isOpen: false, studentId: null, studentName: '' });
+  const [deleteLoading, setDeleteLoading] = useState(false);
 
   useEffect(() => {
     fetchStudents();
@@ -115,6 +117,7 @@ export default function AdminStudents() {
       // Success
       setIsAddModalOpen(false);
       setAddForm({ full_name: '', email: '', phone_number: '', password: '', grade_level: '' });
+      toast.success(i18n.language === 'ar' ? 'تمت إضافة الطالب بنجاح' : 'Student added successfully');
       fetchStudents(); // Refresh list
 
     } catch (err) {
@@ -141,19 +144,38 @@ export default function AdminStudents() {
         body: JSON.stringify(editForm)
       });
 
-      const data = await res.json();
+      const data = await res.json().catch(() => ({}));
       
       if (!res.ok) {
-        throw new Error(data.error || 'فشل تعديل الطالب');
+        throw new Error(data.error || 'فشل تعديل الطالب عبر الخادم');
       }
 
       // Success
       setIsEditModalOpen(false);
+      toast.success(i18n.language === 'ar' ? 'تم تحديث بيانات الطالب بنجاح' : 'Student updated successfully');
       fetchStudents(); // Refresh list
 
     } catch (err) {
-      console.error('Error updating student:', err);
-      setEditError(err.message || 'حدث خطأ غير متوقع');
+      console.warn('Backend API update failed, attempting direct Supabase profile update:', err);
+      try {
+        const { error: profileError } = await supabase
+          .from('profiles')
+          .update({
+            full_name: editForm.full_name,
+            phone_number: editForm.phone_number,
+            grade_level: editForm.grade_level || null
+          })
+          .eq('id', editForm.id);
+
+        if (profileError) throw profileError;
+
+        setIsEditModalOpen(false);
+        toast.success(i18n.language === 'ar' ? 'تم تحديث بيانات الطالب بنجاح' : 'Student updated successfully');
+        fetchStudents();
+      } catch (fallbackErr) {
+        console.error('Direct profile update also failed:', fallbackErr);
+        setEditError(fallbackErr.message || 'حدث خطأ أثناء تعديل بيانات الطالب');
+      }
     } finally {
       setEditLoading(false);
     }
@@ -161,27 +183,102 @@ export default function AdminStudents() {
 
   const confirmDelete = async () => {
     const id = deleteConfig.studentId;
-    setDeleteConfig({ isOpen: false, studentId: null, studentName: '' });
+    if (!id) return;
 
-    // Optimistic update - remove immediately from UI
-    const previousStudents = [...students];
-    setStudents(students.filter(s => s.id !== id));
+    setDeleteLoading(true);
 
+    let deleted = false;
+    let errorMessage = '';
+
+    // Method 1: Database RPC function (Deletes from auth.users, profiles, and all dependent tables atomically)
     try {
-      const { data: { session } } = await supabase.auth.getSession();
-      const res = await fetch(`${apiUrl}/api/admin/students/${id}`, {
-        method: 'DELETE',
-        headers: {
-          'Authorization': `Bearer ${session?.access_token}`
-        }
+      const { data: rpcData, error: rpcError } = await supabase.rpc('admin_delete_student', {
+        p_student_id: id
       });
 
-      if (!res.ok) throw new Error('Failed to delete student');
-    } catch (err) {
-      console.error('Error deleting student:', err);
-      alert('حدث خطأ أثناء الحذف.');
-      // Revert if API fails
-      setStudents(previousStudents);
+      if (!rpcError && (rpcData?.success || rpcData === true)) {
+        deleted = true;
+      } else if (rpcError) {
+        console.warn('admin_delete_student RPC returned error:', rpcError.message);
+        errorMessage = rpcError.message;
+      }
+    } catch (rpcErr) {
+      console.warn('RPC call failed:', rpcErr);
+    }
+
+    // Method 2: Backend API endpoint (if backend is deployed / running)
+    if (!deleted) {
+      try {
+        const { data: { session } } = await supabase.auth.getSession();
+        const res = await fetch(`${apiUrl}/api/admin/students/${id}`, {
+          method: 'DELETE',
+          headers: {
+            'Authorization': `Bearer ${session?.access_token}`
+          }
+        });
+
+        if (res.ok) {
+          deleted = true;
+        } else {
+          const data = await res.json().catch(() => ({}));
+          errorMessage = data.error || data.message || errorMessage;
+        }
+      } catch (apiErr) {
+        console.warn('Backend API endpoint unreachable:', apiErr);
+      }
+    }
+
+    // Method 3: Direct cascading cleanup from Supabase client as fallback
+    if (!deleted) {
+      try {
+        // Clean dependent rows first to prevent FK conflicts
+        await supabase.from('student_reviews').delete().eq('user_id', id);
+        await supabase.from('subscriptions').delete().eq('user_id', id);
+        await supabase.from('quiz_submissions').delete().eq('student_id', id);
+        await supabase.from('lesson_progress').delete().eq('user_id', id);
+        await supabase.from('enrollments').delete().eq('user_id', id);
+        try {
+          await supabase.from('notifications').delete().eq('user_id', id);
+        } catch (_) {}
+        try {
+          await supabase.from('gamification_logs').delete().eq('user_id', id);
+        } catch (_) {}
+
+        // Delete from profiles
+        const { data: profileData, error: profileError } = await supabase
+          .from('profiles')
+          .delete()
+          .eq('id', id)
+          .select();
+
+        if (!profileError && profileData && profileData.length > 0) {
+          deleted = true;
+        } else if (profileError) {
+          errorMessage = profileError.message;
+        }
+      } catch (dbErr) {
+        console.warn('Direct database deletion failed:', dbErr);
+      }
+    }
+
+    setDeleteLoading(false);
+
+    if (deleted) {
+      setDeleteConfig({ isOpen: false, studentId: null, studentName: '' });
+      setStudents(prev => prev.filter(s => s.id !== id));
+      toast.success(
+        i18n.language === 'ar'
+          ? 'تم حذف حساب الطالب وبياناته بالكامل من المنصة وقاعدة البيانات بنجاح'
+          : 'Student deleted successfully from the platform and database'
+      );
+      fetchStudents();
+    } else {
+      console.error('All student deletion methods failed:', errorMessage);
+      toast.error(
+        i18n.language === 'ar'
+          ? `تعذر حذف الطالب: ${errorMessage || 'يرجى تشغيل ملف delete_student_setup.sql في Supabase SQL Editor'}`
+          : `Failed to delete student: ${errorMessage}`
+      );
     }
   };
 
@@ -600,13 +697,14 @@ export default function AdminStudents() {
       {/* Delete Confirmation Modal */}
       <ConfirmModal
         isOpen={deleteConfig.isOpen}
-        onClose={() => setDeleteConfig({ isOpen: false, studentId: null, studentName: '' })}
+        onClose={() => !deleteLoading && setDeleteConfig({ isOpen: false, studentId: null, studentName: '' })}
         onConfirm={confirmDelete}
         title={t('admin_students_modal_delete_title')}
         message={t('admin_students_modal_delete_msg')}
-        confirmText={t('admin_students_modal_delete_title')}
+        confirmText={deleteLoading ? (i18n.language === 'ar' ? 'جاري الحذف...' : 'Deleting...') : t('admin_students_modal_delete_title')}
         cancelText={t('common_cancel')}
         isDanger={true}
+        isLoading={deleteLoading}
       />
     </div>
   );

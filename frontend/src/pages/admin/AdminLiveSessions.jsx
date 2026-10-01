@@ -78,11 +78,15 @@ export default function AdminLiveSessions() {
   const [trialForm, setTrialForm] = useState({
     title: 'حصة تجريبية مجانية (30 دقيقة)',
     description: 'حصة تعريفية لشرح المنهج وأسلوب التدريس وطريقة استخدام المنصة',
+    target_type: 'grade', // 'grade' | 'specific_students'
     grade_level: 'prep_1',
+    target_student_ids: [],
+    target_student_names: [],
     start_time: '',
     duration_minutes: 30,
     zoom_link: ''
   });
+  const [trialStudentSearch, setTrialStudentSearch] = useState('');
   const [removeStudentModal, setRemoveStudentModal] = useState({ isOpen: false, requestId: null, studentName: '' });
 
   const weekDayOptions = [
@@ -453,11 +457,18 @@ export default function AdminLiveSessions() {
       toast.error('يرجى إدخال رابط الزووم');
       return;
     }
+    if (trialForm.target_type === 'specific_students' && trialForm.target_student_ids.length === 0) {
+      toast.error('يرجى تحديد طالب واحد على الأقل للحصة التجريبية');
+      return;
+    }
 
     const payload = {
       title: trialForm.title.trim(),
       description: trialForm.description?.trim() || '',
-      grade_level: trialForm.grade_level,
+      grade_level: trialForm.target_type === 'grade' ? trialForm.grade_level : 'custom',
+      target_type: trialForm.target_type,
+      target_student_ids: trialForm.target_type === 'specific_students' ? trialForm.target_student_ids : [],
+      target_student_names: trialForm.target_type === 'specific_students' ? trialForm.target_student_names : [],
       start_time: new Date(trialForm.start_time).toISOString(),
       duration_minutes: 30,
       zoom_link: getCleanZoomUrl(trialForm.zoom_link),
@@ -468,12 +479,31 @@ export default function AdminLiveSessions() {
       const { data, error } = await supabase.from('trial_sessions').insert([payload]).select().single();
       const newObj = data || { id: Date.now().toString(), ...payload };
       setTrialSessions(prev => [...prev, newObj]);
+
+      // Automatically register selected students into trial_requests for tracking
+      if (trialForm.target_type === 'specific_students' && trialForm.target_student_ids.length > 0) {
+        const invites = trialForm.target_student_ids.map(sId => {
+          const sObj = packages.find(p => p.user_id === sId) || packages.find(p => p.id === sId);
+          return {
+            trial_session_id: newObj.id,
+            user_id: sId,
+            student_name: sObj?.full_name || 'طالب',
+            student_phone: sObj?.phone_number || '',
+            grade_level: sObj?.grade_level || '',
+            status: 'pending'
+          };
+        });
+        await supabase.from('trial_requests').insert(invites).catch(err => console.warn('Invites error:', err));
+        await fetchTrialData();
+      }
+
       toast.success('تمت جدولة الحصة التجريبية بنجاح (30 دقيقة)');
       setIsTrialModalOpen(false);
       fetchTrialData();
     } catch (err) {
       console.warn('Save trial session fallback:', err);
-      setTrialSessions(prev => [...prev, { id: Date.now().toString(), ...payload }]);
+      const fallbackObj = { id: Date.now().toString(), ...payload };
+      setTrialSessions(prev => [...prev, fallbackObj]);
       toast.success('تمت جدولة الحصة التجريبية بنجاح');
       setIsTrialModalOpen(false);
     }
@@ -803,61 +833,63 @@ export default function AdminLiveSessions() {
                   {weeklySchedules.map(sch => (
                     <div 
                       key={sch.id}
-                      className="p-5 rounded-2xl border-2 border-indigo-100 dark:border-slate-700 bg-gradient-to-br from-indigo-50/40 via-white to-blue-50/30 dark:from-slate-800 dark:to-slate-800/80 shadow-sm relative group"
+                      className="p-6 rounded-3xl border-2 border-indigo-500/30 bg-slate-900/95 text-white shadow-xl shadow-indigo-950/20 relative group hover:border-indigo-500/60 transition-all flex flex-col justify-between"
                     >
-                      <div className="flex justify-between items-start mb-3">
-                        <span className="px-3 py-1 rounded-full text-xs font-black bg-indigo-100 text-indigo-800 dark:bg-indigo-900/50 dark:text-indigo-300">
-                          {formatGradeName(sch.grade_level)}
-                        </span>
-                        <div className="flex items-center gap-1 opacity-80 group-hover:opacity-100 transition-opacity">
-                          <button
-                            onClick={() => handleOpenScheduleModal(sch)}
-                            className="p-1.5 rounded-lg hover:bg-indigo-100 dark:hover:bg-slate-700 text-gray-500 hover:text-indigo-600 transition-colors"
-                            title="تعديل الموعد"
-                          >
-                            <Edit className="w-4 h-4" />
-                          </button>
-                          <button
-                            onClick={() => setDeleteScheduleModal({ isOpen: true, id: sch.id })}
-                            className="p-1.5 rounded-lg hover:bg-red-100 dark:hover:bg-red-900/30 text-gray-500 hover:text-red-600 transition-colors"
-                            title="حذف الموعد"
-                          >
-                            <Trash2 className="w-4 h-4" />
-                          </button>
-                        </div>
-                      </div>
-
-                      <h3 className="text-lg font-bold text-gray-900 dark:text-white mb-2">
-                        {sch.title}
-                      </h3>
-
-                      <div className="space-y-2 mb-4 text-sm text-gray-600 dark:text-gray-300">
-                        <div className="flex items-center gap-2">
-                          <Calendar className="w-4 h-4 text-indigo-500 shrink-0" />
-                          <span className="font-bold">الأيام:</span>
-                          <span className="text-indigo-700 dark:text-indigo-300 font-extrabold">
-                            {Array.isArray(sch.days) ? sch.days.join(' و ') : sch.days}
+                      <div>
+                        <div className="flex justify-between items-start mb-4">
+                          <span className="px-3.5 py-1.5 rounded-full text-xs font-black bg-indigo-500/20 text-indigo-300 border border-indigo-500/30">
+                            {formatGradeName(sch.grade_level)}
                           </span>
+                          <div className="flex items-center gap-1.5">
+                            <button
+                              onClick={() => handleOpenScheduleModal(sch)}
+                              className="p-2 rounded-xl bg-slate-800 hover:bg-indigo-600 text-slate-300 hover:text-white border border-slate-700 transition-colors cursor-pointer"
+                              title="تعديل الموعد"
+                            >
+                              <Edit className="w-4 h-4" />
+                            </button>
+                            <button
+                              onClick={() => setDeleteScheduleModal({ isOpen: true, id: sch.id })}
+                              className="p-2 rounded-xl bg-slate-800 hover:bg-red-600 text-slate-300 hover:text-white border border-slate-700 transition-colors cursor-pointer"
+                              title="حذف الموعد"
+                            >
+                              <Trash2 className="w-4 h-4" />
+                            </button>
+                          </div>
                         </div>
-                        <div className="flex items-center gap-2">
-                          <Clock className="w-4 h-4 text-indigo-500 shrink-0" />
-                          <span className="font-bold">التوقيت:</span>
-                          <span>من {sch.start_time} إلى {sch.end_time}</span>
+
+                        <h3 className="text-xl font-black text-white mb-4">
+                          {sch.title}
+                        </h3>
+
+                        <div className="space-y-2.5 mb-5 text-sm">
+                          <div className="flex items-center gap-2 bg-slate-800/80 p-2.5 rounded-xl border border-slate-700/60">
+                            <Calendar className="w-4 h-4 text-indigo-400 shrink-0" />
+                            <span className="font-bold text-slate-400 text-xs">الأيام:</span>
+                            <span className="text-indigo-300 font-black text-xs">
+                              {Array.isArray(sch.days) ? sch.days.join(' و ') : sch.days}
+                            </span>
+                          </div>
+                          <div className="flex items-center gap-2 bg-slate-800/80 p-2.5 rounded-xl border border-slate-700/60">
+                            <Clock className="w-4 h-4 text-indigo-400 shrink-0" />
+                            <span className="font-bold text-slate-400 text-xs">التوقيت:</span>
+                            <span className="text-white font-black text-xs">من {sch.start_time} إلى {sch.end_time}</span>
+                          </div>
+                          {sch.notes && (
+                            <p className="text-xs text-slate-300 bg-indigo-950/40 border border-indigo-800/40 p-2.5 rounded-xl">
+                              {sch.notes}
+                            </p>
+                          )}
                         </div>
-                        {sch.notes && (
-                          <p className="text-xs text-gray-500 dark:text-gray-400 mt-2 bg-white/70 dark:bg-slate-900/50 p-2 rounded-lg">
-                            {sch.notes}
-                          </p>
-                        )}
                       </div>
 
                       <a
                         href={getCleanZoomUrl(sch.zoom_link)}
                         target="_blank"
                         rel="noreferrer"
-                        className="w-full py-2.5 rounded-xl bg-indigo-600 hover:bg-indigo-700 text-white font-bold text-xs flex items-center justify-center gap-2 transition-colors shadow-sm"
+                        className="w-full py-3 rounded-2xl bg-indigo-600 hover:bg-indigo-500 text-white font-black text-xs flex items-center justify-center gap-2 transition-all shadow-md shadow-indigo-600/30 cursor-pointer"
                       >
-                        <Video className="w-3.5 h-3.5" />
+                        <Video className="w-4 h-4" />
                         رابط زووم الثابت
                       </a>
                     </div>
@@ -1195,29 +1227,57 @@ export default function AdminLiveSessions() {
                   </div>
                 ) : (
                   <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
-                    {trialSessions.map(tSession => (
-                      <div key={tSession.id} className="p-5 rounded-2xl border border-amber-200 dark:border-slate-700 bg-amber-50/30 dark:bg-slate-900/40">
-                        <div className="flex justify-between items-center mb-2">
-                          <span className="px-3 py-1 rounded-full text-xs font-black bg-amber-100 text-amber-800 dark:bg-amber-900/50 dark:text-amber-300">
-                            {formatGradeName(tSession.grade_level)}
-                          </span>
-                          <span className="text-xs font-bold text-amber-700 dark:text-amber-400 bg-amber-100/50 px-2 py-0.5 rounded-md">
-                            30 دقيقة
-                          </span>
+                    {trialSessions.map(tSession => {
+                      const isSpecific = tSession.target_type === 'specific_students';
+                      const targetedNames = tSession.target_student_names || [];
+
+                      return (
+                        <div key={tSession.id} className="p-5 rounded-2xl border border-amber-200 dark:border-slate-700 bg-amber-50/30 dark:bg-slate-900/40 flex flex-col justify-between">
+                          <div>
+                            <div className="flex justify-between items-center mb-2 flex-wrap gap-1">
+                              {isSpecific ? (
+                                <span className="px-3 py-1 rounded-full text-xs font-black bg-purple-100 text-purple-800 dark:bg-purple-900/50 dark:text-purple-300">
+                                  🎯 طلاب محددين ({targetedNames.length || tSession.target_student_ids?.length || 1})
+                                </span>
+                              ) : (
+                                <span className="px-3 py-1 rounded-full text-xs font-black bg-amber-100 text-amber-800 dark:bg-amber-900/50 dark:text-amber-300">
+                                  {formatGradeName(tSession.grade_level)}
+                                </span>
+                              )}
+                              <span className="text-xs font-bold text-amber-700 dark:text-amber-400 bg-amber-100/50 px-2 py-0.5 rounded-md">
+                                30 دقيقة
+                              </span>
+                            </div>
+
+                            <h4 className="font-bold text-base text-gray-900 dark:text-white mb-1">{tSession.title}</h4>
+                            <p className="text-xs text-gray-500 mb-2">{new Date(tSession.start_time).toLocaleString('ar-EG')}</p>
+
+                            {isSpecific && targetedNames.length > 0 && (
+                              <div className="mb-3 p-2.5 rounded-xl bg-purple-50 dark:bg-purple-950/30 border border-purple-200 dark:border-purple-800/40 text-xs">
+                                <span className="font-bold text-purple-700 dark:text-purple-300 block mb-1">الطلاب المخصص لهم:</span>
+                                <div className="flex flex-wrap gap-1 max-h-20 overflow-y-auto">
+                                  {targetedNames.map((name, idx) => (
+                                    <span key={idx} className="px-2 py-0.5 rounded-md bg-white dark:bg-slate-800 text-[11px] font-bold text-gray-700 dark:text-gray-300 border border-purple-100 dark:border-purple-900">
+                                      {name}
+                                    </span>
+                                  ))}
+                                </div>
+                              </div>
+                            )}
+                          </div>
+
+                          <a
+                            href={getCleanZoomUrl(tSession.zoom_link)}
+                            target="_blank"
+                            rel="noreferrer"
+                            className="w-full py-2 bg-amber-600 hover:bg-amber-700 text-white rounded-xl text-xs font-bold flex items-center justify-center gap-1.5 transition-colors shadow-sm"
+                          >
+                            <Video className="w-3.5 h-3.5" />
+                            دخول زووم الحصة التجريبية
+                          </a>
                         </div>
-                        <h4 className="font-bold text-base text-gray-900 dark:text-white mb-1">{tSession.title}</h4>
-                        <p className="text-xs text-gray-500 mb-3">{new Date(tSession.start_time).toLocaleString('ar-EG')}</p>
-                        <a
-                          href={getCleanZoomUrl(tSession.zoom_link)}
-                          target="_blank"
-                          rel="noreferrer"
-                          className="w-full py-2 bg-amber-600 hover:bg-amber-700 text-white rounded-xl text-xs font-bold flex items-center justify-center gap-1.5 transition-colors"
-                        >
-                          <Video className="w-3.5 h-3.5" />
-                          دخول زووم الحصة التجريبية
-                        </a>
-                      </div>
-                    ))}
+                      );
+                    })}
                   </div>
                 )}
               </div>
@@ -1419,13 +1479,13 @@ export default function AdminLiveSessions() {
                 <button
                   type="button"
                   onClick={() => setIsScheduleModalOpen(false)}
-                  className="px-5 py-2.5 rounded-xl font-bold bg-gray-100 dark:bg-slate-700 text-gray-700 text-xs"
+                  className="px-5 py-2.5 rounded-xl font-bold bg-gray-100 hover:bg-gray-200 dark:bg-slate-700 dark:hover:bg-slate-600 text-gray-800 dark:text-slate-100 text-xs border border-gray-300 dark:border-slate-600 transition-colors cursor-pointer"
                 >
                   إلغاء
                 </button>
                 <button
                   type="submit"
-                  className="px-6 py-2.5 rounded-xl font-bold bg-indigo-600 hover:bg-indigo-700 text-white text-xs shadow-md"
+                  className="px-6 py-2.5 rounded-xl font-bold bg-indigo-600 hover:bg-indigo-700 text-white text-xs shadow-md cursor-pointer"
                 >
                   حفظ الموعد الأسبوعي
                 </button>
@@ -1444,7 +1504,7 @@ export default function AdminLiveSessions() {
                 <Sparkles className="w-6 h-6 text-amber-500" />
                 جدولة حصة تجريبية مجانية (30 دقيقة)
               </h3>
-              <button onClick={() => setIsTrialModalOpen(false)} className="text-gray-400 hover:text-gray-600 p-1">
+              <button onClick={() => setIsTrialModalOpen(false)} className="text-gray-400 hover:text-gray-600 p-1 cursor-pointer">
                 <X className="w-5 h-5" />
               </button>
             </div>
@@ -1457,25 +1517,139 @@ export default function AdminLiveSessions() {
                   required
                   value={trialForm.title}
                   onChange={(e) => setTrialForm({ ...trialForm, title: e.target.value })}
-                  className="w-full px-4 py-2.5 rounded-xl bg-gray-50 dark:bg-slate-900 border border-gray-200 dark:border-slate-700 text-sm font-bold text-gray-900 dark:text-white"
+                  className="w-full px-4 py-2.5 rounded-xl bg-gray-50 dark:bg-slate-900 border border-gray-200 dark:border-slate-700 text-sm font-bold text-gray-900 dark:text-white outline-none"
                 />
               </div>
 
+              {/* Target Type Toggle */}
               <div>
-                <label className="block text-xs font-bold text-gray-700 dark:text-gray-300 mb-1">الصف الدراسي</label>
-                <select
-                  value={trialForm.grade_level}
-                  onChange={(e) => setTrialForm({ ...trialForm, grade_level: e.target.value })}
-                  className="w-full px-4 py-2.5 rounded-xl bg-gray-50 dark:bg-slate-900 border border-gray-200 dark:border-slate-700 text-sm font-bold text-gray-900 dark:text-white"
-                >
-                  <option value="prep_1">{formatGradeName('prep_1')}</option>
-                  <option value="prep_2">{formatGradeName('prep_2')}</option>
-                  <option value="prep_3">{formatGradeName('prep_3')}</option>
-                  <option value="sec_1">{formatGradeName('sec_1')}</option>
-                  <option value="sec_2">{formatGradeName('sec_2')}</option>
-                  <option value="sec_3">{formatGradeName('sec_3')}</option>
-                </select>
+                <label className="block text-xs font-bold text-gray-700 dark:text-gray-300 mb-2">الفئة المستهدفة للحصة التجريبية</label>
+                <div className="grid grid-cols-2 gap-2">
+                  <button
+                    type="button"
+                    onClick={() => setTrialForm({ ...trialForm, target_type: 'grade' })}
+                    className={`p-2.5 rounded-xl border text-xs font-black flex items-center justify-center gap-2 transition-all cursor-pointer ${
+                      trialForm.target_type === 'grade'
+                        ? 'border-amber-500 bg-amber-500/10 text-amber-600 dark:text-amber-400 shadow-sm'
+                        : 'border-gray-200 dark:border-slate-700 bg-gray-50 dark:bg-slate-900 text-gray-500'
+                    }`}
+                  >
+                    <Users className="w-4 h-4" />
+                    صف دراسي كامل
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => setTrialForm({ ...trialForm, target_type: 'specific_students' })}
+                    className={`p-2.5 rounded-xl border text-xs font-black flex items-center justify-center gap-2 transition-all cursor-pointer ${
+                      trialForm.target_type === 'specific_students'
+                        ? 'border-purple-500 bg-purple-500/10 text-purple-600 dark:text-purple-400 shadow-sm'
+                        : 'border-gray-200 dark:border-slate-700 bg-gray-50 dark:bg-slate-900 text-gray-500'
+                    }`}
+                  >
+                    <UserCheck className="w-4 h-4" />
+                    طالب أو طلاب محددين
+                  </button>
+                </div>
               </div>
+
+              {/* Target: Grade */}
+              {trialForm.target_type === 'grade' ? (
+                <div>
+                  <label className="block text-xs font-bold text-gray-700 dark:text-gray-300 mb-1">الصف الدراسي المستهدف</label>
+                  <select
+                    value={trialForm.grade_level}
+                    onChange={(e) => setTrialForm({ ...trialForm, grade_level: e.target.value })}
+                    className="w-full px-4 py-2.5 rounded-xl bg-gray-50 dark:bg-slate-900 border border-gray-200 dark:border-slate-700 text-sm font-bold text-gray-900 dark:text-white outline-none"
+                  >
+                    <option value="prep_1">{formatGradeName('prep_1')}</option>
+                    <option value="prep_2">{formatGradeName('prep_2')}</option>
+                    <option value="prep_3">{formatGradeName('prep_3')}</option>
+                    <option value="sec_1">{formatGradeName('sec_1')}</option>
+                    <option value="sec_2">{formatGradeName('sec_2')}</option>
+                    <option value="sec_3">{formatGradeName('sec_3')}</option>
+                    <option value="primary_4">{formatGradeName('primary_4')}</option>
+                    <option value="primary_5">{formatGradeName('primary_5')}</option>
+                    <option value="primary_6">{formatGradeName('primary_6')}</option>
+                  </select>
+                </div>
+              ) : (
+                /* Target: Specific Students */
+                <div className="space-y-2">
+                  <div className="flex justify-between items-center">
+                    <label className="block text-xs font-bold text-gray-700 dark:text-gray-300">
+                      اختر الطلاب من المنصة ({trialForm.target_student_ids.length} محددين)
+                    </label>
+                    {trialForm.target_student_ids.length > 0 && (
+                      <button
+                        type="button"
+                        onClick={() => setTrialForm({ ...trialForm, target_student_ids: [], target_student_names: [] })}
+                        className="text-[11px] text-red-500 hover:underline font-bold cursor-pointer"
+                      >
+                        إلغاء التحديد
+                      </button>
+                    )}
+                  </div>
+
+                  <input
+                    type="text"
+                    placeholder="ابحث باسم الطالب، الإيميل، أو الهاتف..."
+                    value={trialStudentSearch}
+                    onChange={(e) => setTrialStudentSearch(e.target.value)}
+                    className="w-full px-3 py-2 rounded-xl bg-gray-50 dark:bg-slate-900 border border-gray-200 dark:border-slate-700 text-xs font-bold text-gray-900 dark:text-white outline-none"
+                  />
+
+                  <div className="max-h-48 overflow-y-auto rounded-xl border border-gray-200 dark:border-slate-700 divide-y divide-gray-100 dark:divide-slate-800 bg-gray-50/50 dark:bg-slate-900/50 p-1">
+                    {packages
+                      .filter(st => {
+                        if (!trialStudentSearch.trim()) return true;
+                        const q = trialStudentSearch.toLowerCase();
+                        return (
+                          st.full_name?.toLowerCase().includes(q) ||
+                          st.email?.toLowerCase().includes(q) ||
+                          st.phone_number?.includes(q)
+                        );
+                      })
+                      .map(student => {
+                        const sId = student.user_id || student.id;
+                        const sName = student.full_name || 'طالب';
+                        const isSelected = trialForm.target_student_ids.includes(sId);
+
+                        return (
+                          <div
+                            key={sId}
+                            onClick={() => {
+                              setTrialForm(prev => {
+                                const exists = prev.target_student_ids.includes(sId);
+                                const newIds = exists ? prev.target_student_ids.filter(id => id !== sId) : [...prev.target_student_ids, sId];
+                                const newNames = exists ? prev.target_student_names.filter(n => n !== sName) : [...prev.target_student_names, sName];
+                                return { ...prev, target_student_ids: newIds, target_student_names: newNames };
+                              });
+                            }}
+                            className={`flex items-center justify-between p-2 rounded-lg cursor-pointer transition-colors ${
+                              isSelected ? 'bg-purple-100/70 dark:bg-purple-950/50' : 'hover:bg-gray-100 dark:hover:bg-slate-800'
+                            }`}
+                          >
+                            <div className="flex items-center gap-2">
+                              <input
+                                type="checkbox"
+                                checked={isSelected}
+                                readOnly
+                                className="w-4 h-4 rounded text-purple-600 focus:ring-purple-500 cursor-pointer"
+                              />
+                              <div>
+                                <span className="font-bold text-xs text-gray-900 dark:text-white block">{student.full_name}</span>
+                                <span className="text-[10px] text-gray-400 block" dir="ltr">{student.phone_number || student.email}</span>
+                              </div>
+                            </div>
+                            <span className="text-[10px] px-2 py-0.5 rounded-full bg-slate-200 dark:bg-slate-800 text-slate-700 dark:text-slate-300 font-bold">
+                              {formatGradeName(student.grade_level)}
+                            </span>
+                          </div>
+                        );
+                      })}
+                  </div>
+                </div>
+              )}
 
               <div>
                 <label className="block text-xs font-bold text-gray-700 dark:text-gray-300 mb-1">تاريخ ووقت الحصة</label>
@@ -1484,7 +1658,7 @@ export default function AdminLiveSessions() {
                   required
                   value={trialForm.start_time}
                   onChange={(e) => setTrialForm({ ...trialForm, start_time: e.target.value })}
-                  className="w-full px-4 py-2.5 rounded-xl bg-gray-50 dark:bg-slate-900 border border-gray-200 dark:border-slate-700 text-sm font-bold text-gray-900 dark:text-white"
+                  className="w-full px-4 py-2.5 rounded-xl bg-gray-50 dark:bg-slate-900 border border-gray-200 dark:border-slate-700 text-sm font-bold text-gray-900 dark:text-white outline-none"
                 />
               </div>
 
@@ -1497,7 +1671,7 @@ export default function AdminLiveSessions() {
                   onChange={(e) => setTrialForm({ ...trialForm, zoom_link: e.target.value })}
                   placeholder="https://zoom.us/j/... أو معرّف الاجتماع"
                   dir="ltr"
-                  className="w-full px-4 py-2.5 rounded-xl bg-gray-50 dark:bg-slate-900 border border-gray-200 dark:border-slate-700 text-sm font-bold text-gray-900 dark:text-white"
+                  className="w-full px-4 py-2.5 rounded-xl bg-gray-50 dark:bg-slate-900 border border-gray-200 dark:border-slate-700 text-sm font-bold text-gray-900 dark:text-white outline-none"
                 />
               </div>
 
@@ -1505,13 +1679,13 @@ export default function AdminLiveSessions() {
                 <button
                   type="button"
                   onClick={() => setIsTrialModalOpen(false)}
-                  className="px-5 py-2.5 rounded-xl font-bold bg-gray-100 dark:bg-slate-700 text-gray-700 text-xs"
+                  className="px-5 py-2.5 rounded-xl font-bold bg-gray-100 hover:bg-gray-200 dark:bg-slate-700 dark:hover:bg-slate-600 text-gray-800 dark:text-slate-100 text-xs border border-gray-300 dark:border-slate-600 transition-colors cursor-pointer"
                 >
                   إلغاء
                 </button>
                 <button
                   type="submit"
-                  className="px-6 py-2.5 rounded-xl font-bold bg-amber-600 hover:bg-amber-700 text-white text-xs shadow-md"
+                  className="px-6 py-2.5 rounded-xl font-bold bg-amber-600 hover:bg-amber-700 text-white text-xs shadow-md cursor-pointer"
                 >
                   حفظ وجدولة الحصة
                 </button>
@@ -1625,7 +1799,7 @@ export default function AdminLiveSessions() {
                 <button 
                   type="button" 
                   onClick={handleCloseModal}
-                  className="px-6 py-3 rounded-xl font-bold bg-gray-100 dark:bg-slate-700 text-gray-700 dark:text-gray-300"
+                  className="px-6 py-3 rounded-xl font-bold bg-gray-100 hover:bg-gray-200 dark:bg-slate-700 dark:hover:bg-slate-600 text-gray-800 dark:text-slate-100 text-sm border border-gray-300 dark:border-slate-600 transition-colors cursor-pointer"
                 >
                   إلغاء
                 </button>

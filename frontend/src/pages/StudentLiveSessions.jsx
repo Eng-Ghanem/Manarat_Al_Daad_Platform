@@ -731,66 +731,98 @@ export default function StudentLiveSessions() {
                 </p>
               </div>
 
-              {trialSessions.length === 0 ? (
-                <div className="p-8 bg-gray-50 dark:bg-slate-900/40 rounded-2xl text-center text-gray-500 font-bold text-sm">
-                  سيتم الإعلان عن موعد الحصة التجريبية القادمة قريباً بواسطة المعلم.
-                </div>
-              ) : (
-                <div className="space-y-4">
-                  {trialSessions.map(tSession => (
-                    <div key={tSession.id} className="p-6 rounded-2xl border-2 border-amber-200 dark:border-slate-700 bg-amber-50/40 dark:bg-slate-900/60">
-                      <div className="flex justify-between items-start mb-3">
-                        <span className="px-3 py-1 rounded-full text-xs font-black bg-amber-100 text-amber-800 dark:bg-amber-900/50 dark:text-amber-300">
-                          {formatGradeName(tSession.grade_level)}
-                        </span>
-                        <span className="px-2.5 py-0.5 rounded-full text-xs font-bold bg-green-100 text-green-700">
-                          مجانية 100%
-                        </span>
-                      </div>
+              {(() => {
+                const filteredTrialSessions = trialSessions.filter(tSession => {
+                  if (tSession.target_type === 'specific_students') {
+                    return tSession.target_student_ids?.includes(user?.id);
+                  }
+                  return !tSession.grade_level || tSession.grade_level === 'all' || tSession.grade_level === 'custom' || tSession.grade_level === profile?.grade_level;
+                });
 
-                      <h4 className="text-xl font-bold text-gray-900 dark:text-white mb-2">
-                        {tSession.title}
-                      </h4>
-                      <p className="text-xs text-gray-500 dark:text-gray-400 mb-4">
-                        {tSession.description}
-                      </p>
-
-                      <div className="flex items-center gap-4 text-xs font-bold text-gray-600 dark:text-gray-300 mb-6 bg-white dark:bg-slate-800 p-3 rounded-xl border border-gray-100 dark:border-slate-700">
-                        <div className="flex items-center gap-1.5">
-                          <Calendar className="w-4 h-4 text-amber-500" />
-                          <span>{new Date(tSession.start_time).toLocaleDateString('ar-EG', { weekday: 'long', year: 'numeric', month: 'long', day: 'numeric' })}</span>
-                        </div>
-                        <div className="flex items-center gap-1.5">
-                          <Clock className="w-4 h-4 text-amber-500" />
-                          <span>{new Date(tSession.start_time).toLocaleTimeString('ar-EG', { hour: '2-digit', minute: '2-digit' })} (مدة 30 دقيقة)</span>
-                        </div>
-                      </div>
-
-                      <div className="flex flex-col sm:flex-row gap-3">
-                        <a
-                          href={getCleanZoomUrl(tSession.zoom_link)}
-                          target="_blank"
-                          rel="noreferrer"
-                          className="flex-1 py-3.5 bg-amber-600 hover:bg-amber-700 text-white rounded-xl font-extrabold text-sm flex items-center justify-center gap-2 transition-all shadow-md"
-                        >
-                          <Video className="w-4 h-4" />
-                          دخول زووم الحصة التجريبية مباشرة
-                        </a>
-
-                        {!hasRequestedTrial && (
-                          <button
-                            onClick={() => handleBookTrial(tSession)}
-                            disabled={trialRequestLoading}
-                            className="px-6 py-3.5 bg-gray-100 hover:bg-gray-200 dark:bg-slate-700 dark:hover:bg-slate-600 text-gray-800 dark:text-gray-200 rounded-xl font-bold text-sm transition-colors cursor-pointer"
-                          >
-                            تأكيد الحجز مع المعلم
-                          </button>
-                        )}
-                      </div>
+                if (filteredTrialSessions.length === 0) {
+                  return (
+                    <div className="p-8 bg-gray-50 dark:bg-slate-900/40 rounded-2xl text-center text-gray-500 font-bold text-sm">
+                      لا توجد حصص تجريبية موجهة لصفك حالياً. سيتم إعلان المواعيد الجديدة قريباً!
                     </div>
-                  ))}
-                </div>
-              )}
+                  );
+                }
+
+                return (
+                  <div className="space-y-4">
+                    {filteredTrialSessions.map(tSession => {
+                      const isTargetedToMe = tSession.target_type === 'specific_students';
+
+                      return (
+                        <div key={tSession.id} className={`p-6 rounded-2xl border-2 transition-all ${
+                          isTargetedToMe
+                            ? 'border-purple-500/50 bg-purple-50/30 dark:bg-purple-950/20 shadow-lg'
+                            : 'border-amber-200 dark:border-slate-700 bg-amber-50/40 dark:bg-slate-900/60'
+                        }`}>
+                          <div className="flex justify-between items-start mb-3 flex-wrap gap-2">
+                            <div className="flex items-center gap-2">
+                              {isTargetedToMe ? (
+                                <span className="px-3 py-1 rounded-full text-xs font-black bg-purple-100 text-purple-800 dark:bg-purple-900/50 dark:text-purple-300">
+                                  🌟 دعوة خاصة موجهة لك
+                                </span>
+                              ) : (
+                                <span className="px-3 py-1 rounded-full text-xs font-black bg-amber-100 text-amber-800 dark:bg-amber-900/50 dark:text-amber-300">
+                                  {formatGradeName(tSession.grade_level)}
+                                </span>
+                              )}
+                              <span className="px-2.5 py-0.5 rounded-full text-xs font-bold bg-green-100 text-green-700">
+                                مجانية 100%
+                              </span>
+                            </div>
+                            <span className="text-xs font-bold text-amber-700 dark:text-amber-400 bg-amber-100/50 px-2 py-0.5 rounded-md">
+                              30 دقيقة
+                            </span>
+                          </div>
+
+                          <h4 className="text-xl font-bold text-gray-900 dark:text-white mb-2">
+                            {tSession.title}
+                          </h4>
+                          <p className="text-xs text-gray-500 dark:text-gray-400 mb-4">
+                            {tSession.description}
+                          </p>
+
+                          <div className="flex items-center gap-4 text-xs font-bold text-gray-600 dark:text-gray-300 mb-6 bg-white dark:bg-slate-800 p-3 rounded-xl border border-gray-100 dark:border-slate-700">
+                            <div className="flex items-center gap-1.5">
+                              <Calendar className="w-4 h-4 text-amber-500" />
+                              <span>{new Date(tSession.start_time).toLocaleDateString('ar-EG', { weekday: 'long', year: 'numeric', month: 'long', day: 'numeric' })}</span>
+                            </div>
+                            <div className="flex items-center gap-1.5">
+                              <Clock className="w-4 h-4 text-amber-500" />
+                              <span>{new Date(tSession.start_time).toLocaleTimeString('ar-EG', { hour: '2-digit', minute: '2-digit' })} (مدة 30 دقيقة)</span>
+                            </div>
+                          </div>
+
+                          <div className="flex flex-col sm:flex-row gap-3">
+                            <a
+                              href={getCleanZoomUrl(tSession.zoom_link)}
+                              target="_blank"
+                              rel="noreferrer"
+                              className="flex-1 py-3.5 bg-amber-600 hover:bg-amber-700 text-white rounded-xl font-extrabold text-sm flex items-center justify-center gap-2 transition-all shadow-md"
+                            >
+                              <Video className="w-4 h-4" />
+                              دخول زووم الحصة التجريبية مباشرة
+                            </a>
+
+                            {!hasRequestedTrial && (
+                              <button
+                                onClick={() => handleBookTrial(tSession)}
+                                disabled={trialRequestLoading}
+                                className="px-6 py-3.5 bg-gray-100 hover:bg-gray-200 dark:bg-slate-700 dark:hover:bg-slate-600 text-gray-800 dark:text-gray-200 rounded-xl font-bold text-sm transition-colors cursor-pointer"
+                              >
+                                تأكيد الحجز مع المعلم
+                              </button>
+                            )}
+                          </div>
+                        </div>
+                      );
+                    })}
+                  </div>
+                );
+              })()}
 
             </div>
           </FadeIn>
@@ -871,7 +903,7 @@ export default function StudentLiveSessions() {
                 <button
                   type="button"
                   onClick={() => setIsRenewModalOpen(false)}
-                  className="px-5 py-2.5 rounded-xl font-bold bg-gray-100 dark:bg-slate-700 text-gray-700 text-xs"
+                  className="px-5 py-2.5 rounded-xl font-bold bg-gray-100 hover:bg-gray-200 dark:bg-slate-700 dark:hover:bg-slate-600 text-gray-800 dark:text-slate-100 text-xs border border-gray-300 dark:border-slate-600 transition-colors cursor-pointer"
                 >
                   إلغاء
                 </button>

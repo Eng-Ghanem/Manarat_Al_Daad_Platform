@@ -230,15 +230,22 @@ const createStudent = async (req, res) => {
 
     if (authError) throw authError;
 
-    // Update the profile manually to include grade_level since the DB trigger doesn't map it currently
-    if (grade_level && user?.user?.id) {
-      const { error: profileError } = await supabaseAdmin
-        .from('profiles')
-        .update({ grade_level })
-        .eq('id', user.user.id);
-        
-      if (profileError) {
-        console.error('Failed to update grade_level in profile:', profileError);
+    // Ensure the profile has phone_number, full_name, and grade_level
+    if (user?.user?.id) {
+      const updateData = {};
+      if (grade_level) updateData.grade_level = grade_level;
+      if (phone_number) updateData.phone_number = phone_number;
+      if (full_name) updateData.full_name = full_name;
+
+      if (Object.keys(updateData).length > 0) {
+        const { error: profileError } = await supabaseAdmin
+          .from('profiles')
+          .update(updateData)
+          .eq('id', user.user.id);
+          
+        if (profileError) {
+          console.error('Failed to update student profile data:', profileError);
+        }
       }
     }
 

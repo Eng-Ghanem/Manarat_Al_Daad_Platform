@@ -151,6 +151,7 @@ export default function AdminStudents() {
             data: {
               full_name: addForm.full_name.trim(),
               phone_number: addForm.phone_number?.trim() || '',
+              phone: addForm.phone_number?.trim() || '',
               role: 'student',
               grade_level: addForm.grade_level || null
             }
@@ -160,15 +161,25 @@ export default function AdminStudents() {
         if (authError) throw authError;
 
         if (authData?.user?.id) {
-          // Immediately ensure profile record is created/updated
-          await supabase.from('profiles').upsert({
-            id: authData.user.id,
-            email: addForm.email.trim(),
-            full_name: addForm.full_name.trim(),
-            phone_number: addForm.phone_number?.trim() || null,
-            grade_level: addForm.grade_level || null,
-            role: 'student'
-          });
+          // Immediately ensure profile record has phone_number, full_name, and grade_level
+          try {
+            await supabase.from('profiles').update({
+              phone_number: addForm.phone_number?.trim() || null,
+              full_name: addForm.full_name.trim(),
+              grade_level: addForm.grade_level || null
+            }).eq('id', authData.user.id);
+
+            await supabase.from('profiles').upsert({
+              id: authData.user.id,
+              email: addForm.email.trim(),
+              full_name: addForm.full_name.trim(),
+              phone_number: addForm.phone_number?.trim() || null,
+              grade_level: addForm.grade_level || null,
+              role: 'student'
+            });
+          } catch (profErr) {
+            console.warn('Profile sync warning:', profErr);
+          }
         }
         created = true;
       } catch (clientErr) {
@@ -621,7 +632,7 @@ export default function AdminStudents() {
                   type="button"
                   onClick={() => setIsAddModalOpen(false)}
                   disabled={addLoading}
-                  className="flex-1 bg-gray-100 text-gray-700 py-2.5 rounded-xl font-bold hover:bg-gray-200 transition-colors disabled:opacity-70"
+                  className="flex-1 bg-gray-100 hover:bg-gray-200 dark:bg-slate-700 dark:hover:bg-slate-600 text-gray-800 dark:text-slate-100 py-2.5 rounded-xl font-bold border border-gray-300 dark:border-slate-600 transition-colors cursor-pointer disabled:opacity-70"
                 >
                   {t('common_cancel')}
                 </button>
@@ -748,7 +759,7 @@ export default function AdminStudents() {
                   type="button"
                   onClick={() => setIsEditModalOpen(false)}
                   disabled={editLoading}
-                  className="flex-1 bg-gray-100 text-gray-700 py-2.5 rounded-xl font-bold hover:bg-gray-200 transition-colors disabled:opacity-70"
+                  className="flex-1 bg-gray-100 hover:bg-gray-200 dark:bg-slate-700 dark:hover:bg-slate-600 text-gray-800 dark:text-slate-100 py-2.5 rounded-xl font-bold border border-gray-300 dark:border-slate-600 transition-colors cursor-pointer disabled:opacity-70"
                 >
                   {t('common_cancel')}
                 </button>

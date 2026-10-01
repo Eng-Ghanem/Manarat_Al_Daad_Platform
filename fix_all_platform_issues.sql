@@ -417,12 +417,19 @@ CREATE TABLE IF NOT EXISTS public.trial_sessions (
     title TEXT NOT NULL DEFAULT 'حصة تجريبية مجانية',
     description TEXT,
     grade_level TEXT NOT NULL,
+    target_type TEXT DEFAULT 'grade',
+    target_student_ids UUID[] DEFAULT '{}',
+    target_student_names TEXT[] DEFAULT '{}',
     start_time TIMESTAMPTZ NOT NULL,
     duration_minutes INT DEFAULT 30,
     zoom_link TEXT NOT NULL,
     status TEXT DEFAULT 'scheduled' CHECK (status IN ('scheduled', 'live', 'completed', 'canceled')),
     created_at TIMESTAMPTZ DEFAULT now()
 );
+
+ALTER TABLE public.trial_sessions ADD COLUMN IF NOT EXISTS target_type TEXT DEFAULT 'grade';
+ALTER TABLE public.trial_sessions ADD COLUMN IF NOT EXISTS target_student_ids UUID[] DEFAULT '{}';
+ALTER TABLE public.trial_sessions ADD COLUMN IF NOT EXISTS target_student_names TEXT[] DEFAULT '{}';
 
 ALTER TABLE public.trial_sessions ENABLE ROW LEVEL SECURITY;
 

@@ -115,20 +115,43 @@ export default function AdminSubscriptions() {
     const previousRequests = [...requests];
     setRequests(requests.filter(req => req.id !== id));
 
+    let deleted = false;
+    // Method 1: Direct Supabase client delete
     try {
-      const { data: { session } } = await supabase.auth.getSession();
-      const res = await fetch(`${apiUrl}/api/admin/subscriptions/${id}`, {
-        method: 'DELETE',
-        headers: {
-          'Authorization': `Bearer ${session?.access_token}`
-        }
-      });
+      const { error: sbError } = await supabase
+        .from('subscriptions')
+        .delete()
+        .eq('id', id);
 
-      if (!res.ok) throw new Error('Failed to delete');
-      toast.success(t('admin_subs_msg_deleted'));
-    } catch (err) {
-      console.error('Error deleting subscription:', err);
-      toast.error(t('admin_subs_msg_error'));
+      if (!sbError) {
+        deleted = true;
+      }
+    } catch (e) {
+      console.warn('Direct Supabase delete error:', e);
+    }
+
+    // Method 2: Backend API fallback if direct delete failed
+    if (!deleted) {
+      try {
+        const { data: { session } } = await supabase.auth.getSession();
+        const res = await fetch(`${apiUrl}/api/admin/subscriptions/${id}`, {
+          method: 'DELETE',
+          headers: {
+            'Authorization': `Bearer ${session?.access_token}`
+          }
+        });
+
+        if (res.ok) deleted = true;
+      } catch (err) {
+        console.warn('Backend API delete failed:', err);
+      }
+    }
+
+    if (deleted) {
+      toast.success(t('admin_subs_msg_deleted') || 'تم حذف طلب الاشتراك بنجاح');
+    } else {
+      console.error('Error deleting subscription');
+      toast.error(t('admin_subs_msg_error') || 'فشل حذف الاشتراك');
       setRequests(previousRequests);
     }
   };
@@ -140,23 +163,50 @@ export default function AdminSubscriptions() {
       req.id === id ? { ...req, status: newStatus, rawStatus: newStatus } : req
     ));
 
+    let updated = false;
+    // Method 1: Direct Supabase client update
     try {
-      const { data: { session } } = await supabase.auth.getSession();
-      const res = await fetch(`${apiUrl}/api/admin/subscriptions/${id}`, {
-        method: 'PUT',
-        headers: {
-          'Content-Type': 'application/json',
-          'Authorization': `Bearer ${session?.access_token}`
-        },
-        body: JSON.stringify({ status: newStatus })
-      });
+      const updatePayload = { status: newStatus };
+      if (newStatus === 'active') {
+        updatePayload.created_at = new Date().toISOString();
+      }
+      const { error: sbError } = await supabase
+        .from('subscriptions')
+        .update(updatePayload)
+        .eq('id', id);
 
-      if (!res.ok) throw new Error('Failed to update status');
-      toast.success(t('admin_subs_msg_updated'));
+      if (!sbError) {
+        updated = true;
+      }
+    } catch (e) {
+      console.warn('Direct Supabase status update error:', e);
+    }
+
+    // Method 2: Backend API fallback
+    if (!updated) {
+      try {
+        const { data: { session } } = await supabase.auth.getSession();
+        const res = await fetch(`${apiUrl}/api/admin/subscriptions/${id}`, {
+          method: 'PUT',
+          headers: {
+            'Content-Type': 'application/json',
+            'Authorization': `Bearer ${session?.access_token}`
+          },
+          body: JSON.stringify({ status: newStatus })
+        });
+
+        if (res.ok) updated = true;
+      } catch (err) {
+        console.warn('Backend API update failed:', err);
+      }
+    }
+
+    if (updated) {
+      toast.success(t('admin_subs_msg_updated') || 'تم تحديث حالة الاشتراك بنجاح');
       fetchRequests(); // Refresh to recalculate validity
-    } catch (err) {
-      console.error('Error updating subscription:', err);
-      toast.error(t('admin_subs_msg_error'));
+    } else {
+      console.error('Error updating subscription status');
+      toast.error(t('admin_subs_msg_error') || 'فشل تحديث حالة الاشتراك');
       setRequests(previousRequests);
     }
   };
@@ -176,23 +226,63 @@ export default function AdminSubscriptions() {
     const id = extendModalConfig.requestId;
     setExtendModalConfig({ isOpen: false, requestId: null, studentName: '', currentDays: 30 });
 
-    try {
-      const { data: { session } } = await supabase.auth.getSession();
-      const res = await fetch(`${apiUrl}/api/admin/subscriptions/${id}/extend`, {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          'Authorization': `Bearer ${session?.access_token}`
-        },
-        body: JSON.stringify({ days: customDays })
-      });
+    const durationDays = Number(customDays) || 30;
+    const newExpiresAt = new Date(Date.now() + durationDays * 24 * 60 * 60 * 1000).toISOString();
 
-      if (!res.ok) throw new Error('Failed to extend');
-      toast.success(t('admin_subs_msg_extended'));
+    let extended = false;
+    // Method 1: Direct Supabase client update
+    try {
+      const { error: sbError } = await supabase
+        .from('subscriptions')
+        .update({
+          status: 'active',
+          created_at: new Date().toISOString(),
+          expires_at: newExpiresAt
+        })
+        .eq('id', id);
+
+      if (!sbError) {
+        extended = true;
+      } else {
+        // Retry without expires_at if column doesn't exist
+        const { error: retryError } = await supabase
+          .from('subscriptions')
+          .update({
+            status: 'active',
+            created_at: new Date().toISOString()
+          })
+          .eq('id', id);
+        if (!retryError) extended = true;
+      }
+    } catch (e) {
+      console.warn('Direct Supabase extend error:', e);
+    }
+
+    // Method 2: Backend API fallback
+    if (!extended) {
+      try {
+        const { data: { session } } = await supabase.auth.getSession();
+        const res = await fetch(`${apiUrl}/api/admin/subscriptions/${id}/extend`, {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+            'Authorization': `Bearer ${session?.access_token}`
+          },
+          body: JSON.stringify({ days: durationDays })
+        });
+
+        if (res.ok) extended = true;
+      } catch (err) {
+        console.warn('Backend API extend failed:', err);
+      }
+    }
+
+    if (extended) {
+      toast.success(t('admin_subs_msg_extended') || `تم تمديد الاشتراك بنجاح لمدة ${durationDays} يوم`);
       fetchRequests();
-    } catch (err) {
-      console.error('Error extending subscription:', err);
-      toast.error(t('admin_subs_msg_error'));
+    } else {
+      console.error('Error extending subscription');
+      toast.error(t('admin_subs_msg_error') || 'فشل تمديد الاشتراك');
     }
   };
 

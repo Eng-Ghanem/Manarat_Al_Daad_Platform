@@ -126,6 +126,14 @@ export default function AdminLiveSessions() {
       toast.error(isRTL ? 'يرجى إدخال عنوان الحصة' : 'Please enter session title');
       return;
     }
+    if (!formData.start_time || !formData.end_time) {
+      toast.error(isRTL ? 'يرجى تحديد موعد بداية ونهاية الحصة' : 'Please specify session start and end times');
+      return;
+    }
+    if (new Date(formData.end_time) <= new Date(formData.start_time)) {
+      toast.error(isRTL ? 'وقت نهاية الحصة يجب أن يكون بعد وقت البدء' : 'Session end time must be after start time');
+      return;
+    }
     if (!formData.zoom_link.trim()) {
       toast.error(isRTL ? 'يرجى إدخال رابط الزووم أو البث' : 'Please enter meeting link');
       return;

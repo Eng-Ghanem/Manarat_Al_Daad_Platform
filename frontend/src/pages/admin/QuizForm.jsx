@@ -170,7 +170,8 @@ export default function QuizForm() {
         const { error } = await supabase.from('quizzes').update(quizPayload).eq('id', id);
         if (error) throw error;
       } else {
-        quizPayload.created_by = profile?.id;
+        const { data: authData } = await supabase.auth.getUser();
+        quizPayload.created_by = profile?.id || authData?.user?.id;
         const { data, error } = await supabase.from('quizzes').insert([quizPayload]).select().single();
         if (error) throw error;
         quizId = data.id;

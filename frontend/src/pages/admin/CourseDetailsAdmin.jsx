@@ -7,6 +7,7 @@ import FadeIn from '../../components/FadeIn';
 import { getDirectImageUrl } from '../../utils/helpers';
 import BackButton from '../../components/BackButton';
 import ConfirmModal from '../../components/ConfirmModal';
+import toast from 'react-hot-toast';
 
 export default function CourseDetailsAdmin() {
   const { t, i18n } = useTranslation();
@@ -46,7 +47,7 @@ export default function CourseDetailsAdmin() {
       
     } catch (error) {
       console.error('Error fetching course details:', error);
-      alert(t('admin_error_fetch_course'));
+      toast.error(t('admin_error_fetch_course') || 'حدث خطأ أثناء جلب بيانات الكورس');
     } finally {
       setLoading(false);
     }
@@ -64,9 +65,10 @@ export default function CourseDetailsAdmin() {
       const { error } = await supabase.from('lessons').delete().eq('id', lessonId);
       if (error) throw error;
       setLessons(lessons.filter(l => l.id !== lessonId));
+      toast.success(i18n.language === 'en' ? 'Lesson deleted successfully.' : 'تم حذف الدرس بنجاح.');
     } catch (error) {
       console.error('Error deleting lesson:', error);
-      alert(i18n.language === 'en' ? 'Error deleting lesson.' : 'حدث خطأ أثناء حذف الدرس.');
+      toast.error(i18n.language === 'en' ? 'Error deleting lesson.' : 'حدث خطأ أثناء حذف الدرس.');
     }
   };
 
@@ -80,9 +82,10 @@ export default function CourseDetailsAdmin() {
         
       if (error) throw error;
       setCourse({ ...course, is_published: newStatus });
+      toast.success(newStatus ? (i18n.language === 'en' ? 'Course published!' : 'تم نشر الكورس بنجاح!') : (i18n.language === 'en' ? 'Course unpublished.' : 'تم تحويل الكورس إلى مسودة.'));
     } catch (error) {
       console.error('Error updating status:', error);
-      alert(i18n.language === 'en' ? 'Error updating course status.' : 'حدث خطأ أثناء تغيير حالة الكورس.');
+      toast.error(i18n.language === 'en' ? 'Error updating course status.' : 'حدث خطأ أثناء تغيير حالة الكورس.');
     }
   };
 

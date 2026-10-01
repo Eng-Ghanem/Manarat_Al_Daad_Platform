@@ -600,6 +600,8 @@ const clearChatHandler = async (req, res) => {
       message: type === 'general' ? 'تم تنظيف محادثة الصف بنجاح' : 'تم تنظيف المحادثة الخاصة بنجاح',
       deletedCount: count || 0
     });
+  } catch (error) {
+    console.error('Error in clearChatHandler:', error);
     return res.status(500).json({ success: false, error: error.message || 'حدث خطأ في الخادم أثناء تنظيف المحادثة' });
   }
 };

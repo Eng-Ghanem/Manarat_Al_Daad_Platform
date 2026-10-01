@@ -7,6 +7,7 @@ import { Link } from 'react-router-dom';
 import FadeIn from '../../components/FadeIn';
 import ConfirmModal from '../../components/ConfirmModal';
 import { supabase } from '../../lib/supabase';
+import { createClient } from '@supabase/supabase-js';
 import toast from 'react-hot-toast';
 
 const apiUrl = import.meta.env.VITE_API_URL || (typeof window !== 'undefined' && window.location.hostname !== 'localhost' ? '' : 'http://localhost:5000');
@@ -97,35 +98,93 @@ export default function AdminStudents() {
     setAddError('');
     setAddLoading(true);
 
+    let created = false;
+
+    // 1. Try Backend API first if available
     try {
       const { data: { session } } = await supabase.auth.getSession();
-      const res = await fetch(`${apiUrl}/api/admin/students`, {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          'Authorization': `Bearer ${session?.access_token}`
-        },
-        body: JSON.stringify(addForm)
-      });
+      if (apiUrl) {
+        const res = await fetch(`${apiUrl}/api/admin/students`, {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+            'Authorization': `Bearer ${session?.access_token || ''}`
+          },
+          body: JSON.stringify(addForm)
+        });
 
-      const data = await res.json();
-      
-      if (!res.ok) {
-        throw new Error(data.error || 'فشل إضافة الطالب');
+        const text = await res.text();
+        let data = {};
+        try {
+          data = JSON.parse(text);
+        } catch (_) {}
+
+        if (res.ok && (data.success || data.data)) {
+          created = true;
+        } else if (!res.ok && data.error) {
+          throw new Error(data.error);
+        }
       }
-
-      // Success
-      setIsAddModalOpen(false);
-      setAddForm({ full_name: '', email: '', phone_number: '', password: '', grade_level: '' });
-      toast.success(i18n.language === 'ar' ? 'تمت إضافة الطالب بنجاح' : 'Student added successfully');
-      fetchStudents(); // Refresh list
-
     } catch (err) {
-      console.error('Error adding student:', err);
-      setAddError(err.message || 'حدث خطأ غير متوقع');
-    } finally {
-      setAddLoading(false);
+      console.warn('Backend student creation failed, using client signup fallback:', err.message);
     }
+
+    // 2. Direct client fallback using isolated Supabase Client (preserves admin session)
+    if (!created) {
+      try {
+        const tempSupabase = createClient(
+          import.meta.env.VITE_SUPABASE_URL,
+          import.meta.env.VITE_SUPABASE_ANON_KEY,
+          {
+            auth: {
+              persistSession: false,
+              autoRefreshToken: false,
+              detectSessionInUrl: false
+            }
+          }
+        );
+
+        const { data: authData, error: authError } = await tempSupabase.auth.signUp({
+          email: addForm.email.trim(),
+          password: addForm.password,
+          options: {
+            data: {
+              full_name: addForm.full_name.trim(),
+              phone_number: addForm.phone_number?.trim() || '',
+              role: 'student',
+              grade_level: addForm.grade_level || null
+            }
+          }
+        });
+
+        if (authError) throw authError;
+
+        if (authData?.user?.id) {
+          // Immediately ensure profile record is created/updated
+          await supabase.from('profiles').upsert({
+            id: authData.user.id,
+            email: addForm.email.trim(),
+            full_name: addForm.full_name.trim(),
+            phone_number: addForm.phone_number?.trim() || null,
+            grade_level: addForm.grade_level || null,
+            role: 'student'
+          });
+        }
+        created = true;
+      } catch (clientErr) {
+        console.error('Client student creation failed:', clientErr);
+        setAddError(clientErr.message || 'فشل إضافة الطالب، يرجى التأكد من البيانات أو البريد الإلكتروني');
+        setAddLoading(false);
+        return;
+      }
+    }
+
+    // Success
+    setIsAddModalOpen(false);
+    setAddForm({ full_name: '', email: '', phone_number: '', password: '', grade_level: '' });
+    toast.success(i18n.language === 'ar' ? 'تمت إضافة الطالب بنجاح' : 'Student added successfully');
+    fetchStudents();
+    setAddLoading(false);
   };
 
   const handleEditStudent = async (e) => {
@@ -134,27 +193,32 @@ export default function AdminStudents() {
     setEditLoading(true);
 
     try {
-      const { data: { session } } = await supabase.auth.getSession();
-      const res = await fetch(`${apiUrl}/api/admin/students/${editForm.id}`, {
-        method: 'PUT',
-        headers: {
-          'Content-Type': 'application/json',
-          'Authorization': `Bearer ${session?.access_token}`
-        },
-        body: JSON.stringify(editForm)
-      });
+      if (apiUrl) {
+        const { data: { session } } = await supabase.auth.getSession();
+        const res = await fetch(`${apiUrl}/api/admin/students/${editForm.id}`, {
+          method: 'PUT',
+          headers: {
+            'Content-Type': 'application/json',
+            'Authorization': `Bearer ${session?.access_token || ''}`
+          },
+          body: JSON.stringify(editForm)
+        });
 
-      const data = await res.json().catch(() => ({}));
-      
-      if (!res.ok) {
-        throw new Error(data.error || 'فشل تعديل الطالب عبر الخادم');
+        const text = await res.text();
+        let data = {};
+        try {
+          data = JSON.parse(text);
+        } catch (_) {}
+
+        if (res.ok) {
+          setIsEditModalOpen(false);
+          toast.success(i18n.language === 'ar' ? 'تم تحديث بيانات الطالب بنجاح' : 'Student updated successfully');
+          fetchStudents();
+          setEditLoading(false);
+          return;
+        }
       }
-
-      // Success
-      setIsEditModalOpen(false);
-      toast.success(i18n.language === 'ar' ? 'تم تحديث بيانات الطالب بنجاح' : 'Student updated successfully');
-      fetchStudents(); // Refresh list
-
+      throw new Error('Fallback to direct Supabase profile update');
     } catch (err) {
       console.warn('Backend API update failed, attempting direct Supabase profile update:', err);
       try {

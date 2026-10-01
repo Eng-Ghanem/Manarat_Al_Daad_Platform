@@ -115,24 +115,15 @@ export default function AdminSubscriptions() {
     const previousRequests = [...requests];
     setRequests(requests.filter(req => req.id !== id));
 
-    let deleted = false;
-    // Method 1: Direct Supabase client delete
     try {
-      const { error: sbError } = await supabase
+      // 1. Direct Supabase deletion
+      const { error: dbError } = await supabase
         .from('subscriptions')
         .delete()
         .eq('id', id);
 
-      if (!sbError) {
-        deleted = true;
-      }
-    } catch (e) {
-      console.warn('Direct Supabase delete error:', e);
-    }
-
-    // Method 2: Backend API fallback if direct delete failed
-    if (!deleted) {
-      try {
+      if (dbError) {
+        // Fallback to backend API if direct DB deletion fails
         const { data: { session } } = await supabase.auth.getSession();
         const res = await fetch(`${apiUrl}/api/admin/subscriptions/${id}`, {
           method: 'DELETE',
@@ -140,51 +131,53 @@ export default function AdminSubscriptions() {
             'Authorization': `Bearer ${session?.access_token}`
           }
         });
-
-        if (res.ok) deleted = true;
-      } catch (err) {
-        console.warn('Backend API delete failed:', err);
+        if (!res.ok) throw new Error('Failed to delete');
       }
-    }
 
-    if (deleted) {
-      toast.success(t('admin_subs_msg_deleted') || 'تم حذف طلب الاشتراك بنجاح');
-    } else {
-      console.error('Error deleting subscription');
-      toast.error(t('admin_subs_msg_error') || 'فشل حذف الاشتراك');
+      toast.success(t('admin_subs_msg_deleted'));
+    } catch (err) {
+      console.error('Error deleting subscription:', err);
+      toast.error(t('admin_subs_msg_error'));
       setRequests(previousRequests);
     }
   };
 
   const handleStatusChange = async (id, newStatus) => {
-    // Optimistic UI Update: Change instantly, sync in background
+    // Optimistic UI Update: Change instantly
     const previousRequests = [...requests];
     setRequests(requests.map(req => 
       req.id === id ? { ...req, status: newStatus, rawStatus: newStatus } : req
     ));
 
-    let updated = false;
-    // Method 1: Direct Supabase client update
     try {
-      const updatePayload = { status: newStatus };
+      const targetReq = requests.find(r => r.id === id);
+      let updatePayload = { status: newStatus };
+
       if (newStatus === 'active') {
         updatePayload.created_at = new Date().toISOString();
+        if (targetReq?.courseDuration) {
+          const expiresAt = new Date(Date.now() + targetReq.courseDuration * 24 * 60 * 60 * 1000).toISOString();
+          updatePayload.expires_at = expiresAt;
+        }
       }
-      const { error: sbError } = await supabase
+
+      // Try with expires_at first, fallback without it if column doesn't exist
+      let { error: dbError } = await supabase
         .from('subscriptions')
         .update(updatePayload)
         .eq('id', id);
 
-      if (!sbError) {
-        updated = true;
+      if (dbError && updatePayload.expires_at) {
+        const { expires_at, ...cleanPayload } = updatePayload;
+        const retry = await supabase
+          .from('subscriptions')
+          .update(cleanPayload)
+          .eq('id', id);
+        dbError = retry.error;
       }
-    } catch (e) {
-      console.warn('Direct Supabase status update error:', e);
-    }
 
-    // Method 2: Backend API fallback
-    if (!updated) {
-      try {
+      if (dbError) {
+        // Fallback to backend API
         const { data: { session } } = await supabase.auth.getSession();
         const res = await fetch(`${apiUrl}/api/admin/subscriptions/${id}`, {
           method: 'PUT',
@@ -194,19 +187,14 @@ export default function AdminSubscriptions() {
           },
           body: JSON.stringify({ status: newStatus })
         });
-
-        if (res.ok) updated = true;
-      } catch (err) {
-        console.warn('Backend API update failed:', err);
+        if (!res.ok) throw new Error('Failed to update status');
       }
-    }
 
-    if (updated) {
-      toast.success(t('admin_subs_msg_updated') || 'تم تحديث حالة الاشتراك بنجاح');
+      toast.success(t('admin_subs_msg_updated'));
       fetchRequests(); // Refresh to recalculate validity
-    } else {
-      console.error('Error updating subscription status');
-      toast.error(t('admin_subs_msg_error') || 'فشل تحديث حالة الاشتراك');
+    } catch (err) {
+      console.error('Error updating subscription:', err);
+      toast.error(t('admin_subs_msg_error'));
       setRequests(previousRequests);
     }
   };
@@ -224,43 +212,33 @@ export default function AdminSubscriptions() {
 
   const confirmExtend = async () => {
     const id = extendModalConfig.requestId;
+    const daysToAdd = Number(customDays) || 30;
     setExtendModalConfig({ isOpen: false, requestId: null, studentName: '', currentDays: 30 });
 
-    const durationDays = Number(customDays) || 30;
-    const newExpiresAt = new Date(Date.now() + durationDays * 24 * 60 * 60 * 1000).toISOString();
-
-    let extended = false;
-    // Method 1: Direct Supabase client update
     try {
-      const { error: sbError } = await supabase
+      const newExpiresAt = new Date(Date.now() + daysToAdd * 24 * 60 * 60 * 1000).toISOString();
+      const updateData = {
+        status: 'active',
+        created_at: new Date().toISOString(),
+        expires_at: newExpiresAt
+      };
+
+      let { error: dbError } = await supabase
         .from('subscriptions')
-        .update({
-          status: 'active',
-          created_at: new Date().toISOString(),
-          expires_at: newExpiresAt
-        })
+        .update(updateData)
         .eq('id', id);
 
-      if (!sbError) {
-        extended = true;
-      } else {
-        // Retry without expires_at if column doesn't exist
-        const { error: retryError } = await supabase
+      if (dbError) {
+        // Retry without expires_at if column not present
+        const retry = await supabase
           .from('subscriptions')
-          .update({
-            status: 'active',
-            created_at: new Date().toISOString()
-          })
+          .update({ status: 'active', created_at: new Date().toISOString() })
           .eq('id', id);
-        if (!retryError) extended = true;
+        dbError = retry.error;
       }
-    } catch (e) {
-      console.warn('Direct Supabase extend error:', e);
-    }
 
-    // Method 2: Backend API fallback
-    if (!extended) {
-      try {
+      if (dbError) {
+        // Fallback to backend API
         const { data: { session } } = await supabase.auth.getSession();
         const res = await fetch(`${apiUrl}/api/admin/subscriptions/${id}/extend`, {
           method: 'POST',
@@ -268,21 +246,16 @@ export default function AdminSubscriptions() {
             'Content-Type': 'application/json',
             'Authorization': `Bearer ${session?.access_token}`
           },
-          body: JSON.stringify({ days: durationDays })
+          body: JSON.stringify({ days: daysToAdd })
         });
-
-        if (res.ok) extended = true;
-      } catch (err) {
-        console.warn('Backend API extend failed:', err);
+        if (!res.ok) throw new Error('Failed to extend');
       }
-    }
 
-    if (extended) {
-      toast.success(t('admin_subs_msg_extended') || `تم تمديد الاشتراك بنجاح لمدة ${durationDays} يوم`);
+      toast.success(t('admin_subs_msg_extended'));
       fetchRequests();
-    } else {
-      console.error('Error extending subscription');
-      toast.error(t('admin_subs_msg_error') || 'فشل تمديد الاشتراك');
+    } catch (err) {
+      console.error('Error extending subscription:', err);
+      toast.error(t('admin_subs_msg_error'));
     }
   };
 

@@ -40,54 +40,19 @@ export default function QuizSubmissions() {
       if (quizError) throw quizError;
       setQuiz(quizData);
 
-      // Fetch Submissions with resilient fallback
-      let subData = null;
-      try {
-        const { data, error: joinErr } = await supabase
-          .from('quiz_submissions')
-          .select(`
-            *,
-            student:profiles!quiz_submissions_student_id_fkey(full_name, email)
-          `)
-          .eq('quiz_id', id)
-          .order('score', { ascending: false });
+      // Fetch Submissions
+      const { data: subData, error: subError } = await supabase
+        .from('quiz_submissions')
+        .select(`
+          *,
+          student:profiles!quiz_submissions_student_id_fkey(full_name, email)
+        `)
+        .eq('quiz_id', id)
+        .order('score', { ascending: false });
 
-        if (!joinErr && data) {
-          subData = data;
-        }
-      } catch (e) {
-        console.warn('Joined query failed, trying manual resolution:', e);
-      }
-
-      if (!subData) {
-        const { data: rawSubs, error: rawErr } = await supabase
-          .from('quiz_submissions')
-          .select('*')
-          .eq('quiz_id', id)
-          .order('score', { ascending: false });
-
-        if (rawErr) throw rawErr;
-
-        if (rawSubs && rawSubs.length > 0) {
-          const studentIds = [...new Set(rawSubs.map(s => s.student_id).filter(Boolean))];
-          const { data: profs } = await supabase
-            .from('profiles')
-            .select('id, full_name, email')
-            .in('id', studentIds);
-
-          const profsMap = {};
-          (profs || []).forEach(p => { profsMap[p.id] = p; });
-
-          subData = rawSubs.map(s => ({
-            ...s,
-            student: profsMap[s.student_id] || { full_name: 'طالب', email: '' }
-          }));
-        } else {
-          subData = [];
-        }
-      }
-
+      if (subError) throw subError;
       setSubmissions(subData || []);
+
     } catch (error) {
       console.error('Error fetching submissions:', error);
       toast.error('حدث خطأ أثناء تحميل نتائج الطلاب');

@@ -3,7 +3,7 @@ import { useParams, useNavigate } from 'react-router-dom';
 import { useTranslation } from 'react-i18next';
 import { 
   Save, ArrowRight, Plus, Trash2, HelpCircle, 
-  Settings, GripVertical, CheckCircle 
+  Settings, GripVertical, CheckCircle, X
 } from 'lucide-react';
 import { supabase } from '../../lib/supabase';
 import FadeIn from '../../components/FadeIn';
@@ -85,9 +85,9 @@ export default function QuizForm() {
             id: q.id,
             text: q.text,
             type: q.question_type || 'multiple_choice',
-            options: q.options || ['', '', '', ''],
+            options: (Array.isArray(q.options) && q.options.length > 0) ? q.options : ['', '', '', ''],
             correct_option_index: q.correct_option_index || 0,
-            marks: q.marks
+            marks: q.marks || 1
           })));
         }
       }
@@ -117,6 +117,24 @@ export default function QuizForm() {
   const handleQuestionChange = (index, field, value) => {
     const newQs = [...questions];
     newQs[index][field] = value;
+    if (field === 'type') {
+      if (value === 'multiple_choice') {
+        if (!newQs[index].options || newQs[index].options.length < 2) {
+          newQs[index].options = ['', '', '', ''];
+        }
+        if (newQs[index].correct_option_index === null || newQs[index].correct_option_index === undefined) {
+          newQs[index].correct_option_index = 0;
+        }
+      } else if (value === 'true_false') {
+        newQs[index].options = ['صواب', 'خطأ'];
+        if (newQs[index].correct_option_index !== 0 && newQs[index].correct_option_index !== 1) {
+          newQs[index].correct_option_index = 0;
+        }
+      } else if (value === 'essay') {
+        newQs[index].options = [];
+        newQs[index].correct_option_index = null;
+      }
+    }
     setQuestions(newQs);
   };
 
@@ -126,23 +144,54 @@ export default function QuizForm() {
     setQuestions(newQs);
   };
 
+  const handleAddOption = (qIndex) => {
+    const newQs = [...questions];
+    if (newQs[qIndex].options.length >= 6) {
+      toast.error(isRTL ? 'الحد الأقصى للخيارات هو 6 خيارات' : 'Maximum 6 options allowed');
+      return;
+    }
+    newQs[qIndex].options.push('');
+    setQuestions(newQs);
+  };
+
+  const handleRemoveOption = (qIndex, optIndex) => {
+    const newQs = [...questions];
+    if (newQs[qIndex].options.length <= 2) {
+      toast.error(isRTL ? 'يجب أن يحتوي السؤال على خيارين على الأقل' : 'At least 2 options required');
+      return;
+    }
+    newQs[qIndex].options.splice(optIndex, 1);
+    if (newQs[qIndex].correct_option_index >= newQs[qIndex].options.length) {
+      newQs[qIndex].correct_option_index = 0;
+    }
+    setQuestions(newQs);
+  };
+
   const validateForm = () => {
-    if (!quizData.title) {
+    if (!quizData.title?.trim()) {
       toast.error('يرجى إدخال عنوان الامتحان');
       return false;
     }
     for (let i = 0; i < questions.length; i++) {
       const q = questions[i];
-      if (!q.text) {
+      if (!q.text?.trim()) {
         toast.error(`نص السؤال رقم ${i + 1} فارغ`);
         return false;
       }
-      if (q.type === 'multiple_choice') {
-        for (let j = 0; j < q.options.length; j++) {
-          if (!q.options[j]) {
-            toast.error(`أحد الخيارات في السؤال رقم ${i + 1} فارغ`);
-            return false;
-          }
+      if (!q.type || q.type === 'multiple_choice') {
+        const filledOpts = (q.options || []).filter(o => typeof o === 'string' && o.trim().length > 0);
+        if (filledOpts.length < 2) {
+          toast.error(`السؤال رقم ${i + 1} (اختياري) يجب أن يحتوي على خيارين على الأقل`);
+          return false;
+        }
+        if (!q.options[q.correct_option_index]?.trim()) {
+          toast.error(`يرجى تحديد إجابة صحيحة غير فارغة للسؤال رقم ${i + 1}`);
+          return false;
+        }
+      } else if (q.type === 'true_false') {
+        if (q.correct_option_index !== 0 && q.correct_option_index !== 1) {
+          toast.error(`يرجى تحديد الإجابة الصحيحة (صواب أم خطأ) للسؤال رقم ${i + 1}`);
+          return false;
         }
       }
     }
@@ -158,8 +207,8 @@ export default function QuizForm() {
       let quizId = id;
 
       const quizPayload = {
-        title: quizData.title,
-        description: quizData.description,
+        title: quizData.title.trim(),
+        description: quizData.description?.trim() || '',
         grade_level: quizData.grade_level || null,
         course_id: quizData.course_id || null,
         duration_minutes: quizData.duration_minutes ? parseInt(quizData.duration_minutes) : null,
@@ -170,8 +219,7 @@ export default function QuizForm() {
         const { error } = await supabase.from('quizzes').update(quizPayload).eq('id', id);
         if (error) throw error;
       } else {
-        const { data: authData } = await supabase.auth.getUser();
-        quizPayload.created_by = profile?.id || authData?.user?.id;
+        quizPayload.created_by = profile?.id;
         const { data, error } = await supabase.from('quizzes').insert([quizPayload]).select().single();
         if (error) throw error;
         quizId = data.id;
@@ -182,14 +230,41 @@ export default function QuizForm() {
         await supabase.from('quiz_questions').delete().eq('quiz_id', quizId);
       }
 
-      const questionsPayload = questions.map(q => ({
-        quiz_id: quizId,
-        question_type: q.type,
-        text: q.text,
-        options: q.type === 'multiple_choice' ? q.options : [],
-        correct_option_index: q.type === 'multiple_choice' ? q.correct_option_index : null,
-        marks: parseInt(q.marks) || 1
-      }));
+      const questionsPayload = questions.map(q => {
+        const type = q.type || 'multiple_choice';
+        if (type === 'true_false') {
+          return {
+            quiz_id: quizId,
+            question_type: 'true_false',
+            text: q.text.trim(),
+            options: ['صواب', 'خطأ'],
+            correct_option_index: q.correct_option_index === 1 ? 1 : 0,
+            marks: parseInt(q.marks) || 1
+          };
+        }
+        if (type === 'essay') {
+          return {
+            quiz_id: quizId,
+            question_type: 'essay',
+            text: q.text.trim(),
+            options: [],
+            correct_option_index: null,
+            marks: parseInt(q.marks) || 1
+          };
+        }
+        // Default: multiple_choice
+        const validOptions = (q.options || []).map(o => (typeof o === 'string' ? o.trim() : '')).filter(Boolean);
+        const correctIndex = Math.min(Math.max(0, q.correct_option_index || 0), Math.max(0, validOptions.length - 1));
+
+        return {
+          quiz_id: quizId,
+          question_type: 'multiple_choice',
+          text: q.text.trim(),
+          options: validOptions,
+          correct_option_index: correctIndex,
+          marks: parseInt(q.marks) || 1
+        };
+      });
 
       const { error: qError } = await supabase.from('quiz_questions').insert(questionsPayload);
       if (qError) throw qError;
@@ -380,54 +455,145 @@ export default function QuizForm() {
                         className="w-full px-4 py-3 text-lg font-bold bg-gray-50 dark:bg-slate-900 border border-gray-200 dark:border-slate-700 rounded-xl focus:ring-2 focus:ring-blue-500 outline-none text-gray-900 dark:text-white"
                       />
                     </div>
-                    <div className="w-full md:w-48 shrink-0">
+                    <div className="w-full md:w-56 shrink-0">
                       <select
                         value={q.type || 'multiple_choice'}
                         onChange={e => handleQuestionChange(qIndex, 'type', e.target.value)}
                         className="w-full px-4 py-3 bg-gray-50 dark:bg-slate-900 border border-gray-200 dark:border-slate-700 rounded-xl focus:ring-2 focus:ring-blue-500 outline-none text-gray-900 dark:text-white font-bold h-full"
                       >
-                        <option value="multiple_choice">{isRTL ? 'اختياري' : 'Multiple Choice'}</option>
-                        <option value="essay">{isRTL ? 'مقالي' : 'Essay'}</option>
+                        <option value="multiple_choice">{isRTL ? '🔘 اختيار من متعدد' : 'Multiple Choice'}</option>
+                        <option value="true_false">{isRTL ? '✓ / ✗ صح أو خطأ' : 'True / False'}</option>
+                        <option value="essay">{isRTL ? '📝 سؤال مقالي' : 'Essay'}</option>
                       </select>
                     </div>
                   </div>
 
-                  {(!q.type || q.type === 'multiple_choice') ? (
-                    <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mt-4">
-                      {q.options.map((opt, optIndex) => (
-                        <div 
-                          key={optIndex} 
-                          className={`flex items-center gap-3 p-2 rounded-xl border-2 transition-all ${
-                            q.correct_option_index === optIndex 
-                              ? 'border-green-500 bg-green-50/50 dark:bg-green-900/10' 
-                              : 'border-transparent bg-gray-50 dark:bg-slate-900'
-                          }`}
-                        >
+                  {/* 1. Multiple Choice Options */}
+                  {(!q.type || q.type === 'multiple_choice') && (
+                    <div>
+                      <div className="flex items-center justify-between mb-2">
+                        <span className="text-xs font-bold text-gray-500 dark:text-gray-400">
+                          {isRTL ? 'الخيارات (اضغط على الدائرة لتحديد الإجابة الصحيحة):' : 'Options (Click circle to select correct answer):'}
+                        </span>
+                        {q.options.length < 6 && (
                           <button
                             type="button"
-                            onClick={() => handleQuestionChange(qIndex, 'correct_option_index', optIndex)}
-                            className={`w-6 h-6 rounded-full flex items-center justify-center border-2 transition-colors shrink-0 ${
+                            onClick={() => handleAddOption(qIndex)}
+                            className="text-xs font-bold text-blue-600 dark:text-blue-400 hover:underline flex items-center gap-1 cursor-pointer"
+                          >
+                            <Plus className="w-3.5 h-3.5" />
+                            {isRTL ? 'إضافة خيار' : 'Add Option'}
+                          </button>
+                        )}
+                      </div>
+
+                      <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mt-2">
+                        {q.options.map((opt, optIndex) => (
+                          <div 
+                            key={optIndex} 
+                            className={`flex items-center gap-3 p-2 rounded-xl border-2 transition-all ${
                               q.correct_option_index === optIndex 
-                                ? 'border-green-500 bg-green-500 text-white' 
-                                : 'border-gray-300 dark:border-slate-600'
+                                ? 'border-green-500 bg-green-50/50 dark:bg-green-900/10' 
+                                : 'border-transparent bg-gray-50 dark:bg-slate-900'
                             }`}
                           >
-                            {q.correct_option_index === optIndex && <CheckCircle className="w-4 h-4" />}
-                          </button>
-                          <input
-                            type="text"
-                            value={opt}
-                            onChange={e => handleOptionChange(qIndex, optIndex, e.target.value)}
-                            placeholder={isRTL ? `الخيار ${optIndex + 1}` : `Option ${optIndex + 1}`}
-                            className="flex-1 bg-transparent outline-none text-gray-900 dark:text-white placeholder-gray-400"
-                          />
-                        </div>
-                      ))}
+                            <button
+                              type="button"
+                              onClick={() => handleQuestionChange(qIndex, 'correct_option_index', optIndex)}
+                              className={`w-6 h-6 rounded-full flex items-center justify-center border-2 transition-colors shrink-0 cursor-pointer ${
+                                q.correct_option_index === optIndex 
+                                  ? 'border-green-500 bg-green-500 text-white' 
+                                  : 'border-gray-300 dark:border-slate-600 hover:border-green-400'
+                              }`}
+                              title={isRTL ? 'تعيين كإجابة صحيحة' : 'Mark as correct answer'}
+                            >
+                              {q.correct_option_index === optIndex && <CheckCircle className="w-4 h-4" />}
+                            </button>
+                            <input
+                              type="text"
+                              value={opt}
+                              onChange={e => handleOptionChange(qIndex, optIndex, e.target.value)}
+                              placeholder={isRTL ? `الخيار ${optIndex + 1}` : `Option ${optIndex + 1}`}
+                              className="flex-1 bg-transparent outline-none text-gray-900 dark:text-white placeholder-gray-400"
+                            />
+                            {q.options.length > 2 && (
+                              <button
+                                type="button"
+                                onClick={() => handleRemoveOption(qIndex, optIndex)}
+                                className="text-gray-400 hover:text-red-500 p-1 transition-colors cursor-pointer"
+                                title={isRTL ? 'حذف هذا الخيار' : 'Delete option'}
+                              >
+                                <X className="w-4 h-4" />
+                              </button>
+                            )}
+                          </div>
+                        ))}
+                      </div>
                     </div>
-                  ) : (
-                    <div className="mt-4 p-5 bg-gray-50 dark:bg-slate-900 rounded-xl border border-gray-200 dark:border-slate-700 text-center">
-                      <p className="text-gray-500 dark:text-gray-400 font-bold">
-                        {isRTL ? 'سيظهر للطلاب مربع نص لكتابة إجابتهم المقالية.' : 'Students will see a text box to write their essay answer.'}
+                  )}
+
+                  {/* 2. True / False Options */}
+                  {q.type === 'true_false' && (
+                    <div className="mt-2">
+                      <span className="text-xs font-bold text-gray-500 dark:text-gray-400 block mb-3">
+                        {isRTL ? 'اختر الإجابة الصحيحة لهذا السؤال بالضغط على البطاقة:' : 'Select the correct answer by clicking a card:'}
+                      </span>
+                      <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                        <button
+                          type="button"
+                          onClick={() => handleQuestionChange(qIndex, 'correct_option_index', 0)}
+                          className={`flex items-center justify-between p-4 rounded-2xl border-2 font-bold text-lg transition-all cursor-pointer ${
+                            q.correct_option_index === 0
+                              ? 'border-green-500 bg-green-50 dark:bg-green-950/40 text-green-700 dark:text-green-300 shadow-sm'
+                              : 'border-gray-200 dark:border-slate-700 bg-gray-50 dark:bg-slate-900 text-gray-600 dark:text-gray-400 hover:border-gray-300'
+                          }`}
+                        >
+                          <div className="flex items-center gap-3">
+                            <div className={`w-8 h-8 rounded-xl flex items-center justify-center ${q.correct_option_index === 0 ? 'bg-green-500 text-white' : 'bg-gray-200 dark:bg-slate-800 text-gray-400'}`}>
+                              <CheckCircle className="w-5 h-5" />
+                            </div>
+                            <span>{isRTL ? 'صواب (صح)' : 'True'}</span>
+                          </div>
+                          {q.correct_option_index === 0 && (
+                            <span className="text-xs px-2.5 py-1 rounded-full bg-green-100 text-green-800 dark:bg-green-900/50 dark:text-green-300 font-bold">
+                              {isRTL ? 'الإجابة الصحيحة' : 'Correct'}
+                            </span>
+                          )}
+                        </button>
+
+                        <button
+                          type="button"
+                          onClick={() => handleQuestionChange(qIndex, 'correct_option_index', 1)}
+                          className={`flex items-center justify-between p-4 rounded-2xl border-2 font-bold text-lg transition-all cursor-pointer ${
+                            q.correct_option_index === 1
+                              ? 'border-red-500 bg-red-50 dark:bg-red-950/40 text-red-700 dark:text-red-300 shadow-sm'
+                              : 'border-gray-200 dark:border-slate-700 bg-gray-50 dark:bg-slate-900 text-gray-600 dark:text-gray-400 hover:border-gray-300'
+                          }`}
+                        >
+                          <div className="flex items-center gap-3">
+                            <div className={`w-8 h-8 rounded-xl flex items-center justify-center ${q.correct_option_index === 1 ? 'bg-red-500 text-white' : 'bg-gray-200 dark:bg-slate-800 text-gray-400'}`}>
+                              <X className="w-5 h-5" />
+                            </div>
+                            <span>{isRTL ? 'خطأ' : 'False'}</span>
+                          </div>
+                          {q.correct_option_index === 1 && (
+                            <span className="text-xs px-2.5 py-1 rounded-full bg-red-100 text-red-800 dark:bg-red-900/50 dark:text-red-300 font-bold">
+                              {isRTL ? 'الإجابة الصحيحة' : 'Correct'}
+                            </span>
+                          )}
+                        </button>
+                      </div>
+                    </div>
+                  )}
+
+                  {/* 3. Essay Question Note */}
+                  {q.type === 'essay' && (
+                    <div className="mt-4 p-5 bg-amber-50/60 dark:bg-amber-950/20 rounded-2xl border border-amber-200 dark:border-amber-800/40 flex items-center gap-3 text-amber-800 dark:text-amber-300">
+                      <HelpCircle className="w-6 h-6 shrink-0 text-amber-600" />
+                      <p className="text-sm font-bold leading-relaxed">
+                        {isRTL 
+                          ? 'سؤال مقالي: سيظهر للطالب مربع كتابة لإدخال إجابته النصية، وسيتم تصحيحه يدوياً من لوحة التحكم.'
+                          : 'Essay question: Student will write their answer in a text area, and the teacher will grade it manually.'}
                       </p>
                     </div>
                   )}

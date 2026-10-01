@@ -2,17 +2,15 @@ import { useState, useEffect } from 'react';
 import { useParams, useNavigate, Link } from 'react-router-dom';
 import { useTranslation } from 'react-i18next';
 import { motion, AnimatePresence } from 'framer-motion';
-import { CreditCard, Wallet, Smartphone, UploadCloud, Loader, CheckCircle, ChevronRight, BookOpen, ShieldCheck, AlertCircle } from 'lucide-react';
+import { CreditCard, Wallet, Smartphone, UploadCloud, Loader, CheckCircle, ChevronRight, BookOpen, ShieldCheck } from 'lucide-react';
 import { supabase } from '../lib/supabase';
 import { getDirectImageUrl } from '../utils/helpers';
 import FadeIn from '../components/FadeIn';
 import BackButton from '../components/BackButton';
 import { useAuth } from '../context/AuthContext';
-import toast from 'react-hot-toast';
 
 export default function Checkout() {
-  const { t, i18n } = useTranslation();
-  const isRTL = i18n.language === 'ar';
+  const { t } = useTranslation();
   const { courseId } = useParams();
   const navigate = useNavigate();
   const { user } = useAuth();
@@ -23,7 +21,6 @@ export default function Checkout() {
   const [paymentMethod, setPaymentMethod] = useState('wallet');
   const [processing, setProcessing] = useState(false);
   const [isSuccess, setIsSuccess] = useState(false);
-  const [existingSub, setExistingSub] = useState(null);
   
   // Form states
   const [walletNumber, setWalletNumber] = useState('');
@@ -31,12 +28,11 @@ export default function Checkout() {
   const [receiptFile, setReceiptFile] = useState(null);
 
   useEffect(() => {
-    fetchCourseAndStatus();
-  }, [courseId, user]);
+    fetchCourse();
+  }, [courseId]);
 
-  const fetchCourseAndStatus = async () => {
+  const fetchCourse = async () => {
     try {
-      setLoading(true);
       const { data, error: courseError } = await supabase
         .from('courses')
         .select('*')
@@ -45,34 +41,22 @@ export default function Checkout() {
 
       if (courseError) throw courseError;
       setCourse(data);
-
-      if (user) {
-        const { data: subData } = await supabase
-          .from('subscriptions')
-          .select('*')
-          .eq('course_id', courseId)
-          .eq('user_id', user.id)
-          .order('created_at', { ascending: false })
-          .limit(1);
-
-        if (subData && subData.length > 0) {
-          setExistingSub(subData[0]);
-        }
-      }
     } catch (err) {
       console.error('Error fetching course:', err);
-      setError(isRTL ? 'حدث خطأ في جلب بيانات الكورس.' : 'Error fetching course details.');
+      setError('حدث خطأ في جلب بيانات الكورس.');
     } finally {
       setLoading(false);
     }
   };
 
   const handlePaymobCheckout = async () => {
+    // TODO: Connect to backend Paymob Integration
     setProcessing(true);
     setTimeout(() => {
+      // Simulate successful API call, then redirect
       setProcessing(false);
-      toast(isRTL ? `سيتم تفعيل الدفع بالبطاقة البنكية قريباً (المبلغ المطلوب: ${course.discounted_price || course.price} ج.م)` : 'Card payment gateway coming soon.');
-    }, 1200);
+      alert('تم تجهيز بوابة الدفع (محاكاة). سيتم تحويلك لدفع مبلغ ' + (course.discounted_price || course.price) + ' جنيه.');
+    }, 2000);
   };
 
   const handleReceiptSelect = (e) => {
@@ -80,13 +64,13 @@ export default function Checkout() {
     if (!file) return;
 
     if (file.size > 10 * 1024 * 1024) {
-      toast.error(isRTL ? 'حجم صورة الإيصال كبير جداً (الحد الأقصى 10 ميجابايت).' : 'Receipt file exceeds 10MB limit.');
+      alert('حجم صورة الإيصال كبير جداً (الحد الأقصى 10 ميجابايت).');
       e.target.value = '';
       return;
     }
 
     if (!file.type.startsWith('image/')) {
-      toast.error(isRTL ? 'يرجى اختيار ملف صورة صالح (JPEG, PNG, WebP).' : 'Please select a valid image file.');
+      alert('يرجى اختيار ملف صورة صالح (JPEG, PNG, WebP).');
       e.target.value = '';
       return;
     }
@@ -94,47 +78,37 @@ export default function Checkout() {
     setReceiptFile(file);
   };
 
-  const uploadReceipt = async () => {
-    if (!receiptFile || !user) return null;
-    const fileExt = (receiptFile.name.split('.').pop() || 'jpg').toLowerCase().replace(/[^a-z0-9]/g, '');
-    const fileName = `${user.id}/${Date.now()}.${fileExt}`;
-
-    const { error: uploadError } = await supabase.storage
-      .from('receipts')
-      .upload(fileName, receiptFile, {
-        cacheControl: '3600',
-        upsert: true
-      });
-
-    if (uploadError) {
-      console.error('Storage upload error:', uploadError);
-      throw new Error(isRTL ? `فشل رفع صورة الإيصال: ${uploadError.message || 'خطأ في خادم التخزين'}` : `Receipt upload failed: ${uploadError.message}`);
-    }
-
-    const { data: publicUrlData } = supabase.storage
-      .from('receipts')
-      .getPublicUrl(fileName);
-
-    return publicUrlData?.publicUrl || null;
-  };
-
   const handleEWalletCheckout = async () => {
     if (!walletNumber) {
-      toast.error(isRTL ? 'يرجى إدخال رقم المحفظة المحول منها.' : 'Please enter sender wallet number.');
+      alert('يرجى إدخال رقم المحفظة المحول منها.');
       return;
     }
     if (walletNumber.length !== 11 || !/^\d+$/.test(walletNumber)) {
-      toast.error(isRTL ? 'رقم المحفظة يجب أن يتكون من 11 رقماً.' : 'Wallet number must be 11 digits.');
+      alert('رقم المحفظة يجب أن يتكون من 11 رقماً.');
       return;
     }
     if (!receiptFile) {
-      toast.error(isRTL ? 'صورة إيصال التحويل مطلوبة لتأكيد الدفع.' : 'Payment receipt screenshot is required.');
+      alert('إيصال التحويل مطلوب لتأكيد الدفع.');
       return;
     }
     
     setProcessing(true);
     try {
-      const receiptUrl = await uploadReceipt();
+      let receiptUrl = null;
+      if (receiptFile) {
+        const fileExt = receiptFile.name.split('.').pop();
+        const fileName = `${user.id}/${Date.now()}.${fileExt}`;
+        const { error: uploadError } = await supabase.storage
+          .from('receipts')
+          .upload(fileName, receiptFile);
+
+        if (uploadError) throw uploadError;
+        
+        const { data: publicUrlData } = supabase.storage
+          .from('receipts')
+          .getPublicUrl(fileName);
+        receiptUrl = publicUrlData.publicUrl;
+      }
 
       const { error: insertError } = await supabase
         .from('subscriptions')
@@ -149,10 +123,9 @@ export default function Checkout() {
 
       if (insertError) throw insertError;
       setIsSuccess(true);
-      toast.success(isRTL ? 'تم إرسال طلب الاشتراك بنجاح!' : 'Subscription request submitted successfully!');
     } catch (err) {
       console.error('Error submitting subscription:', err);
-      toast.error(err.message || (isRTL ? 'حدث خطأ أثناء إرسال الطلب. يرجى المحاولة مرة أخرى.' : 'Error submitting subscription. Please try again.'));
+      alert('حدث خطأ أثناء إرسال الطلب. يرجى المحاولة مرة أخرى.');
     } finally {
       setProcessing(false);
     }
@@ -160,16 +133,27 @@ export default function Checkout() {
 
   const handleInstapayCheckout = async () => {
     if (!instapayNumber) {
-      toast.error(isRTL ? 'يرجى إدخال رقم الموبايل أو عنوان إنستاباي (IPA).' : 'Please enter your InstaPay phone number or address.');
+      alert('يرجى إدخال رقم الموبايل أو عنوان إنستاباي (IPA).');
       return;
     }
     if (!receiptFile) {
-      toast.error(isRTL ? 'صورة إيصال التحويل مطلوبة لتأكيد دفع إنستاباي.' : 'InstaPay transfer receipt is required.');
+      alert('إيصال التحويل مطلوب لتأكيد دفع إنستاباي.');
       return;
     }
     setProcessing(true);
     try {
-      const receiptUrl = await uploadReceipt();
+      const fileExt = receiptFile.name.split('.').pop();
+      const fileName = `${user.id}/${Date.now()}.${fileExt}`;
+      const { error: uploadError } = await supabase.storage
+        .from('receipts')
+        .upload(fileName, receiptFile);
+
+      if (uploadError) throw uploadError;
+      
+      const { data: publicUrlData } = supabase.storage
+        .from('receipts')
+        .getPublicUrl(fileName);
+      const receiptUrl = publicUrlData.publicUrl;
 
       const { error: insertError } = await supabase
         .from('subscriptions')
@@ -184,21 +168,21 @@ export default function Checkout() {
 
       if (insertError) throw insertError;
       setIsSuccess(true);
-      toast.success(isRTL ? 'تم إرسال طلب الاشتراك بنجاح!' : 'Subscription request submitted successfully!');
     } catch (err) {
       console.error('Error submitting subscription:', err);
-      toast.error(err.message || (isRTL ? 'حدث خطأ أثناء إرسال الطلب. يرجى المحاولة مرة أخرى.' : 'Error submitting subscription. Please try again.'));
+      alert('حدث خطأ أثناء إرسال الطلب. يرجى المحاولة مرة أخرى.');
     } finally {
       setProcessing(false);
     }
   };
 
   const handlePayPalCheckout = async () => {
+    // TODO: Connect to PayPal Integration
     setProcessing(true);
     setTimeout(() => {
       setProcessing(false);
-      toast(isRTL ? 'خدمة PayPal ستتوفر قريباً للطلاب خارج مصر.' : 'PayPal will be available soon.');
-    }, 1200);
+      alert('سيتم تحويلك إلى PayPal للدفع بالدولار.');
+    }, 2000);
   };
 
   const handleCheckout = () => {
@@ -277,36 +261,6 @@ export default function Checkout() {
               اختر وسيلة الدفع المناسبة لك لإتمام عملية الاشتراك والبدء في مشاهدة المحتوى فوراً.
             </p>
           </div>
-
-          {existingSub?.status === 'active' && (
-            <div className="max-w-2xl mx-auto mb-8 p-5 rounded-2xl bg-green-50 dark:bg-green-900/30 border border-green-200 dark:border-green-800 text-center shadow-sm">
-              <div className="flex items-center justify-center gap-2 text-green-700 dark:text-green-300 font-bold text-base mb-2">
-                <CheckCircle className="w-5 h-5" />
-                {isRTL ? 'أنت مشترك بالفعل في هذا الكورس!' : 'You already have an active subscription for this course!'}
-              </div>
-              <p className="text-xs text-green-600 dark:text-green-400 mb-3">
-                {isRTL ? 'يمكنك الوصول المباشر إلى كافة الدروس والمرفقات وحل الامتحانات التابعة له.' : 'You have full access to lessons and quizzes.'}
-              </p>
-              <Link 
-                to={`/course/${courseId}`}
-                className="inline-flex items-center gap-2 px-6 py-2.5 bg-green-600 hover:bg-green-700 text-white rounded-xl text-sm font-bold shadow-md transition-all active:scale-95"
-              >
-                {isRTL ? 'الانتقال لمشاهدة محتوى الكورس' : 'Go to Course Content'}
-              </Link>
-            </div>
-          )}
-
-          {existingSub?.status === 'pending' && (
-            <div className="max-w-2xl mx-auto mb-8 p-5 rounded-2xl bg-blue-50 dark:bg-blue-900/30 border border-blue-200 dark:border-blue-800 text-center shadow-sm">
-              <div className="flex items-center justify-center gap-2 text-blue-700 dark:text-blue-300 font-bold text-base mb-1">
-                <ShieldCheck className="w-5 h-5" />
-                {isRTL ? 'لديك طلب اشتراك قيد المراجعة حالياً من قبل الإدارة' : 'You have a pending subscription request'}
-              </div>
-              <p className="text-xs text-blue-600 dark:text-blue-400">
-                {isRTL ? 'تم استلام بياناتك وسيتم تفعيل حسابك فور مراجعة الإيصال. إذا كنت تريد إرسال إيصال جديد يمكنك تعبئة النموذج أدناه.' : 'Your request is being reviewed by the administration.'}
-              </p>
-            </div>
-          )}
 
           <div className="grid grid-cols-1 lg:grid-cols-12 gap-8">
             

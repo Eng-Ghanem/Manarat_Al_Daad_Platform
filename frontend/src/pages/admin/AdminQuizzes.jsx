@@ -49,6 +49,10 @@ export default function AdminQuizzes() {
 
   const handleDelete = async () => {
     try {
+      // Defensively delete dependent submissions and questions first
+      await supabase.from('quiz_submissions').delete().eq('quiz_id', deleteModal.quizId);
+      await supabase.from('quiz_questions').delete().eq('quiz_id', deleteModal.quizId);
+
       const { error } = await supabase
         .from('quizzes')
         .delete()
@@ -60,7 +64,7 @@ export default function AdminQuizzes() {
       setQuizzes(quizzes.filter(q => q.id !== deleteModal.quizId));
     } catch (error) {
       console.error('Error deleting quiz:', error);
-      toast.error('حدث خطأ أثناء الحذف');
+      toast.error('حدث خطأ أثناء الحذف: ' + (error.message || ''));
     } finally {
       setDeleteModal({ isOpen: false, quizId: null });
     }

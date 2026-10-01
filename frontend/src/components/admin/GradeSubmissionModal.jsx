@@ -67,7 +67,7 @@ export default function GradeSubmissionModal({ isOpen, onClose, submission, onGr
       
       let mcqScore = 0;
       questions.forEach(q => {
-        if (!q.question_type || q.question_type === 'multiple_choice') {
+        if (!q.question_type || q.question_type === 'multiple_choice' || q.question_type === 'true_false') {
           const studentAnswer = submission.answers[q.id];
           // Try to cast to int safely like in SQL
           if (studentAnswer !== undefined && studentAnswer !== null) {

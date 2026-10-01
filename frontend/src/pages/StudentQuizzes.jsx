@@ -138,12 +138,13 @@ export default function StudentQuizzes() {
         submissionsMap[sub.quiz_id] = sub;
       });
 
-      // 4. Fetch all quizzes with course info
+      // 4. Fetch all quizzes with course info and question counts
       const { data: quizzesData, error: qError } = await supabase
         .from('quizzes')
         .select(`
           *,
-          course:courses(title)
+          course:courses(title),
+          questions:quiz_questions(count)
         `)
         .order('created_at', { ascending: false });
 
@@ -178,7 +179,18 @@ export default function StudentQuizzes() {
 
       (quizzesData || []).forEach(quiz => {
         const sub = submissionsMap[quiz.id];
-        const qCount = questionsCountMap[quiz.id] || (sub ? sub.total_marks : 0) || 1;
+        const countFromRelation = quiz.questions?.[0]?.count;
+        const countFromMap = questionsCountMap[quiz.id];
+        const countFromSub = sub ? sub.total_marks : null;
+        
+        let qCount = null;
+        if (countFromRelation !== undefined && countFromRelation !== null && countFromRelation > 0) {
+          qCount = countFromRelation;
+        } else if (countFromMap !== undefined && countFromMap !== null && countFromMap > 0) {
+          qCount = countFromMap;
+        } else if (countFromSub && countFromSub > 0) {
+          qCount = countFromSub;
+        }
 
         if (sub) {
           // Completed quiz
@@ -370,7 +382,7 @@ export default function StudentQuizzes() {
                   <div className="mt-auto space-y-3 mb-6">
                     <div className="flex items-center gap-2 text-sm text-gray-600 dark:text-gray-400">
                       <ClipboardList className="w-4 h-4 text-pink-500" />
-                      <span>{quiz.questionCount} {t('quiz_questions_unit')}</span>
+                      <span>{quiz.questionCount && quiz.questionCount > 0 ? `${quiz.questionCount} ${t('quiz_questions_unit')}` : (isRTL ? 'أسئلة متعددة' : 'Exam Questions')}</span>
                     </div>
                     <div className="flex items-center gap-2 text-sm text-gray-600 dark:text-gray-400">
                       <Clock className="w-4 h-4 text-blue-500" />

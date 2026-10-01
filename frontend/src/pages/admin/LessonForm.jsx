@@ -94,9 +94,9 @@ export default function LessonForm() {
       const lessonData = {
         course_id: courseId,
         title: formData.title,
-        description: formData.description,
+        description: formData.description || '',
         video_url: formData.video_url,
-        pdf_url: formData.pdf_url,
+        pdf_url: formData.pdf_url ? formData.pdf_url.trim() : null,
         order_index: Number(formData.order_index),
         is_free_preview: formData.is_free_preview
       };
@@ -207,7 +207,7 @@ export default function LessonForm() {
               </div>
 
               <div>
-                <label className="block text-sm font-bold text-gray-700 dark:text-gray-300 mb-2">رابط مذكرة الدرس (Google Drive Embed) *</label>
+                <label className="block text-sm font-bold text-gray-700 dark:text-gray-300 mb-2">رابط مذكرة الدرس (Google Drive Embed) (اختياري)</label>
                 <div className="relative">
                   <div className="absolute inset-y-0 right-0 pr-4 flex items-center pointer-events-none text-gray-400">
                     <LinkIcon className="w-5 h-5" />
@@ -215,7 +215,6 @@ export default function LessonForm() {
                   <input
                     type="url"
                     name="pdf_url"
-                    required
                     value={formData.pdf_url}
                     onChange={handleChange}
                     className="w-full pr-12 pl-4 py-3 rounded-xl bg-gray-50 dark:bg-slate-900/50 border border-gray-200 dark:border-slate-700 text-gray-900 dark:text-white focus:outline-none focus:border-blue-500 dark:focus:border-blue-500 transition-colors text-left"
@@ -223,7 +222,7 @@ export default function LessonForm() {
                     dir="ltr"
                   />
                 </div>
-                <p className="text-xs text-gray-500 mt-2">قم بوضع رابط التضمين (Embed Link) الخاص بالملف من Google Drive لضمان حمايته.</p>
+                <p className="text-xs text-gray-500 mt-2">اختياري: ضع رابط التضمين (Embed Link) الخاص بالملف من Google Drive أو اتركه فارغاً.</p>
               </div>
 
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-6 pt-4 border-t border-gray-100 dark:border-slate-700">

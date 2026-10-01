@@ -28,6 +28,39 @@ router.get('/counts', async (req, res) => {
   }
 });
 
+// GET /api/quizzes/:id/questions
+// Safe student/public questions loader: Returns questions of published quizzes without exposing correct_option_index
+router.get('/:id/questions', async (req, res) => {
+  try {
+    const quizId = req.params.id;
+
+    // Check if quiz exists and is published
+    const { data: quiz, error: quizErr } = await supabaseAdmin
+      .from('quizzes')
+      .select('id, title, is_published, duration_minutes')
+      .eq('id', quizId)
+      .single();
+
+    if (quizErr || !quiz || !quiz.is_published) {
+      return res.status(404).json({ error: 'الامتحان غير متاح حالياً.' });
+    }
+
+    const { data: questions, error: qErr } = await supabaseAdmin
+      .from('quiz_questions')
+      .select('id, quiz_id, question_type, text, options, marks, created_at')
+      .eq('quiz_id', quizId)
+      .order('created_at', { ascending: true });
+
+    if (qErr) throw qErr;
+
+    // Return sanitized questions (safe for all students)
+    return res.json({ success: true, quiz, questions: questions || [] });
+  } catch (error) {
+    console.error('Error fetching quiz questions:', error);
+    return res.status(500).json({ error: 'فشل تحميل أسئلة الامتحان' });
+  }
+});
+
 // GET /api/quizzes/:id/review
 // Secure endpoint: Returns questions with correct options ONLY if student has already submitted this quiz (or is staff)
 router.get('/:id/review', protect, async (req, res) => {

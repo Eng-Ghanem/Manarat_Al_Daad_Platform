@@ -262,13 +262,16 @@ export default function AdminDashboard() {
     setDeleteModal({ isOpen: false, courseId: null });
     
     try {
+      // Defensively delete child lessons first to avoid foreign key constraints
+      await supabase.from('lessons').delete().eq('course_id', id);
       const { error } = await supabase.from('courses').delete().eq('id', id);
       if (error) throw error;
       setCourses(courses.filter(c => c.id !== id));
-      setStats(prev => ({ ...prev, courses: prev.courses - 1 }));
+      setStats(prev => ({ ...prev, courses: Math.max(0, prev.courses - 1) }));
+      toast.success(isRTL ? 'تم حذف الكورس بنجاح' : 'Course deleted successfully');
     } catch (error) {
       console.error('Error deleting course:', error);
-      alert(t('admin_error_delete_course'));
+      toast.error(isRTL ? 'حدث خطأ أثناء حذف الكورس: ' + (error.message || '') : 'Error deleting course');
     }
   };
 

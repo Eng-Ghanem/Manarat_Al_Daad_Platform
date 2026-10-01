@@ -12,7 +12,7 @@ import { useAuth } from '../context/AuthContext';
 import { Link } from 'react-router-dom';
 import BackButton from '../components/BackButton';
 import toast from 'react-hot-toast';
-import { formatSessionTitle, formatSessionDesc, formatGradeName } from '../utils/helpers';
+import { formatSessionTitle, formatSessionDesc, formatGradeName, formatTime12h, formatTimeRange12h } from '../utils/helpers';
 
 export default function StudentLiveSessions() {
   const { t, i18n } = useTranslation();
@@ -325,8 +325,11 @@ export default function StudentLiveSessions() {
     return true;
   });
 
-  // Filter weekly schedules for student's grade
+  // Filter weekly schedules for student's grade or private 1-on-1 schedule
   const myWeeklySchedules = weeklySchedules.filter(ws => {
+    if (ws.target_type === 'student') {
+      return ws.target_student_id === user?.id;
+    }
     if (!profile?.grade_level) return true;
     return !ws.grade_level || ws.grade_level === profile.grade_level;
   });
@@ -482,144 +485,75 @@ export default function StudentLiveSessions() {
                   </div>
                 ) : (
                   <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                    {myWeeklySchedules.map(sch => (
-                      <div key={sch.id} className="p-5 rounded-2xl bg-white/10 backdrop-blur-md border border-white/15 flex flex-col justify-between">
-                        <div>
-                          <h4 className="text-lg font-bold text-white mb-2">{sch.title}</h4>
-                          <div className="space-y-1.5 text-sm text-blue-100 mb-4">
-                            <p className="flex items-center gap-2">
-                              <Calendar className="w-4 h-4 text-blue-300" />
-                              <span className="font-bold">الأيام:</span>
-                              <span className="font-black text-white">{Array.isArray(sch.days) ? sch.days.join(' و ') : sch.days}</span>
-                            </p>
-                            <p className="flex items-center gap-2">
-                              <Clock className="w-4 h-4 text-orange-300" />
-                              <span className="font-bold">الموعد:</span>
-                              <span dir="ltr">من {sch.start_time} إلى {sch.end_time}</span>
-                            </p>
-                            {sch.notes && (
-                              <p className="text-xs text-blue-200/80 bg-black/20 p-2 rounded-lg mt-2">
-                                {sch.notes}
+                    {myWeeklySchedules.map(sch => {
+                      const isPrivate = sch.target_type === 'student';
+                      return (
+                        <div 
+                          key={sch.id} 
+                          className={`p-5 rounded-2xl backdrop-blur-md border flex flex-col justify-between ${
+                            isPrivate 
+                              ? 'bg-purple-900/30 border-purple-400/50 shadow-lg ring-1 ring-purple-400/40' 
+                              : 'bg-white/10 border-white/15'
+                          }`}
+                        >
+                          <div>
+                            <div className="flex items-center justify-between gap-2 mb-2">
+                              <h4 className="text-lg font-bold text-white">{sch.title}</h4>
+                              {isPrivate && (
+                                <span className="px-2.5 py-0.5 rounded-full text-[11px] font-black bg-purple-500 text-white flex items-center gap-1 shadow-sm shrink-0">
+                                  <Sparkles className="w-3 h-3" />
+                                  حصة خاصة بك
+                                </span>
+                              )}
+                            </div>
+                            <div className="space-y-1.5 text-sm text-blue-100 mb-4">
+                              <p className="flex items-center gap-2">
+                                <Calendar className="w-4 h-4 text-blue-300" />
+                                <span className="font-bold">الأيام:</span>
+                                <span className="font-black text-white">{Array.isArray(sch.days) ? sch.days.join(' و ') : sch.days}</span>
                               </p>
-                            )}
+                              <p className="flex items-center gap-2">
+                                <Clock className="w-4 h-4 text-orange-300" />
+                                <span className="font-bold">الموعد (نظام 12 ساعة):</span>
+                                <span dir="ltr" className="font-bold text-white">
+                                  {formatTimeRange12h(sch.start_time, sch.end_time, isRTL)}
+                                </span>
+                              </p>
+                              {sch.notes && (
+                                <p className="text-xs text-blue-200/80 bg-black/20 p-2 rounded-lg mt-2">
+                                  {sch.notes}
+                                </p>
+                              )}
+                            </div>
                           </div>
-                        </div>
 
-                        {hasLiveAccess ? (
-                          <a
-                            href={getCleanZoomUrl(sch.zoom_link)}
-                            target="_blank"
-                            rel="noreferrer"
-                            className="w-full py-3 rounded-xl bg-blue-500 hover:bg-blue-600 text-white font-extrabold text-sm flex items-center justify-center gap-2 transition-all shadow-md hover:scale-[1.02]"
-                          >
-                            <PlayCircle className="w-4 h-4" />
-                            دخول زووم الحصة الثابتة
-                          </a>
-                        ) : (
-                          <button
-                            onClick={() => setIsRenewModalOpen(true)}
-                            className="w-full py-3 rounded-xl bg-amber-500 hover:bg-amber-600 text-white font-extrabold text-sm flex items-center justify-center gap-2 transition-all shadow-md cursor-pointer"
-                          >
-                            <Lock className="w-4 h-4" />
-                            انتهت الباقة - تجديد الاشتراك للدخول
-                          </button>
-                        )}
-                      </div>
-                    ))}
+                          {hasLiveAccess ? (
+                            <a
+                              href={getCleanZoomUrl(sch.zoom_link)}
+                              target="_blank"
+                              rel="noreferrer"
+                              className={`w-full py-3 rounded-xl text-white font-extrabold text-sm flex items-center justify-center gap-2 transition-all shadow-md hover:scale-[1.02] ${
+                                isPrivate ? 'bg-purple-600 hover:bg-purple-500' : 'bg-blue-500 hover:bg-blue-600'
+                              }`}
+                            >
+                              <PlayCircle className="w-4 h-4" />
+                              دخول زووم الحصة الثابتة
+                            </a>
+                          ) : (
+                            <button
+                              onClick={() => setIsRenewModalOpen(true)}
+                              className="w-full py-3 rounded-xl bg-amber-500 hover:bg-amber-600 text-white font-extrabold text-sm flex items-center justify-center gap-2 transition-all shadow-md cursor-pointer"
+                            >
+                              <Lock className="w-4 h-4" />
+                              انتهت الباقة - تجديد الاشتراك للدخول
+                            </button>
+                          )}
+                        </div>
+                      );
+                    })}
                   </div>
                 )}
               </div>
-            </div>
-
-            {/* Section B: Individual Scheduled Sessions */}
-            <div className="bg-white dark:bg-slate-800 rounded-3xl p-6 md:p-8 shadow-sm border border-gray-100 dark:border-slate-700">
-              <h3 className="text-xl font-bold text-gray-900 dark:text-white mb-6 flex items-center gap-2">
-                <Video className="w-6 h-6 text-blue-500" />
-                الحصص الفردية والمراجعات المجدولة
-              </h3>
-
-              {filteredSessions.length === 0 ? (
-                <div className="text-center py-12 bg-gray-50 dark:bg-slate-900/40 rounded-2xl">
-                  <Calendar className="w-12 h-12 text-gray-300 dark:text-slate-600 mx-auto mb-3" />
-                  <p className="text-gray-500 font-bold">لا توجد حصص استثنائية مجدولة حالياً.</p>
-                </div>
-              ) : (
-                <div className="grid grid-cols-1 md:grid-cols-2 gap-5">
-                  {filteredSessions.map(session => {
-                    const compStatus = getSessionComputedStatus(session);
-                    const isLive = compStatus === 'live';
-
-                    return (
-                      <div 
-                        key={session.id}
-                        className={`p-6 rounded-2xl border-2 transition-all flex flex-col justify-between ${
-                          isLive 
-                            ? 'border-red-500 bg-red-50/40 dark:bg-red-950/20 shadow-md' 
-                            : 'border-gray-100 dark:border-slate-700 bg-white dark:bg-slate-800/80'
-                        }`}
-                      >
-                        <div>
-                          <div className="flex justify-between items-start mb-2">
-                            <span className="px-2.5 py-0.5 rounded-full text-xs font-black bg-blue-50 dark:bg-blue-900/40 text-blue-700 dark:text-blue-300">
-                              {session.grade_level ? formatGradeName(session.grade_level) : 'عام للجميع'}
-                            </span>
-                            {isLive && (
-                              <span className="px-2.5 py-0.5 rounded-full text-xs font-black bg-red-600 text-white animate-pulse">
-                                🔴 مباشر الآن
-                              </span>
-                            )}
-                          </div>
-
-                          <h4 className="text-lg font-bold text-gray-900 dark:text-white mb-2">
-                            {session.title}
-                          </h4>
-
-                          {session.description && (
-                            <p className="text-xs text-gray-500 dark:text-gray-400 mb-4 line-clamp-2">
-                              {session.description}
-                            </p>
-                          )}
-
-                          <div className="text-xs text-gray-500 dark:text-gray-400 space-y-1 mb-4 bg-gray-50 dark:bg-slate-900/50 p-3 rounded-xl">
-                            <p className="flex items-center gap-2">
-                              <Calendar className="w-3.5 h-3.5 text-blue-500" />
-                              <span>{new Date(session.start_time).toLocaleDateString('ar-EG', { weekday: 'long', year: 'numeric', month: 'long', day: 'numeric' })}</span>
-                            </p>
-                            <p className="flex items-center gap-2">
-                              <Clock className="w-3.5 h-3.5 text-blue-500" />
-                              <span>{new Date(session.start_time).toLocaleTimeString('ar-EG', { hour: '2-digit', minute: '2-digit' })} - {new Date(session.end_time).toLocaleTimeString('ar-EG', { hour: '2-digit', minute: '2-digit' })}</span>
-                            </p>
-                          </div>
-                        </div>
-
-                        {hasLiveAccess ? (
-                          <a
-                            href={getCleanZoomUrl(session.zoom_link)}
-                            target="_blank"
-                            rel="noreferrer"
-                            className={`w-full py-2.5 rounded-xl font-bold text-xs flex items-center justify-center gap-2 transition-all ${
-                              isLive 
-                                ? 'bg-red-600 hover:bg-red-700 text-white shadow-md' 
-                                : 'bg-blue-600 hover:bg-blue-700 text-white'
-                            }`}
-                          >
-                            <PlayCircle className="w-4 h-4" />
-                            {isLive ? 'انضم للبث المباشر الآن' : 'رابط زووم الحصة'}
-                          </a>
-                        ) : (
-                          <button
-                            onClick={() => setIsRenewModalOpen(true)}
-                            className="w-full py-2.5 rounded-xl bg-amber-500 hover:bg-amber-600 text-white font-bold text-xs flex items-center justify-center gap-1.5 cursor-pointer shadow-sm"
-                          >
-                            <Lock className="w-3.5 h-3.5" />
-                            انتهت الباقة - تجديد للاشتراك
-                          </button>
-                        )}
-                      </div>
-                    );
-                  })}
-                </div>
-              )}
             </div>
 
           </FadeIn>

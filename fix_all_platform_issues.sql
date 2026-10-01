@@ -280,17 +280,33 @@ BEGIN
     LOOP
         v_total_marks := v_total_marks + COALESCE(v_q_marks, 1);
         
-        IF v_q_type = 'multiple_choice' OR v_q_type IS NULL THEN
-            v_answer_text := p_answers->>v_question_id;
-            
+        IF v_q_type = 'essay' THEN
+            v_has_essay := TRUE;
+        ELSIF v_q_type = 'true_false' THEN
+            v_answer_text := TRIM(p_answers->>v_question_id);
+            IF v_answer_text IS NOT NULL THEN
+                IF v_answer_text IN ('0', 'صواب', 'صح', 'true', 'True') THEN
+                    v_selected_index := 0;
+                ELSIF v_answer_text IN ('1', 'خطأ', 'غلط', 'false', 'False') THEN
+                    v_selected_index := 1;
+                ELSIF v_answer_text ~ '^[0-9]+$' THEN
+                    v_selected_index := v_answer_text::INT;
+                ELSE
+                    v_selected_index := -1;
+                END IF;
+
+                IF v_selected_index = v_correct_index THEN
+                    v_score := v_score + COALESCE(v_q_marks, 1);
+                END IF;
+            END IF;
+        ELSE -- multiple_choice or NULL
+            v_answer_text := TRIM(p_answers->>v_question_id);
             IF v_answer_text IS NOT NULL AND v_answer_text ~ '^[0-9]+$' THEN
                 v_selected_index := v_answer_text::INT;
                 IF v_selected_index = v_correct_index THEN
                     v_score := v_score + COALESCE(v_q_marks, 1);
                 END IF;
             END IF;
-        ELSE
-            v_has_essay := TRUE;
         END IF;
     END LOOP;
 

@@ -106,11 +106,77 @@ export default function QuizResult() {
 
       setQuestions(fetchedQuestions);
 
+      // Check if this quiz actually has any essay questions
+      const hasEssayQuestions = fetchedQuestions.some(q => q.question_type === 'essay');
+      
+      // Calculate true auto-graded score across all questions
+      let calculatedScore = 0;
+      let calculatedTotal = 0;
+      
+      fetchedQuestions.forEach(q => {
+        const qMarks = q.marks || 1;
+        calculatedTotal += qMarks;
+        
+        if (q.question_type === 'essay') {
+          if (subData.graded_marks && subData.graded_marks[q.id] !== undefined) {
+            calculatedScore += Number(subData.graded_marks[q.id]) || 0;
+          }
+        } else {
+          const rawAns = subData.answers ? subData.answers[q.id] : undefined;
+          let parsedIdx = null;
+          if (rawAns !== undefined && rawAns !== null && rawAns !== '') {
+            if (typeof rawAns === 'number') {
+              parsedIdx = rawAns;
+            } else if (typeof rawAns === 'string') {
+              const trimmed = rawAns.trim();
+              if (trimmed === '0' || trimmed === 'صواب' || trimmed === 'صح' || trimmed.toLowerCase() === 'true') {
+                parsedIdx = 0;
+              } else if (trimmed === '1' || trimmed === 'خطأ' || trimmed === 'غلط' || trimmed.toLowerCase() === 'false') {
+                parsedIdx = 1;
+              } else if (!isNaN(parseInt(trimmed))) {
+                parsedIdx = parseInt(trimmed);
+              }
+            } else if (rawAns === true) {
+              parsedIdx = 0;
+            } else if (rawAns === false) {
+              parsedIdx = 1;
+            }
+          }
+          if (parsedIdx !== null && parsedIdx === q.correct_option_index) {
+            calculatedScore += qMarks;
+          }
+        }
+      });
+
+      // Auto-heal: If quiz has NO essay questions, status must be 'completed' and score must be full auto-graded
+      let effectiveSub = subData;
+      if (!hasEssayQuestions && (subData.status === 'pending' || subData.score !== calculatedScore || subData.total_marks !== calculatedTotal)) {
+        effectiveSub = {
+          ...subData,
+          score: calculatedScore,
+          total_marks: calculatedTotal || subData.total_marks || 1,
+          status: 'completed'
+        };
+        setSubmission(effectiveSub);
+        
+        // Auto-heal in Supabase database
+        supabase.from('quiz_submissions')
+          .update({
+            score: calculatedScore,
+            total_marks: calculatedTotal || subData.total_marks || 1,
+            status: 'completed'
+          })
+          .eq('id', subData.id)
+          .then(({ error: healErr }) => {
+            if (healErr) console.warn('Submission auto-heal DB warning:', healErr);
+          });
+      }
+
       // Automatically award student XP based on dynamic platform rules
-      if (subData && user) {
+      if (effectiveSub && user) {
         const isStaff = profile?.role === 'admin' || profile?.role === 'teacher';
-        const subXpKey = `quiz_xp_awarded_${subData.id}`;
-        const pct = Math.round((subData.score / subData.total_marks) * 100);
+        const subXpKey = `quiz_xp_awarded_${effectiveSub.id}`;
+        const pct = Math.round((effectiveSub.score / (effectiveSub.total_marks || 1)) * 100);
         if (!isStaff && !localStorage.getItem(subXpKey)) {
           const rules = getXpRules();
           let bonus = 0;
@@ -160,15 +226,18 @@ export default function QuizResult() {
     );
   }
 
-  const percentage = Math.round((submission.score / submission.total_marks) * 100);
+  const percentage = Math.round((submission.score / (submission.total_marks || 1)) * 100);
   const isSuccess = percentage >= 50;
   const isExcellent = percentage >= 85;
+
+  const hasEssayQuestions = questions.some(q => q.question_type === 'essay');
+  const isTrulyPending = submission.status === 'pending' && hasEssayQuestions;
 
   return (
     <div className="min-h-screen bg-gray-50 dark:bg-slate-900 py-16 px-4 flex flex-col items-center justify-center font-arabic relative overflow-hidden">
       
       {/* Celebration Background Effects */}
-      {submission.status !== 'pending' && isSuccess && (
+      {!isTrulyPending && isSuccess && (
         <div className="absolute inset-0 pointer-events-none overflow-hidden">
           <div className="absolute top-10 left-10 w-64 h-64 bg-yellow-400/20 blur-[100px] rounded-full animate-pulse"></div>
           <div className="absolute bottom-10 right-10 w-80 h-80 bg-green-400/20 blur-[120px] rounded-full animate-pulse" style={{ animationDelay: '1s' }}></div>
@@ -185,7 +254,9 @@ export default function QuizResult() {
             
             {/* Top Pattern Area */}
             <div className={`h-40 w-full relative ${
-              isExcellent 
+              isTrulyPending
+                ? 'bg-gradient-to-br from-amber-500 via-orange-500 to-amber-600'
+                : isExcellent 
                 ? 'bg-gradient-to-br from-yellow-400 via-orange-400 to-yellow-600'
                 : isSuccess
                 ? 'bg-gradient-to-br from-green-400 via-emerald-500 to-teal-600'
@@ -194,7 +265,7 @@ export default function QuizResult() {
               <div className="absolute inset-0 opacity-20" style={{ backgroundImage: 'radial-gradient(circle at 2px 2px, white 1px, transparent 0)', backgroundSize: '24px 24px' }}></div>
               
               {/* Floating Icons */}
-              {isSuccess ? (
+              {!isTrulyPending && isSuccess ? (
                 <>
                   <Star className="absolute top-8 left-12 w-8 h-8 text-white/50 animate-bounce" style={{ animationDelay: '0s' }} />
                   <Star className="absolute top-16 right-16 w-6 h-6 text-white/50 animate-bounce" style={{ animationDelay: '0.5s' }} />
@@ -210,13 +281,13 @@ export default function QuizResult() {
             {/* Avatar / Icon Overlapping */}
             <div className="absolute top-40 left-1/2 -translate-x-1/2 -translate-y-1/2">
               <div className={`w-32 h-32 rounded-full border-8 border-white dark:border-slate-800 flex items-center justify-center shadow-xl ${
-                submission.status === 'pending' 
+                isTrulyPending 
                   ? 'bg-gradient-to-br from-yellow-100 to-yellow-200 text-yellow-600'
                   : isSuccess 
                   ? 'bg-gradient-to-br from-yellow-100 to-yellow-200 text-yellow-600' 
                   : 'bg-gradient-to-br from-red-100 to-red-200 text-red-600'
               }`}>
-                {submission.status === 'pending' ? (
+                {isTrulyPending ? (
                   <RefreshCw className="w-16 h-16 animate-spin-slow" />
                 ) : isExcellent ? (
                   <Trophy className="w-16 h-16" />
@@ -236,7 +307,7 @@ export default function QuizResult() {
               </h1>
 
               {/* Score Display */}
-              {submission.status !== 'pending' ? (
+              {!isTrulyPending ? (
                 <div className="inline-block relative group mb-8">
                   <div className="absolute inset-0 bg-blue-500 rounded-3xl blur-xl opacity-20 group-hover:opacity-40 transition-opacity"></div>
                   <div className="relative bg-white dark:bg-slate-900 border-2 border-blue-100 dark:border-blue-900/50 rounded-3xl px-12 py-8 flex flex-col items-center">
@@ -264,7 +335,7 @@ export default function QuizResult() {
               )}
 
               {/* Message */}
-              {submission.status !== 'pending' && (
+              {!isTrulyPending && (
                 <div className="max-w-sm mx-auto mb-8">
                   <h3 className={`text-2xl font-bold mb-3 ${isSuccess ? 'text-green-600 dark:text-green-400' : 'text-red-500'}`}>
                     {isExcellent 
@@ -347,8 +418,26 @@ export default function QuizResult() {
                   const isEssay = question.question_type === 'essay';
 
                   let isCorrect = false;
+                  let parsedStudent = null;
                   if (!isEssay) {
-                    const parsedStudent = studentAnswer !== undefined && studentAnswer !== null ? parseInt(studentAnswer) : null;
+                    if (studentAnswer !== undefined && studentAnswer !== null && studentAnswer !== '') {
+                      if (typeof studentAnswer === 'number') {
+                        parsedStudent = studentAnswer;
+                      } else if (typeof studentAnswer === 'string') {
+                        const trimmed = studentAnswer.trim();
+                        if (trimmed === '0' || trimmed === 'صواب' || trimmed === 'صح' || trimmed.toLowerCase() === 'true') {
+                          parsedStudent = 0;
+                        } else if (trimmed === '1' || trimmed === 'خطأ' || trimmed === 'غلط' || trimmed.toLowerCase() === 'false') {
+                          parsedStudent = 1;
+                        } else if (!isNaN(parseInt(trimmed))) {
+                          parsedStudent = parseInt(trimmed);
+                        }
+                      } else if (studentAnswer === true) {
+                        parsedStudent = 0;
+                      } else if (studentAnswer === false) {
+                        parsedStudent = 1;
+                      }
+                    }
                     isCorrect = parsedStudent !== null && parsedStudent === question.correct_option_index;
                   }
 
@@ -363,6 +452,11 @@ export default function QuizResult() {
                       options = [];
                     }
                   }
+                  if (question.question_type === 'true_false' && options.length === 0) {
+                    options = ['صواب', 'خطأ'];
+                  }
+
+                  const showModelAnswers = !isTrulyPending;
 
                   return (
                     <div 
@@ -370,6 +464,8 @@ export default function QuizResult() {
                       className={`p-6 sm:p-7 rounded-3xl border transition-all ${
                         isEssay 
                           ? 'bg-amber-50/40 dark:bg-amber-950/20 border-amber-200 dark:border-amber-800/50'
+                          : isTrulyPending
+                          ? 'bg-blue-50/30 dark:bg-blue-950/20 border-blue-200 dark:border-blue-800/50'
                           : isCorrect 
                           ? 'bg-emerald-50/30 dark:bg-emerald-950/20 border-emerald-200 dark:border-emerald-800/60'
                           : 'bg-red-50/30 dark:bg-red-950/20 border-red-200 dark:border-red-800/60'
@@ -392,6 +488,11 @@ export default function QuizResult() {
                             <span className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-xs font-bold bg-amber-100 text-amber-800 dark:bg-amber-900/40 dark:text-amber-300 border border-amber-300 dark:border-amber-700">
                               <FileText className="w-3.5 h-3.5" />
                               <span>{isRTL ? 'سؤال مقالي' : 'Essay Question'}</span>
+                            </span>
+                          ) : isTrulyPending ? (
+                            <span className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-xs font-bold bg-amber-100 text-amber-800 dark:bg-amber-900/40 dark:text-amber-300 border border-amber-300 dark:border-amber-700">
+                              <Clock className="w-3.5 h-3.5" />
+                              <span>{isRTL ? 'بانتظار تصحيح المعلم' : 'Pending Review'}</span>
                             </span>
                           ) : isCorrect ? (
                             <span className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-xs font-bold bg-emerald-100 text-emerald-800 dark:bg-emerald-900/40 dark:text-emerald-300 border border-emerald-300 dark:border-emerald-700">
@@ -433,18 +534,24 @@ export default function QuizResult() {
                       ) : (
                         <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 mt-4">
                           {options.map((option, optIdx) => {
-                            const isSelected = studentAnswer !== undefined && studentAnswer !== null && parseInt(studentAnswer) === optIdx;
+                            const isSelected = parsedStudent !== null && parsedStudent === optIdx;
                             const isThisCorrect = question.correct_option_index === optIdx;
 
                             let cardStyle = 'bg-white dark:bg-slate-700/60 border-gray-200 dark:border-slate-600 text-gray-700 dark:text-gray-300';
                             let icon = null;
 
-                            if (isThisCorrect) {
-                              cardStyle = 'bg-emerald-100/70 dark:bg-emerald-900/40 border-emerald-500 text-emerald-900 dark:text-emerald-100 font-bold shadow-sm';
-                              icon = <Check className="w-4 h-4 text-emerald-600 dark:text-emerald-400 shrink-0" />;
-                            } else if (isSelected && !isThisCorrect) {
-                              cardStyle = 'bg-red-100/70 dark:bg-red-900/40 border-red-500 text-red-900 dark:text-red-100 font-bold shadow-sm';
-                              icon = <X className="w-4 h-4 text-red-600 dark:text-red-400 shrink-0" />;
+                            if (showModelAnswers) {
+                              if (isThisCorrect) {
+                                cardStyle = 'bg-emerald-100/70 dark:bg-emerald-900/40 border-emerald-500 text-emerald-900 dark:text-emerald-100 font-bold shadow-sm';
+                                icon = <Check className="w-4 h-4 text-emerald-600 dark:text-emerald-400 shrink-0" />;
+                              } else if (isSelected && !isThisCorrect) {
+                                cardStyle = 'bg-red-100/70 dark:bg-red-900/40 border-red-500 text-red-900 dark:text-red-100 font-bold shadow-sm';
+                                icon = <X className="w-4 h-4 text-red-600 dark:text-red-400 shrink-0" />;
+                              }
+                            } else {
+                              if (isSelected) {
+                                cardStyle = 'bg-blue-100/70 dark:bg-blue-900/40 border-blue-500 text-blue-900 dark:text-blue-100 font-bold shadow-sm';
+                              }
                             }
 
                             return (
@@ -465,7 +572,7 @@ export default function QuizResult() {
                                       {isRTL ? 'إجابتك' : 'Your choice'}
                                     </span>
                                   )}
-                                  {isThisCorrect && (
+                                  {showModelAnswers && isThisCorrect && (
                                     <span className="text-[11px] px-2 py-0.5 rounded-full bg-emerald-600 text-white">
                                       {isRTL ? 'الإجابة النموذجية' : 'Correct'}
                                     </span>

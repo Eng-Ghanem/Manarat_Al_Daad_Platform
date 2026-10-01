@@ -600,9 +600,177 @@ const clearChatHandler = async (req, res) => {
       message: type === 'general' ? 'تم تنظيف محادثة الصف بنجاح' : 'تم تنظيف المحادثة الخاصة بنجاح',
       deletedCount: count || 0
     });
-  } catch (error) {
-    console.error('Error in clearChatHandler:', error);
     return res.status(500).json({ success: false, error: error.message || 'حدث خطأ في الخادم أثناء تنظيف المحادثة' });
+  }
+};
+
+// @desc    Update attendance / session balance for live package
+// @route   POST /api/admin/live-subscriptions/attendance
+// @access  Private/Admin
+const updateLivePackageAttendance = async (req, res) => {
+  try {
+    const { user_id, grade_level, remaining_sessions, delta } = req.body;
+    if (!user_id) return res.status(400).json({ success: false, error: 'User ID is required' });
+
+    const { data: existing } = await supabaseAdmin
+      .from('live_subscriptions')
+      .select('*')
+      .eq('user_id', user_id)
+      .order('created_at', { ascending: false })
+      .limit(1);
+
+    let newRemaining;
+    if (remaining_sessions !== undefined) {
+      newRemaining = Math.max(0, parseInt(remaining_sessions));
+    } else {
+      const current = existing && existing.length > 0 ? existing[0].remaining_sessions : 8;
+      newRemaining = Math.max(0, current + (delta || 0));
+    }
+    const newStatus = newRemaining === 0 ? 'expired' : 'active';
+
+    let result;
+    if (existing && existing.length > 0) {
+      const { data, error } = await supabaseAdmin
+        .from('live_subscriptions')
+        .update({
+          remaining_sessions: newRemaining,
+          status: newStatus,
+          grade_level: grade_level || existing[0].grade_level
+        })
+        .eq('id', existing[0].id)
+        .select()
+        .single();
+      if (error) throw error;
+      result = data;
+    } else {
+      const { data, error } = await supabaseAdmin
+        .from('live_subscriptions')
+        .insert([{
+          user_id,
+          grade_level: grade_level || 'prep_1',
+          total_sessions: 8,
+          remaining_sessions: newRemaining,
+          status: newStatus
+        }])
+        .select()
+        .single();
+      if (error) throw error;
+      result = data;
+    }
+
+    return res.json({ success: true, data: result });
+  } catch (error) {
+    console.error('Error in updateLivePackageAttendance:', error);
+    return res.status(500).json({ success: false, error: error.message });
+  }
+};
+
+// @desc    Renew 8-session live package
+// @route   POST /api/admin/live-subscriptions/renew
+// @access  Private/Admin
+const renewLivePackage = async (req, res) => {
+  try {
+    const { user_id, grade_level } = req.body;
+    if (!user_id) return res.status(400).json({ success: false, error: 'User ID is required' });
+
+    const { data: existing } = await supabaseAdmin
+      .from('live_subscriptions')
+      .select('*')
+      .eq('user_id', user_id)
+      .limit(1);
+
+    let result;
+    if (existing && existing.length > 0) {
+      const { data, error } = await supabaseAdmin
+        .from('live_subscriptions')
+        .update({
+          remaining_sessions: 8,
+          total_sessions: 8,
+          status: 'active'
+        })
+        .eq('id', existing[0].id)
+        .select()
+        .single();
+      if (error) throw error;
+      result = data;
+    } else {
+      const { data, error } = await supabaseAdmin
+        .from('live_subscriptions')
+        .insert([{
+          user_id,
+          grade_level: grade_level || 'prep_1',
+          total_sessions: 8,
+          remaining_sessions: 8,
+          status: 'active'
+        }])
+        .select()
+        .single();
+      if (error) throw error;
+      result = data;
+    }
+
+    return res.json({ success: true, data: result });
+  } catch (error) {
+    console.error('Error in renewLivePackage:', error);
+    return res.status(500).json({ success: false, error: error.message });
+  }
+};
+
+// @desc    Bulk attendance deduction (-1 session for all grade students)
+// @route   POST /api/admin/live-subscriptions/bulk-attendance
+// @access  Private/Admin
+const bulkLiveAttendance = async (req, res) => {
+  try {
+    const { grade_level } = req.body;
+    if (!grade_level) return res.status(400).json({ success: false, error: 'Grade level is required' });
+
+    const { data: students, error: sErr } = await supabaseAdmin
+      .from('profiles')
+      .select('id, grade_level')
+      .eq('role', 'student')
+      .eq('grade_level', grade_level);
+
+    if (sErr) throw sErr;
+    if (!students || students.length === 0) {
+      return res.json({ success: true, message: 'No students found', updatedCount: 0 });
+    }
+
+    let updatedCount = 0;
+    for (const st of students) {
+      const { data: existing } = await supabaseAdmin
+        .from('live_subscriptions')
+        .select('*')
+        .eq('user_id', st.id)
+        .limit(1);
+
+      if (existing && existing.length > 0) {
+        const newRemaining = Math.max(0, existing[0].remaining_sessions - 1);
+        await supabaseAdmin
+          .from('live_subscriptions')
+          .update({
+            remaining_sessions: newRemaining,
+            status: newRemaining === 0 ? 'expired' : 'active'
+          })
+          .eq('id', existing[0].id);
+        updatedCount++;
+      } else {
+        await supabaseAdmin
+          .from('live_subscriptions')
+          .insert([{
+            user_id: st.id,
+            grade_level: st.grade_level,
+            total_sessions: 8,
+            remaining_sessions: 7,
+            status: 'active'
+          }]);
+        updatedCount++;
+      }
+    }
+
+    return res.json({ success: true, updatedCount });
+  } catch (error) {
+    console.error('Error in bulkLiveAttendance:', error);
+    return res.status(500).json({ success: false, error: error.message });
   }
 };
 
@@ -618,5 +786,8 @@ module.exports = {
   adjustStudentXp,
   getGamificationRulesHandler,
   updateGamificationRulesHandler,
-  clearChatHandler
+  clearChatHandler,
+  updateLivePackageAttendance,
+  renewLivePackage,
+  bulkLiveAttendance
 };

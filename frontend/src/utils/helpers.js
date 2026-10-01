@@ -232,3 +232,26 @@ export const formatCourseDescription = (description, courseTitle) => {
   return description;
 };
 
+export const formatTime12h = (timeStr, isRTL = true) => {
+  if (!timeStr) return '';
+  const str = timeStr.toString().trim();
+  const parts = str.split(':');
+  if (parts.length < 2) return str;
+  let hour = parseInt(parts[0], 10);
+  const minute = parts[1].padStart(2, '0');
+  if (isNaN(hour)) return str;
+  const isPM = hour >= 12;
+  hour = hour % 12;
+  if (hour === 0) hour = 12;
+  const period = isRTL ? (isPM ? 'م' : 'ص') : (isPM ? 'PM' : 'AM');
+  const formattedHour = hour.toString().padStart(2, '0');
+  return `${formattedHour}:${minute} ${period}`;
+};
+
+export const formatTimeRange12h = (startTime, endTime, isRTL = true) => {
+  if (!startTime || !endTime) return '';
+  const fStart = formatTime12h(startTime, isRTL);
+  const fEnd = formatTime12h(endTime, isRTL);
+  return isRTL ? `من ${fStart} إلى ${fEnd}` : `From ${fStart} to ${fEnd}`;
+};
+

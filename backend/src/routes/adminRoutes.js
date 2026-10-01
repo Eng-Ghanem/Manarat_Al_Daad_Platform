@@ -11,7 +11,10 @@ const {
   deleteStudent,
   adjustStudentXp,
   updateGamificationRulesHandler,
-  clearChatHandler
+  clearChatHandler,
+  updateLivePackageAttendance,
+  renewLivePackage,
+  bulkLiveAttendance
 } = require('../controllers/adminController');
 
 const router = express.Router();
@@ -34,6 +37,11 @@ router.post('/subscriptions/:id/extend', extendSubscription);
 
 // Route: DELETE /api/admin/subscriptions/:id
 router.delete('/subscriptions/:id', deleteSubscription);
+
+// Live 8-session packages management
+router.post('/live-subscriptions/attendance', updateLivePackageAttendance);
+router.post('/live-subscriptions/renew', renewLivePackage);
+router.post('/live-subscriptions/bulk-attendance', bulkLiveAttendance);
 
 // Route: POST /api/admin/students
 router.post('/students', createStudent);

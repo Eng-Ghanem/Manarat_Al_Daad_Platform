@@ -52,30 +52,46 @@ export default function QuizResult() {
       if (quizError) throw quizError;
       setQuiz(quizData);
 
-      // Fetch Questions for Answer Review via secure backend endpoint
+      // Fetch Questions for Answer Review (Tier 1: RPC get_student_quiz_review, Tier 2: Backend API, Tier 3: Direct table)
       let fetchedQuestions = [];
+
+      // Tier 1: Try database RPC get_student_quiz_review
       try {
-        const { data: { session } } = await supabase.auth.getSession();
-        const token = session?.access_token;
-        if (token) {
-          const apiBase = import.meta.env.VITE_API_URL || 'http://localhost:5000';
-          const res = await fetch(`${apiBase}/api/quizzes/${id}/review`, {
-            headers: {
-              'Authorization': `Bearer ${token}`
-            }
-          });
-          if (res.ok) {
-            const result = await res.json();
-            if (result?.questions?.length > 0) {
-              fetchedQuestions = result.questions;
-            }
-          }
+        const { data: rpcReview, error: rpcErr } = await supabase.rpc('get_student_quiz_review', {
+          p_quiz_id: id
+        });
+        if (!rpcErr && rpcReview && rpcReview.length > 0) {
+          fetchedQuestions = rpcReview;
         }
       } catch (err) {
-        console.warn('Backend review fetch error:', err);
+        console.warn('RPC get_student_quiz_review failed:', err);
       }
 
-      // Fallback if backend wasn't reached or returned empty (e.g. admins)
+      // Tier 2: Try backend endpoint review
+      if (fetchedQuestions.length === 0) {
+        try {
+          const { data: { session } } = await supabase.auth.getSession();
+          const token = session?.access_token;
+          if (token) {
+            const apiBase = import.meta.env.VITE_API_URL || (typeof window !== 'undefined' && window.location.hostname !== 'localhost' ? '' : 'http://localhost:5000');
+            const res = await fetch(`${apiBase}/api/quizzes/${id}/review`, {
+              headers: {
+                'Authorization': `Bearer ${token}`
+              }
+            });
+            if (res.ok) {
+              const result = await res.json();
+              if (result?.questions?.length > 0) {
+                fetchedQuestions = result.questions;
+              }
+            }
+          }
+        } catch (err) {
+          console.warn('Backend review fetch error:', err);
+        }
+      }
+
+      // Tier 3: Direct table query (for admins or when RLS allows)
       if (fetchedQuestions.length === 0) {
         const { data: qData } = await supabase
           .from('quiz_questions')
@@ -83,7 +99,7 @@ export default function QuizResult() {
           .eq('quiz_id', id)
           .order('created_at', { ascending: true });
 
-        if (qData) {
+        if (qData && qData.length > 0) {
           fetchedQuestions = qData;
         }
       }

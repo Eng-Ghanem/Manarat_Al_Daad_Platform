@@ -11,7 +11,8 @@ import BackButton from '../components/BackButton';
 import { formatSessionTitle, formatSessionDesc, formatGradeName } from '../utils/helpers';
 
 export default function StudentLiveSessions() {
-  const { t } = useTranslation();
+  const { t, i18n } = useTranslation();
+  const isRTL = i18n.language === 'ar';
 
   const [sessions, setSessions] = useState([]);
   const [loading, setLoading] = useState(true);
@@ -40,6 +41,36 @@ export default function StudentLiveSessions() {
     }
   };
 
+  // Helper to safely format Zoom URLs
+  const getCleanZoomUrl = (url) => {
+    if (!url || typeof url !== 'string') return '';
+    const trimmed = url.trim();
+    if (/^https?:\/\//i.test(trimmed)) return trimmed;
+    return `https://${trimmed}`;
+  };
+
+  // Intelligent computed status based on current time
+  const getSessionComputedStatus = (session) => {
+    if (session.status === 'canceled') return 'canceled';
+    if (session.status === 'postponed') return 'postponed';
+    if (session.status === 'completed') return 'completed';
+
+    const now = new Date();
+    const startTime = new Date(session.start_time);
+    const endTime = new Date(session.end_time);
+
+    // If current time is past the end time, automatically treat as completed/ended
+    if (now > endTime) {
+      return 'completed';
+    }
+    // If current time is between start and end time, it is live now!
+    if (now >= startTime && now <= endTime) {
+      return 'live';
+    }
+    // Otherwise it's in the future
+    return 'scheduled';
+  };
+
   // Extract unique months for the filter dropdown
   const uniqueMonths = [...new Set(sessions.map(s => {
     if (!s.start_time) return null;
@@ -58,52 +89,81 @@ export default function StudentLiveSessions() {
     return true;
   });
 
-  // Calculate statistics based on month
+  // Calculate statistics based on computed status
   const stats = {
-    scheduled: monthFilteredSessions.filter(s => !s.status || s.status === 'scheduled').length,
-    completed: monthFilteredSessions.filter(s => s.status === 'completed').length,
-    canceled: monthFilteredSessions.filter(s => s.status === 'canceled').length,
-    postponed: monthFilteredSessions.filter(s => s.status === 'postponed').length
+    scheduled: monthFilteredSessions.filter(s => {
+      const st = getSessionComputedStatus(s);
+      return st === 'scheduled' || st === 'live';
+    }).length,
+    completed: monthFilteredSessions.filter(s => getSessionComputedStatus(s) === 'completed').length,
+    canceled: monthFilteredSessions.filter(s => getSessionComputedStatus(s) === 'canceled').length,
+    postponed: monthFilteredSessions.filter(s => getSessionComputedStatus(s) === 'postponed').length
   };
 
   // Final filtered sessions based on status filter
   const filteredSessions = monthFilteredSessions.filter(s => {
     if (filterStatus !== 'all') {
-      const sStatus = s.status || 'scheduled';
-      if (sStatus !== filterStatus) return false;
+      const compStatus = getSessionComputedStatus(s);
+      if (filterStatus === 'scheduled') {
+        if (compStatus !== 'scheduled' && compStatus !== 'live') return false;
+      } else if (compStatus !== filterStatus) {
+        return false;
+      }
     }
     return true;
   });
 
-  // Group filtered sessions (used only when filterStatus === 'all')
-  const upcomingSessions = filteredSessions.filter(s => !s.status || s.status === 'scheduled' || s.status === 'postponed');
-  const pastSessions = filteredSessions.filter(s => s.status === 'completed' || s.status === 'canceled');
+  // Group filtered sessions (Live & Future go to upcoming, ended & canceled go to past)
+  const upcomingSessions = filteredSessions.filter(s => {
+    const compStatus = getSessionComputedStatus(s);
+    return compStatus === 'live' || compStatus === 'scheduled' || compStatus === 'postponed';
+  });
+  const pastSessions = filteredSessions.filter(s => {
+    const compStatus = getSessionComputedStatus(s);
+    return compStatus === 'completed' || compStatus === 'canceled';
+  });
 
-  const renderStatusBadge = (status) => {
-    switch (status) {
+  const renderStatusBadge = (session) => {
+    const compStatus = getSessionComputedStatus(session);
+    switch (compStatus) {
+      case 'live':
+        return (
+          <span className="text-xs px-3 py-1 rounded-full bg-red-600 text-white font-extrabold flex items-center gap-1.5 shadow-lg shadow-red-500/30 animate-pulse">
+            <span className="w-2 h-2 rounded-full bg-white animate-ping"></span>
+            {isRTL ? '🔴 مباشر الآن' : '🔴 LIVE NOW'}
+          </span>
+        );
       case 'completed':
-        return <span className="text-xs px-2.5 py-1 rounded-full bg-green-100 dark:bg-green-900/30 text-green-700 dark:text-green-400 font-bold flex items-center gap-1"><CheckCircle className="w-3.5 h-3.5" /> {t('student_status_done', 'مكتملة')}</span>;
+        return <span className="text-xs px-2.5 py-1 rounded-full bg-green-100 dark:bg-green-900/30 text-green-700 dark:text-green-400 font-bold flex items-center gap-1"><CheckCircle className="w-3.5 h-3.5" /> {isRTL ? 'منتهية' : 'Completed'}</span>;
       case 'canceled':
-        return <span className="text-xs px-2.5 py-1 rounded-full bg-red-100 dark:bg-red-900/30 text-red-700 dark:text-red-400 font-bold flex items-center gap-1"><XCircle className="w-3.5 h-3.5" /> {t('student_status_canceled', 'ملغية')}</span>;
+        return <span className="text-xs px-2.5 py-1 rounded-full bg-red-100 dark:bg-red-900/30 text-red-700 dark:text-red-400 font-bold flex items-center gap-1"><XCircle className="w-3.5 h-3.5" /> {isRTL ? 'ملغية' : 'Canceled'}</span>;
       case 'postponed':
-        return <span className="text-xs px-2.5 py-1 rounded-full bg-orange-100 dark:bg-orange-900/30 text-orange-700 dark:text-orange-400 font-bold flex items-center gap-1"><Clock4 className="w-3.5 h-3.5" /> {t('student_status_postponed', 'مؤجلة')}</span>;
+        return <span className="text-xs px-2.5 py-1 rounded-full bg-orange-100 dark:bg-orange-900/30 text-orange-700 dark:text-orange-400 font-bold flex items-center gap-1"><Clock4 className="w-3.5 h-3.5" /> {isRTL ? 'مؤجلة' : 'Postponed'}</span>;
       case 'scheduled':
       default:
-        return <span className="text-xs px-2.5 py-1 rounded-full bg-blue-100 dark:bg-blue-900/30 text-blue-700 dark:text-blue-400 font-bold flex items-center gap-1"><Calendar className="w-3.5 h-3.5" /> {t('student_status_scheduled', 'مجدولة')}</span>;
+        return <span className="text-xs px-2.5 py-1 rounded-full bg-blue-100 dark:bg-blue-900/30 text-blue-700 dark:text-blue-400 font-bold flex items-center gap-1"><Calendar className="w-3.5 h-3.5" /> {isRTL ? 'مجدولة' : 'Scheduled'}</span>;
     }
   };
 
   const renderSessionCard = (session) => {
-    const isUpcoming = !session.status || session.status === 'scheduled';
-    const isPostponed = session.status === 'postponed';
-    const isCompleted = session.status === 'completed';
-    const isCanceled = session.status === 'canceled';
+    const compStatus = getSessionComputedStatus(session);
+    const isLive = compStatus === 'live';
+    const isUpcoming = compStatus === 'scheduled' || isLive;
+    const isPostponed = compStatus === 'postponed';
+    const isCompleted = compStatus === 'completed';
+    const isCanceled = compStatus === 'canceled';
+
+    const cleanZoomUrl = getCleanZoomUrl(session.zoom_link);
+
+    const dateLocale = isRTL ? 'ar-EG' : 'en-US';
 
     return (
       <div 
         key={session.id} 
         className={`flex flex-col md:flex-row items-center justify-between p-6 rounded-3xl border shadow-xl relative overflow-hidden group transition-all duration-300 ${
-          isUpcoming 
+          isLive
+            ? 'bg-gradient-to-r from-red-900/90 via-indigo-900 to-blue-900 border-red-500/50 ring-2 ring-red-500/30'
+            : isUpcoming 
             ? 'bg-gradient-to-r from-blue-900 to-indigo-900 border-blue-800' 
             : isPostponed
             ? 'bg-white dark:bg-slate-800 border-orange-200 dark:border-orange-900/40'
@@ -121,7 +181,7 @@ export default function StudentLiveSessions() {
             <h3 className={`text-2xl font-bold ${isUpcoming ? 'text-white' : 'text-gray-900 dark:text-white'}`}>
               {formatSessionTitle(session.title)}
             </h3>
-            {renderStatusBadge(session.status)}
+            {renderStatusBadge(session)}
           </div>
 
           {session.grade_level && (
@@ -139,27 +199,33 @@ export default function StudentLiveSessions() {
           <div className={`flex flex-wrap gap-4 text-sm font-bold ${isUpcoming ? 'text-white' : 'text-gray-700 dark:text-gray-300'}`}>
             <div className={`flex items-center gap-1.5 px-4 py-2 rounded-xl backdrop-blur-md ${isUpcoming ? 'bg-black/20' : 'bg-gray-100 dark:bg-slate-900/50 border border-gray-200 dark:border-slate-700'}`}>
               <Calendar className={`w-4 h-4 ${isUpcoming ? 'text-blue-300' : 'text-blue-600'}`} />
-              <span dir="ltr">{new Date(session.start_time).toLocaleDateString(t('locale'), { weekday: 'long', year: 'numeric', month: 'long', day: 'numeric' })}</span>
+              <span dir="ltr">{new Date(session.start_time).toLocaleDateString(dateLocale, { weekday: 'long', year: 'numeric', month: 'long', day: 'numeric' })}</span>
             </div>
             <div className={`flex items-center gap-1.5 px-4 py-2 rounded-xl backdrop-blur-md ${isUpcoming ? 'bg-black/20' : 'bg-gray-100 dark:bg-slate-900/50 border border-gray-200 dark:border-slate-700'}`}>
               <Clock className={`w-4 h-4 ${isUpcoming ? 'text-orange-300' : 'text-orange-500'}`} />
-              <span dir="ltr">{new Date(session.start_time).toLocaleTimeString(t('locale'), { hour: '2-digit', minute: '2-digit' })}</span>
+              <span dir="ltr">{new Date(session.start_time).toLocaleTimeString(dateLocale, { hour: '2-digit', minute: '2-digit' })}</span>
               <span className="mx-1">-</span>
-              <span dir="ltr">{new Date(session.end_time).toLocaleTimeString(t('locale'), { hour: '2-digit', minute: '2-digit' })}</span>
+              <span dir="ltr">{new Date(session.end_time).toLocaleTimeString(dateLocale, { hour: '2-digit', minute: '2-digit' })}</span>
             </div>
           </div>
         </div>
         
-        {isUpcoming && session.zoom_link && (
+        {isUpcoming && cleanZoomUrl && (
           <div className="relative z-10 w-full md:w-auto">
             <a 
-              href={session.zoom_link} 
+              href={cleanZoomUrl} 
               target="_blank" 
               rel="noopener noreferrer"
-              className="w-full md:w-auto flex items-center justify-center gap-3 px-8 py-4 bg-white text-blue-900 hover:bg-gray-100 rounded-2xl font-extrabold text-lg transition-transform hover:scale-105 shadow-lg shadow-white/10"
+              className={`w-full md:w-auto flex items-center justify-center gap-3 px-8 py-4 rounded-2xl font-extrabold text-lg transition-all shadow-lg hover:scale-105 active:scale-95 ${
+                isLive 
+                  ? 'bg-gradient-to-r from-red-600 to-rose-600 hover:from-red-500 hover:to-rose-500 text-white shadow-red-500/40 ring-4 ring-red-400/30' 
+                  : 'bg-white text-blue-900 hover:bg-gray-100 shadow-white/10'
+              }`}
             >
-              <PlayCircle className="w-6 h-6 text-blue-500 animate-pulse" />
-              {t('student_join_now')}
+              <PlayCircle className={`w-6 h-6 ${isLive ? 'text-white animate-spin' : 'text-blue-500 animate-pulse'}`} />
+              {isLive 
+                ? (isRTL ? 'انضم للبث المباشر الآن 🔴' : 'Join Live Stream Now 🔴') 
+                : t('student_join_now')}
             </a>
           </div>
         )}

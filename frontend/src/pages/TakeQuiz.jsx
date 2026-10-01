@@ -91,22 +91,78 @@ export default function TakeQuiz() {
         setTimeLeft(quizData.duration_minutes * 60);
       }
 
-      // Fetch Questions securely using student_quiz_questions view (without leaking correct_option_index)
-      const { data: qData, error: qError } = await supabase
-        .from('student_quiz_questions')
-        .select('id, text, options, marks, question_type')
-        .eq('quiz_id', id)
-        .order('created_at', { ascending: true });
+      // Fetch Questions securely using 3-tier fallback
+      let questionsList = [];
 
-      if (qError) throw qError;
+      // Tier 1: Try database RPC get_student_quiz_questions
+      try {
+        const { data: rpcQuestions, error: rpcErr } = await supabase.rpc('get_student_quiz_questions', {
+          p_quiz_id: id
+        });
+        if (!rpcErr && rpcQuestions && rpcQuestions.length > 0) {
+          questionsList = rpcQuestions;
+        }
+      } catch (err) {
+        console.warn('RPC get_student_quiz_questions failed:', err);
+      }
 
-      if (!qData || qData.length === 0) {
-        toast.error('هذا الامتحان لا يحتوي على أسئلة.');
+      // Tier 2: Try student_quiz_questions view
+      if (questionsList.length === 0) {
+        try {
+          const { data: viewData, error: viewErr } = await supabase
+            .from('student_quiz_questions')
+            .select('id, text, options, marks, question_type')
+            .eq('quiz_id', id)
+            .order('created_at', { ascending: true });
+          if (!viewErr && viewData && viewData.length > 0) {
+            questionsList = viewData;
+          }
+        } catch (err) {
+          console.warn('student_quiz_questions view fetch failed:', err);
+        }
+      }
+
+      // Tier 3: Direct quiz_questions table fallback
+      if (questionsList.length === 0) {
+        try {
+          const { data: tableData, error: tableErr } = await supabase
+            .from('quiz_questions')
+            .select('id, text, options, marks, question_type')
+            .eq('quiz_id', id)
+            .order('created_at', { ascending: true });
+          if (!tableErr && tableData && tableData.length > 0) {
+            questionsList = tableData;
+          }
+        } catch (err) {
+          console.warn('quiz_questions direct fetch failed:', err);
+        }
+      }
+
+      if (!questionsList || questionsList.length === 0) {
+        toast.error('هذا الامتحان لا يحتوي على أسئلة أو غير متاح حالياً.');
         navigate('/quizzes');
         return;
       }
 
-      setQuestions(qData);
+      // Helper to parse options
+      const parseOptions = (opts) => {
+        if (Array.isArray(opts)) return opts;
+        if (typeof opts === 'string') {
+          try {
+            const parsed = JSON.parse(opts);
+            if (Array.isArray(parsed)) return parsed;
+          } catch (_) {}
+        }
+        return [];
+      };
+
+      const sanitized = questionsList.map(q => ({
+        ...q,
+        options: parseOptions(q.options),
+        question_type: q.question_type || 'multiple_choice'
+      }));
+
+      setQuestions(sanitized);
 
     } catch (error) {
       console.error('Error fetching quiz:', error);
@@ -261,7 +317,7 @@ export default function TakeQuiz() {
 
             <div className="space-y-4">
               {(!currentQuestion.question_type || currentQuestion.question_type === 'multiple_choice') ? (
-                currentQuestion.options.map((opt, optIndex) => {
+                (currentQuestion.options || []).map((opt, optIndex) => {
                   const isSelected = answers[currentQuestion.id] === optIndex;
                   return (
                     <button

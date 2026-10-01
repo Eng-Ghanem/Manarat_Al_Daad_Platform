@@ -8,6 +8,7 @@ import { Link } from 'react-router-dom';
 import FadeIn from '../../components/FadeIn';
 import { supabase } from '../../lib/supabase';
 import ConfirmModal from '../../components/ConfirmModal';
+import toast from 'react-hot-toast';
 import { formatSessionTitle, formatSessionDesc, formatGradeName } from '../../utils/helpers';
 
 export default function AdminLiveSessions() {
@@ -112,17 +113,33 @@ export default function AdminLiveSessions() {
     setIsModalOpen(false);
   };
 
+  const getCleanZoomUrl = (url) => {
+    if (!url || typeof url !== 'string') return '';
+    const trimmed = url.trim();
+    if (/^https?:\/\//i.test(trimmed)) return trimmed;
+    return `https://${trimmed}`;
+  };
+
   const handleSubmit = async (e) => {
     e.preventDefault();
+    if (!formData.title.trim()) {
+      toast.error(isRTL ? 'يرجى إدخال عنوان الحصة' : 'Please enter session title');
+      return;
+    }
+    if (!formData.zoom_link.trim()) {
+      toast.error(isRTL ? 'يرجى إدخال رابط الزووم أو البث' : 'Please enter meeting link');
+      return;
+    }
+
     setFormLoading(true);
 
     try {
       const payload = {
-        title: formData.title,
-        description: formData.description,
+        title: formData.title.trim(),
+        description: formData.description?.trim() || '',
         start_time: new Date(formData.start_time).toISOString(),
         end_time: new Date(formData.end_time).toISOString(),
-        zoom_link: formData.zoom_link,
+        zoom_link: getCleanZoomUrl(formData.zoom_link),
         grade_level: formData.grade_level === '' ? null : formData.grade_level,
         status: formData.status
       };
@@ -134,19 +151,21 @@ export default function AdminLiveSessions() {
           .eq('id', currentSessionId);
         
         if (error) throw error;
+        toast.success(isRTL ? 'تم تحديث بيانات الحصة بنجاح' : 'Session updated successfully');
       } else {
         const { error } = await supabase
           .from('online_sessions')
           .insert([payload]);
         
         if (error) throw error;
+        toast.success(isRTL ? 'تم إنشاء الحصة بنجاح' : 'Session created successfully');
       }
 
       await fetchData();
       handleCloseModal();
     } catch (err) {
       console.error('Error saving session:', err);
-      alert('حدث خطأ أثناء الحفظ.');
+      toast.error(isRTL ? 'حدث خطأ أثناء حفظ الجلسة' : 'Error saving session');
     } finally {
       setFormLoading(false);
     }
@@ -167,11 +186,12 @@ export default function AdminLiveSessions() {
         .eq('id', sessionId);
       
       if (error) throw error;
+      toast.success(isRTL ? 'تم حذف الحصة بنجاح' : 'Session deleted successfully');
     } catch (err) {
       console.error('Error deleting session:', err);
       // Revert on error
       setSessions(previousSessions);
-      alert(isRTL ? 'حدث خطأ أثناء الحذف.' : 'An error occurred while deleting.');
+      toast.error(isRTL ? 'حدث خطأ أثناء الحذف.' : 'An error occurred while deleting.');
     }
   };
 
@@ -187,11 +207,12 @@ export default function AdminLiveSessions() {
         .eq('id', id);
       
       if (error) throw error;
+      toast.success(isRTL ? 'تم تحديث حالة الحصة' : 'Status updated successfully');
     } catch (err) {
       console.error('Error updating status:', err);
       // Revert if error
       setSessions(previousSessions);
-      alert(t('ls_update_status_error'));
+      toast.error(isRTL ? 'فشل تحديث حالة الحصة' : 'Failed to update status');
     }
   };
 

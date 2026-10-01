@@ -78,7 +78,7 @@ export default function StudentQuizzes() {
       // 2. Fetch question count map: Tier 1 via backend API, Tier 2 via student_quiz_questions view
       const questionsCountMap = {};
       try {
-        const apiBase = import.meta.env.VITE_API_URL || 'http://localhost:5000';
+        const apiBase = import.meta.env.VITE_API_URL || (typeof window !== 'undefined' && window.location.hostname !== 'localhost' ? '' : 'http://localhost:5000');
         const res = await fetch(`${apiBase}/api/quizzes/counts`);
         if (res.ok) {
           const resData = await res.json();
@@ -95,7 +95,7 @@ export default function StudentQuizzes() {
           const { data: qListData } = await supabase
             .from('student_quiz_questions')
             .select('quiz_id');
-          if (qListData) {
+          if (qListData && qListData.length > 0) {
             qListData.forEach(item => {
               if (item.quiz_id) {
                 questionsCountMap[item.quiz_id] = (questionsCountMap[item.quiz_id] || 0) + 1;
@@ -104,6 +104,23 @@ export default function StudentQuizzes() {
           }
         } catch (e) {
           console.warn('Questions count view fetch error:', e);
+        }
+      }
+
+      if (Object.keys(questionsCountMap).length === 0) {
+        try {
+          const { data: qTableData } = await supabase
+            .from('quiz_questions')
+            .select('quiz_id');
+          if (qTableData && qTableData.length > 0) {
+            qTableData.forEach(item => {
+              if (item.quiz_id) {
+                questionsCountMap[item.quiz_id] = (questionsCountMap[item.quiz_id] || 0) + 1;
+              }
+            });
+          }
+        } catch (e) {
+          console.warn('Questions count table fetch error:', e);
         }
       }
 

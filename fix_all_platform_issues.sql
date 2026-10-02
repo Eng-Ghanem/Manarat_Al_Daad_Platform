@@ -643,3 +643,42 @@ USING (
     )
 );
 
+-- ==============================================================================
+-- 14. تفعيل التزامن اللحظي المباشر لباقات واشتراكات وحضور الطلاب عبر Supabase Realtime
+-- وقيد فريد لمنع تكرار سجل اشتراك الطالب الواحد
+-- ==============================================================================
+DO $$
+BEGIN
+    IF NOT EXISTS (
+        SELECT 1 FROM pg_constraint WHERE conname = 'live_subscriptions_user_id_key'
+    ) THEN
+        ALTER TABLE public.live_subscriptions ADD CONSTRAINT live_subscriptions_user_id_key UNIQUE (user_id);
+    END IF;
+EXCEPTION WHEN OTHERS THEN NULL;
+END $$;
+
+DO $$
+BEGIN
+    ALTER PUBLICATION supabase_realtime ADD TABLE public.live_subscriptions;
+EXCEPTION WHEN OTHERS THEN NULL;
+END $$;
+
+DO $$
+BEGIN
+    ALTER PUBLICATION supabase_realtime ADD TABLE public.completed_live_sessions;
+EXCEPTION WHEN OTHERS THEN NULL;
+END $$;
+
+DO $$
+BEGIN
+    ALTER PUBLICATION supabase_realtime ADD TABLE public.weekly_schedules;
+EXCEPTION WHEN OTHERS THEN NULL;
+END $$;
+
+DO $$
+BEGIN
+    ALTER PUBLICATION supabase_realtime ADD TABLE public.trial_requests;
+EXCEPTION WHEN OTHERS THEN NULL;
+END $$;
+
+

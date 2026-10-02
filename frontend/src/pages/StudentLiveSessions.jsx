@@ -63,9 +63,11 @@ export default function StudentLiveSessions() {
     fetchCompletedSessions();
   }, [user]);
 
-  // Real-time listener for package and completed sessions updates from teacher
+  // Real-time listener for package and completed sessions updates from teacher + polling + focus sync
   useEffect(() => {
     if (!user) return;
+
+    // 1. Supabase Realtime channel
     const channel = supabase
       .channel(`student_live_sync_${user.id}`)
       .on('postgres_changes', { event: '*', schema: 'public', table: 'live_subscriptions', filter: `user_id=eq.${user.id}` }, () => {
@@ -75,10 +77,34 @@ export default function StudentLiveSessions() {
         fetchCompletedSessions();
         fetchMyPackage();
       })
+      .on('postgres_changes', { event: '*', schema: 'public', table: 'weekly_schedules' }, () => {
+        fetchWeeklySchedules();
+      })
       .subscribe();
+
+    // 2. 10-second polling to guarantee instant sync even across connection blips
+    const pollInterval = setInterval(() => {
+      fetchMyPackage();
+      fetchCompletedSessions();
+    }, 10000);
+
+    // 3. Instant refresh on window focus / tab switch
+    const handleFocus = () => {
+      fetchMyPackage();
+      fetchCompletedSessions();
+      fetchWeeklySchedules();
+    };
+    window.addEventListener('focus', handleFocus);
+    const handleVisibility = () => {
+      if (document.visibilityState === 'visible') handleFocus();
+    };
+    document.addEventListener('visibilitychange', handleVisibility);
 
     return () => {
       supabase.removeChannel(channel);
+      clearInterval(pollInterval);
+      window.removeEventListener('focus', handleFocus);
+      document.removeEventListener('visibilitychange', handleVisibility);
     };
   }, [user]);
 
@@ -188,18 +214,29 @@ export default function StudentLiveSessions() {
         .limit(1);
 
       if (!error && data && data.length > 0) {
-        setMyPackage(data[0]);
-      } else {
-        // Fallback default: 8 sessions
+        const pkg = data[0];
+        let status = pkg.status || 'not_subscribed';
+        const remaining = pkg.remaining_sessions !== undefined ? pkg.remaining_sessions : 0;
+        if (status === 'active' && remaining <= 0) {
+          status = 'expired';
+        }
         setMyPackage({
-          remaining_sessions: 8,
+          ...pkg,
+          status,
+          remaining_sessions: remaining,
+          total_sessions: pkg.total_sessions || 8
+        });
+      } else {
+        // Non-subscribed students default to 0 sessions and not_subscribed status
+        setMyPackage({
+          remaining_sessions: 0,
           total_sessions: 8,
-          status: 'active'
+          status: 'not_subscribed'
         });
       }
     } catch (err) {
       console.warn('Live subscription fetch fallback:', err);
-      setMyPackage({ remaining_sessions: 8, total_sessions: 8, status: 'active' });
+      setMyPackage({ remaining_sessions: 0, total_sessions: 8, status: 'not_subscribed' });
     } finally {
       setPackageLoading(false);
     }
@@ -331,7 +368,8 @@ export default function StudentLiveSessions() {
         }
       }
 
-      await supabase.from('live_subscriptions').insert([{
+      const isFirstSub = !myPackage || myPackage.status === 'not_subscribed';
+      await supabase.from('live_subscriptions').upsert([{
         user_id: user.id,
         grade_level: profile?.grade_level || 'prep_1',
         total_sessions: 8,
@@ -340,10 +378,14 @@ export default function StudentLiveSessions() {
         payment_method: renewForm.payment_method,
         wallet_number: renewForm.wallet_number.trim(),
         receipt_url: receiptUrl,
-        notes: 'طلب تجديد باقة 8 حصص'
-      }]);
+        notes: isFirstSub ? 'طلب اشتراك جديد في باقة 8 حصص' : 'طلب تجديد باقة 8 حصص'
+      }], { onConflict: 'user_id' });
 
-      toast.success('✅ تم إرسال طلب تجديد باقة الـ 8 حصص بنجاح! سيتم تفعيل حسابك فور مراجعة التحويل.');
+      toast.success(
+        isFirstSub
+          ? '🎉 تم إرسال طلب اشتراكك في باقة الـ 8 حصص بنجاح! سيتم فتح رابط الحصص فور تأكيد المعلم للتحويل.'
+          : '✅ تم إرسال طلب تجديد باقة الـ 8 حصص بنجاح! سيتم تفعيل حسابك فور مراجعة التحويل.'
+      );
       setIsRenewModalOpen(false);
       fetchMyPackage();
     } catch (err) {
@@ -441,10 +483,14 @@ export default function StudentLiveSessions() {
               ) : (
                 <button
                   onClick={() => setIsRenewModalOpen(true)}
-                  className="px-6 py-3 rounded-2xl bg-amber-400 text-gray-900 font-black text-sm hover:bg-amber-300 transition-all shadow-lg shrink-0 flex items-center gap-2"
+                  className="px-6 py-3 rounded-2xl bg-amber-400 text-gray-900 font-black text-sm hover:bg-amber-300 transition-all shadow-lg shrink-0 flex items-center gap-2 cursor-pointer"
                 >
                   <Lock className="w-4 h-4" />
-                  تجديد الباقة للدخول
+                  {myPackage?.status === 'not_subscribed'
+                    ? 'اشترك في باقة الـ 8 حصص للدخول'
+                    : myPackage?.status === 'pending'
+                    ? 'طلبك قيد المراجعة - تفاصيل'
+                    : 'انتهت باقتك - تجديد للدخول'}
                 </button>
               )}
             </div>
@@ -492,8 +538,22 @@ export default function StudentLiveSessions() {
               <CreditCard className="w-4 h-4" />
               <span>باقتي (رصيد الـ 8 حصص)</span>
               {myPackage && (
-                <span className={`px-2 py-0.5 rounded-full text-xs font-black ${hasLiveAccess ? 'bg-emerald-500 text-white' : 'bg-red-500 text-white'}`}>
-                  {myPackage.remaining_sessions} / 8
+                <span className={`px-2 py-0.5 rounded-full text-xs font-black ${
+                  hasLiveAccess 
+                    ? 'bg-emerald-500 text-white' 
+                    : myPackage.status === 'pending'
+                    ? 'bg-amber-500 text-white'
+                    : myPackage.status === 'not_subscribed'
+                    ? 'bg-slate-500 text-white'
+                    : 'bg-red-500 text-white'
+                }`}>
+                  {hasLiveAccess 
+                    ? `${myPackage.remaining_sessions} / 8`
+                    : myPackage.status === 'pending'
+                    ? 'قيد التفعيل'
+                    : myPackage.status === 'not_subscribed'
+                    ? 'غير مشترك'
+                    : '0 / 8 منتهية'}
                 </span>
               )}
             </button>
@@ -535,6 +595,77 @@ export default function StudentLiveSessions() {
         {activeTab === 'schedule' && (
           <FadeIn>
             
+            {/* Subscription Status Banner in Schedule Tab */}
+            <div className={`mb-6 p-4 sm:p-5 rounded-2xl border flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4 ${
+              hasLiveAccess
+                ? 'bg-emerald-50 dark:bg-emerald-950/20 border-emerald-200 dark:border-emerald-800/50 text-emerald-900 dark:text-emerald-200'
+                : myPackage?.status === 'pending'
+                ? 'bg-amber-50 dark:bg-amber-950/20 border-amber-200 dark:border-amber-800/50 text-amber-900 dark:text-amber-200'
+                : myPackage?.status === 'not_subscribed'
+                ? 'bg-rose-50 dark:bg-rose-950/20 border-rose-200 dark:border-rose-800/50 text-rose-900 dark:text-rose-200'
+                : 'bg-red-50 dark:bg-red-950/20 border-red-200 dark:border-red-800/50 text-red-900 dark:text-red-200'
+            }`}>
+              <div className="flex items-center gap-3">
+                <div className={`w-10 h-10 rounded-xl flex items-center justify-center shrink-0 ${
+                  hasLiveAccess
+                    ? 'bg-emerald-500 text-white'
+                    : myPackage?.status === 'pending'
+                    ? 'bg-amber-500 text-white'
+                    : 'bg-rose-500 text-white'
+                }`}>
+                  {hasLiveAccess ? (
+                    <CheckCircle2 className="w-5 h-5" />
+                  ) : myPackage?.status === 'pending' ? (
+                    <Clock className="w-5 h-5 animate-pulse" />
+                  ) : (
+                    <Lock className="w-5 h-5" />
+                  )}
+                </div>
+                <div>
+                  <h4 className="font-black text-sm sm:text-base">
+                    {hasLiveAccess ? (
+                      `باقتك نشطة: متبقي لك (${myPackage.remaining_sessions} من 8 حصص)`
+                    ) : myPackage?.status === 'pending' ? (
+                      'طلب اشتراكك في باقة الـ 8 حصص قيد المراجعة من المعلم'
+                    ) : myPackage?.status === 'not_subscribed' ? (
+                      'أنت غير مشترك في باقة الـ 8 حصص (رصيدك: 0 حصص)'
+                    ) : (
+                      'انتهت باقتك: لقد استنفدت كامل الـ 8 حصص (0 متبقي)'
+                    )}
+                  </h4>
+                  <p className="text-xs opacity-90 mt-0.5">
+                    {hasLiveAccess ? (
+                      'يمكنك الدخول مباشرة عبر أزرار الزووم بالأسفل لجميع مواعيدك الأسبوعية المجدولة.'
+                    ) : myPackage?.status === 'pending' ? (
+                      'تم إرسال إيصال التحويل، وسيتم تفعيل حسابك وفتح رابط زووم فور مراجعة المعلم.'
+                    ) : myPackage?.status === 'not_subscribed' ? (
+                      'لا يمكنك دخول حصص البث المباشر عبر زووم حتى يتم الاشتراك وسداد قيمة الباقة أولاً.'
+                    ) : (
+                      'تم قفل رابط زووم تلقائياً لحين تجديد الاشتراك وشحن 8 حصص جديدة للمتابعة.'
+                    )}
+                  </p>
+                </div>
+              </div>
+
+              {!hasLiveAccess && (
+                <button
+                  onClick={() => setIsRenewModalOpen(true)}
+                  className={`px-5 py-2.5 rounded-xl font-black text-xs shrink-0 flex items-center gap-2 shadow-sm transition-all cursor-pointer ${
+                    myPackage?.status === 'pending'
+                      ? 'bg-amber-500 hover:bg-amber-600 text-white'
+                      : 'bg-rose-600 hover:bg-rose-700 text-white'
+                  }`}
+                >
+                  <CreditCard className="w-4 h-4" />
+                  {myPackage?.status === 'pending'
+                    ? 'تعديل بيانات التحويل'
+                    : myPackage?.status === 'not_subscribed'
+                    ? 'اشترك الآن في الباقة'
+                    : 'تجديد الباقة الآن (+8)'}
+                </button>
+              )}
+            </div>
+
             {/* Section A: Fixed Weekly Schedule Card */}
             <div className="bg-gradient-to-br from-indigo-900 via-blue-900 to-slate-900 rounded-3xl p-6 md:p-8 text-white shadow-xl mb-8 relative overflow-hidden">
               <div className="absolute top-0 right-0 w-80 h-80 bg-blue-500/20 blur-[80px] rounded-full pointer-events-none"></div>
@@ -555,7 +686,13 @@ export default function StudentLiveSessions() {
                   <div className="bg-white/10 backdrop-blur-md px-4 py-2.5 rounded-2xl border border-white/10 text-center sm:text-right">
                     <span className="text-xs text-blue-200 block">رصيد باقتك الحالي:</span>
                     <span className="text-lg font-black text-white">
-                      {myPackage ? `${myPackage.remaining_sessions} من 8 حصص` : '8 من 8 حصص'}
+                      {hasLiveAccess 
+                        ? `${myPackage.remaining_sessions} من 8 حصص` 
+                        : myPackage?.status === 'pending'
+                        ? 'قيد التفعيل'
+                        : myPackage?.status === 'not_subscribed'
+                        ? 'غير مشترك (0 حصص)'
+                        : '0 من 8 حصص (منتهية)'}
                     </span>
                   </div>
                 </div>
@@ -627,7 +764,11 @@ export default function StudentLiveSessions() {
                               className="w-full py-3 rounded-xl bg-amber-500 hover:bg-amber-600 text-white font-extrabold text-sm flex items-center justify-center gap-2 transition-all shadow-md cursor-pointer"
                             >
                               <Lock className="w-4 h-4" />
-                              انتهت الباقة - تجديد الاشتراك للدخول
+                              {myPackage?.status === 'not_subscribed'
+                                ? 'اشترك في باقة الـ 8 حصص للدخول'
+                                : myPackage?.status === 'pending'
+                                ? 'طلبك قيد التفعيل من المعلم'
+                                : 'انتهت باقتك (0 حصص) - تجديد للدخول'}
                             </button>
                           )}
                         </div>
@@ -662,16 +803,30 @@ export default function StudentLiveSessions() {
 
               {/* Package Card */}
               {myPackage && (
-                <div className={`p-6 rounded-3xl border-2 mb-8 ${hasLiveAccess ? 'border-emerald-500 bg-emerald-50/40 dark:bg-emerald-950/20' : 'border-amber-400 bg-amber-50/40 dark:bg-amber-950/20'}`}>
+                <div className={`p-6 rounded-3xl border-2 mb-8 ${
+                  hasLiveAccess 
+                    ? 'border-emerald-500 bg-emerald-50/40 dark:bg-emerald-950/20' 
+                    : myPackage.status === 'pending'
+                    ? 'border-amber-400 bg-amber-50/40 dark:bg-amber-950/20'
+                    : 'border-red-300 bg-red-50/30 dark:bg-red-950/20'
+                }`}>
                   <div className="flex justify-between items-center mb-4">
                     <span className="text-xs font-black text-gray-500 uppercase">حالة الباقة</span>
                     {hasLiveAccess ? (
                       <span className="px-3 py-1 rounded-full text-xs font-black bg-emerald-500 text-white flex items-center gap-1">
                         <CheckCircle2 className="w-3.5 h-3.5" /> باقة نشطة
                       </span>
-                    ) : (
+                    ) : myPackage.status === 'pending' ? (
                       <span className="px-3 py-1 rounded-full text-xs font-black bg-amber-500 text-white flex items-center gap-1">
-                        <AlertTriangle className="w-3.5 h-3.5" /> بحاجة للتجديد (0 حصص)
+                        <Clock className="w-3.5 h-3.5 animate-pulse" /> قيد المراجعة والتفعيل
+                      </span>
+                    ) : myPackage.status === 'not_subscribed' ? (
+                      <span className="px-3 py-1 rounded-full text-xs font-black bg-slate-500 text-white flex items-center gap-1">
+                        <Lock className="w-3.5 h-3.5" /> غير مشترك بعد
+                      </span>
+                    ) : (
+                      <span className="px-3 py-1 rounded-full text-xs font-black bg-red-500 text-white flex items-center gap-1">
+                        <AlertTriangle className="w-3.5 h-3.5" /> باقة منتهية (0 حصص)
                       </span>
                     )}
                   </div>
@@ -680,25 +835,37 @@ export default function StudentLiveSessions() {
                   <div className="mb-6">
                     <div className="flex justify-between items-baseline mb-2">
                       <span className="text-2xl font-black text-gray-900 dark:text-white">
-                        {myPackage.remaining_sessions} <span className="text-sm font-normal text-gray-500">من 8 حصص متبقية</span>
+                        {myPackage.remaining_sessions || 0} <span className="text-sm font-normal text-gray-500">من 8 حصص متبقية</span>
                       </span>
                       <span className="text-xs font-black text-gray-400">
-                        {Math.round((myPackage.remaining_sessions / 8) * 100)}%
+                        {Math.round(((myPackage.remaining_sessions || 0) / 8) * 100)}%
                       </span>
                     </div>
                     <div className="w-full h-3 rounded-full bg-gray-200 dark:bg-slate-700 overflow-hidden">
                       <div 
-                        className={`h-full transition-all duration-700 ${hasLiveAccess ? 'bg-emerald-500' : 'bg-red-500'}`}
-                        style={{ width: `${Math.round((myPackage.remaining_sessions / 8) * 100)}%` }}
+                        className={`h-full transition-all duration-700 ${
+                          hasLiveAccess ? 'bg-emerald-500' : myPackage.status === 'pending' ? 'bg-amber-500' : 'bg-red-500'
+                        }`}
+                        style={{ width: `${Math.round(((myPackage.remaining_sessions || 0) / 8) * 100)}%` }}
                       ></div>
                     </div>
                   </div>
 
                   {!hasLiveAccess && (
-                    <div className="p-4 rounded-2xl bg-amber-100/70 dark:bg-amber-900/30 text-amber-900 dark:text-amber-200 text-sm font-bold mb-4 flex items-center gap-3">
-                      <AlertTriangle className="w-5 h-5 text-amber-600 shrink-0" />
+                    <div className={`p-4 rounded-2xl text-sm font-bold mb-4 flex items-center gap-3 ${
+                      myPackage.status === 'pending'
+                        ? 'bg-amber-100/70 dark:bg-amber-900/30 text-amber-900 dark:text-amber-200'
+                        : myPackage.status === 'not_subscribed'
+                        ? 'bg-rose-100/70 dark:bg-rose-900/30 text-rose-900 dark:text-rose-200'
+                        : 'bg-red-100/70 dark:bg-red-900/30 text-red-900 dark:text-red-200'
+                    }`}>
+                      <AlertTriangle className="w-5 h-5 shrink-0" />
                       <p>
-                        لقد استنفدت كامل الـ 8 حصص المدفوعة مقدماً. برجاء تجديد الاشتراك للمتابعة في الحصص القادمة.
+                        {myPackage.status === 'pending'
+                          ? 'تم إرسال طلب اشتراكك إلى المعلم، وجاري مراجعة إيصال التحويل لتفعيل رصيد الـ 8 حصص.'
+                          : myPackage.status === 'not_subscribed'
+                          ? 'أنت غير مشترك حالياً في باقة الحصص المباشرة. اضغط على الزر بالأسفل للاشتراك وتفعيل رصيدك.'
+                          : 'لقد استنفدت كامل الـ 8 حصص المدفوعة مقدماً. برجاء تجديد الاشتراك للمتابعة في الحصص القادمة.'}
                       </p>
                     </div>
                   )}
@@ -708,7 +875,13 @@ export default function StudentLiveSessions() {
                     className="w-full py-4 rounded-2xl bg-emerald-600 hover:bg-emerald-700 text-white font-black text-base flex items-center justify-center gap-2 transition-all shadow-lg shadow-emerald-500/20 cursor-pointer"
                   >
                     <RefreshCw className="w-5 h-5" />
-                    {hasLiveAccess ? 'شحن وتجديد باقة 8 حصص مقدماً' : 'تجديد الاشتراك الآن (+8 حصص)'}
+                    {hasLiveAccess 
+                      ? 'شحن وتجديد 8 حصص إضافية مقدماً' 
+                      : myPackage.status === 'pending'
+                      ? 'تعديل أو إعادة إرسال بيانات التحويل'
+                      : myPackage.status === 'not_subscribed'
+                      ? 'الاشتراك وتفعيل باقة الـ 8 حصص الآن'
+                      : 'تجديد الاشتراك الآن (+8 حصص)'}
                   </button>
                 </div>
               )}
@@ -761,12 +934,20 @@ export default function StudentLiveSessions() {
                 </div>
                 <div className="p-4 rounded-2xl bg-blue-50 dark:bg-blue-950/20 border border-blue-100 dark:border-blue-900/30">
                   <span className="text-xs font-bold text-blue-600 dark:text-blue-400 block mb-1">الرصيد المتبقي بالباقة</span>
-                  <span className="text-2xl font-black text-gray-900 dark:text-white">{myPackage?.remaining_sessions ?? 8} من 8 حصص</span>
+                  <span className="text-2xl font-black text-gray-900 dark:text-white">
+                    {hasLiveAccess ? `${myPackage.remaining_sessions} من 8 حصص` : '0 من 8 حصص'}
+                  </span>
                 </div>
                 <div className="p-4 rounded-2xl bg-emerald-50 dark:bg-emerald-950/20 border border-emerald-100 dark:border-emerald-900/30">
                   <span className="text-xs font-bold text-emerald-600 dark:text-emerald-400 block mb-1">حالة الباقة الحالية</span>
-                  <span className="text-lg font-black text-emerald-700 dark:text-emerald-400">
-                    {hasLiveAccess ? 'نشطة وجاهزة للحصص ✅' : 'منتهية (تحتاج تجديد) ⚠️'}
+                  <span className={`text-base font-black ${hasLiveAccess ? 'text-emerald-700 dark:text-emerald-400' : 'text-amber-700 dark:text-amber-400'}`}>
+                    {hasLiveAccess 
+                      ? 'نشطة وجاهزة للحصص ✅' 
+                      : myPackage?.status === 'pending'
+                      ? 'قيد المراجعة والتفعيل ⏳'
+                      : myPackage?.status === 'not_subscribed'
+                      ? 'غير مشترك بعد 🔒'
+                      : 'منتهية (تحتاج تجديد) ⚠️'}
                   </span>
                 </div>
               </div>
@@ -980,7 +1161,11 @@ export default function StudentLiveSessions() {
             <div className="flex justify-between items-center mb-6 pb-4 border-b border-gray-100 dark:border-slate-700">
               <h3 className="text-xl font-black text-gray-900 dark:text-white flex items-center gap-2">
                 <CreditCard className="w-6 h-6 text-emerald-500" />
-                تجديد باقة الحصص (8 حصص مقدماً)
+                {myPackage?.status === 'not_subscribed' 
+                  ? 'الاشتراك في باقة الحصص (8 حصص مقدماً)' 
+                  : myPackage?.status === 'pending'
+                  ? 'تحديث بيانات تحويل باقة الـ 8 حصص'
+                  : 'تجديد باقة الحصص (8 حصص مقدماً)'}
               </h3>
               <button onClick={() => setIsRenewModalOpen(false)} className="text-gray-400 hover:text-gray-600 p-1">
                 <X className="w-5 h-5" />
@@ -1053,9 +1238,13 @@ export default function StudentLiveSessions() {
                 <button
                   type="submit"
                   disabled={renewLoading}
-                  className="px-6 py-2.5 rounded-xl font-bold bg-emerald-600 hover:bg-emerald-700 text-white text-xs shadow-md disabled:opacity-50"
+                  className="px-6 py-2.5 rounded-xl font-bold bg-emerald-600 hover:bg-emerald-700 text-white text-xs shadow-md disabled:opacity-50 cursor-pointer"
                 >
-                  {renewLoading ? 'جاري الإرسال...' : 'تأكيد وإرسال طلب التجديد'}
+                  {renewLoading 
+                    ? 'جاري الإرسال...' 
+                    : myPackage?.status === 'not_subscribed'
+                    ? 'تأكيد وإرسال طلب الاشتراك'
+                    : 'تأكيد وإرسال طلب التجديد'}
                 </button>
               </div>
             </form>

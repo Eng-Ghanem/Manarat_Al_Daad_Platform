@@ -72,6 +72,7 @@ export default function AdminLiveSessions() {
   const [packagesLoading, setPackagesLoading] = useState(false);
   const [packageSearch, setPackageSearch] = useState('');
   const [packageGradeFilter, setPackageGradeFilter] = useState('all');
+  const [packageStatusFilter, setPackageStatusFilter] = useState('all'); // 'all' | 'active' | 'pending' | 'expired' | 'not_subscribed'
   const [bulkAttendanceGrade, setBulkAttendanceGrade] = useState('');
   const [receiptPreviewUrl, setReceiptPreviewUrl] = useState(null);
   const [packageSubTab, setPackageSubTab] = useState('packages'); // 'packages' | 'history'
@@ -135,6 +136,27 @@ export default function AdminLiveSessions() {
     fetchPackages();
     fetchCompletedSessions();
     fetchTrialData();
+  }, []);
+
+  // Real-time synchronization for Admin across packages, completed sessions, and trial requests
+  useEffect(() => {
+    const channel = supabase
+      .channel('admin_live_management_realtime')
+      .on('postgres_changes', { event: '*', schema: 'public', table: 'live_subscriptions' }, () => {
+        fetchPackages();
+      })
+      .on('postgres_changes', { event: '*', schema: 'public', table: 'completed_live_sessions' }, () => {
+        fetchCompletedSessions();
+        fetchPackages();
+      })
+      .on('postgres_changes', { event: '*', schema: 'public', table: 'trial_requests' }, () => {
+        fetchTrialData();
+      })
+      .subscribe();
+
+    return () => {
+      supabase.removeChannel(channel);
+    };
   }, []);
 
   // Reset grade filter when tab changes
@@ -246,6 +268,20 @@ export default function AdminLiveSessions() {
       // Combine student profiles with their live packages
       const combined = (students || []).map(student => {
         const sub = liveSubs.find(s => s.user_id === student.id);
+        const hasSub = Boolean(sub);
+        let status = 'not_subscribed';
+        let remaining_sessions = 0;
+        let total_sessions = 8;
+
+        if (hasSub) {
+          status = sub.status || 'not_subscribed';
+          total_sessions = sub.total_sessions || 8;
+          remaining_sessions = sub.remaining_sessions !== undefined ? sub.remaining_sessions : 0;
+          if (status === 'active' && remaining_sessions <= 0) {
+            status = 'expired';
+          }
+        }
+
         return {
           id: sub?.id || student.id,
           user_id: student.id,
@@ -254,10 +290,13 @@ export default function AdminLiveSessions() {
           email: student.email,
           phone_number: student.phone_number || '-',
           grade_level: student.grade_level || 'prep_1',
-          total_sessions: sub?.total_sessions || 8,
-          remaining_sessions: sub?.remaining_sessions !== undefined ? sub.remaining_sessions : 8,
-          status: sub?.status || 'active',
+          total_sessions,
+          remaining_sessions,
+          status,
+          payment_method: sub?.payment_method || null,
+          wallet_number: sub?.wallet_number || null,
           receipt_url: sub?.receipt_url || null,
+          notes: sub?.notes || null,
           created_at: sub?.created_at || student.created_at
         };
       });
@@ -717,23 +756,44 @@ export default function AdminLiveSessions() {
           })
         });
         if (res.ok) {
-          toast.success(`🎉 تم تجديد باقة 8 حصص للطالب ${pkg.full_name} بنجاح!`);
+          toast.success(
+            pkg.status === 'pending'
+              ? `🎉 تم قبول التحويل وتفعيل باقة 8 حصص للطالب ${pkg.full_name} بنجاح!`
+              : `🎉 تم تجديد باقة 8 حصص للطالب ${pkg.full_name} بنجاح!`
+          );
           fetchPackages();
           return;
         }
       }
 
-      await supabase
-        .from('live_subscriptions')
-        .upsert({
-          user_id: pkg.user_id,
-          grade_level: pkg.grade_level,
-          total_sessions: 8,
-          remaining_sessions: 8,
-          status: 'active',
-          activated_at: new Date().toISOString()
-        }, { onConflict: 'user_id' });
-      toast.success(`🎉 تم تجديد باقة 8 حصص للطالب ${pkg.full_name} بنجاح!`);
+      if (pkg.sub_id) {
+        await supabase
+          .from('live_subscriptions')
+          .update({
+            remaining_sessions: 8,
+            total_sessions: 8,
+            status: 'active',
+            activated_at: new Date().toISOString()
+          })
+          .eq('id', pkg.sub_id);
+      } else {
+        await supabase
+          .from('live_subscriptions')
+          .upsert({
+            user_id: pkg.user_id,
+            grade_level: pkg.grade_level,
+            total_sessions: 8,
+            remaining_sessions: 8,
+            status: 'active',
+            activated_at: new Date().toISOString()
+          }, { onConflict: 'user_id' });
+      }
+
+      toast.success(
+        pkg.status === 'pending'
+          ? `🎉 تم قبول التحويل وتفعيل باقة 8 حصص للطالب ${pkg.full_name} بنجاح!`
+          : `🎉 تم تفعيل/تجديد باقة 8 حصص للطالب ${pkg.full_name} بنجاح!`
+      );
       fetchPackages();
     } catch (err) {
       console.warn('Renew package error:', err);
@@ -745,9 +805,9 @@ export default function AdminLiveSessions() {
       toast.error('يرجى اختيار الصف الدراسي أولاً لتسجيل الحضور');
       return;
     }
-    const eligible = packages.filter(p => p.grade_level === bulkAttendanceGrade && p.remaining_sessions > 0);
+    const eligible = packages.filter(p => p.grade_level === bulkAttendanceGrade && p.status === 'active' && p.remaining_sessions > 0);
     if (eligible.length === 0) {
-      toast.error('لا يوجد طلاب لديهم رصيد حصص نشط في هذا الصف');
+      toast.error('لا يوجد طلاب لديهم باقة نشطة ورصيد متبقٍ في هذا الصف');
       return;
     }
     setBulkDeductModal({
@@ -764,16 +824,16 @@ export default function AdminLiveSessions() {
     const sTitle = bulkDeductModal.sessionTitle.trim() || `حصة جماعية - ${formatGradeName(grade)}`;
     const tNotes = bulkDeductModal.teacherNotes.trim() || 'تم تسجيل الحضور الجماعي بنجاح';
 
-    const eligible = packages.filter(p => p.grade_level === grade && p.remaining_sessions > 0);
+    const eligible = packages.filter(p => p.grade_level === grade && p.status === 'active' && p.remaining_sessions > 0);
     if (eligible.length === 0) {
-      toast.error('لا يوجد طلاب لديهم رصيد حصص نشط في هذا الصف');
+      toast.error('لا يوجد طلاب لديهم باقة نشطة ورصيد متبقٍ في هذا الصف');
       return;
     }
 
     setBulkDeductModal(prev => ({ ...prev, submitting: true }));
 
     setPackages(prev => prev.map(p => {
-      if (p.grade_level === grade && p.remaining_sessions > 0) {
+      if (p.grade_level === grade && p.status === 'active' && p.remaining_sessions > 0) {
         const nextRem = p.remaining_sessions - 1;
         return { ...p, remaining_sessions: nextRem, status: nextRem === 0 ? 'expired' : 'active' };
       }
@@ -1128,11 +1188,15 @@ export default function AdminLiveSessions() {
 
   // Filtered Packages
   const filteredPackages = packages.filter(p => {
-    const matchSearch = p.full_name.toLowerCase().includes(packageSearch.toLowerCase()) ||
-      p.email.toLowerCase().includes(packageSearch.toLowerCase()) ||
-      p.phone_number.includes(packageSearch);
+    const q = (packageSearch || '').toLowerCase().trim();
+    const matchSearch = !q ||
+      (p.full_name || '').toLowerCase().includes(q) ||
+      (p.email || '').toLowerCase().includes(q) ||
+      (p.phone_number || '').includes(q) ||
+      (p.wallet_number || '').includes(q);
     if (!matchSearch) return false;
     if (packageGradeFilter !== 'all' && p.grade_level !== packageGradeFilter) return false;
+    if (packageStatusFilter !== 'all' && p.status !== packageStatusFilter) return false;
     return true;
   });
 
@@ -1484,7 +1548,7 @@ export default function AdminLiveSessions() {
                     <select
                       value={packageGradeFilter}
                       onChange={(e) => setPackageGradeFilter(e.target.value)}
-                      className="px-4 py-3 rounded-xl bg-gray-50 dark:bg-slate-900 border border-gray-200 dark:border-slate-700 text-sm font-bold text-gray-700 dark:text-gray-300 outline-none sm:w-60"
+                      className="px-4 py-3 rounded-xl bg-gray-50 dark:bg-slate-900 border border-gray-200 dark:border-slate-700 text-sm font-bold text-gray-700 dark:text-gray-300 outline-none sm:w-56"
                     >
                       <option value="all">جميع الصفوف الدراسية</option>
                       <option value="prep_1">{formatGradeName('prep_1')}</option>
@@ -1493,6 +1557,18 @@ export default function AdminLiveSessions() {
                       <option value="sec_1">{formatGradeName('sec_1')}</option>
                       <option value="sec_2">{formatGradeName('sec_2')}</option>
                       <option value="sec_3">{formatGradeName('sec_3')}</option>
+                    </select>
+
+                    <select
+                      value={packageStatusFilter}
+                      onChange={(e) => setPackageStatusFilter(e.target.value)}
+                      className="px-4 py-3 rounded-xl bg-gray-50 dark:bg-slate-900 border border-gray-200 dark:border-slate-700 text-sm font-bold text-gray-700 dark:text-gray-300 outline-none sm:w-52"
+                    >
+                      <option value="all">جميع حالات الباقة</option>
+                      <option value="active">باقات نشطة ✅</option>
+                      <option value="pending">طلبات قيد المراجعة ⏳</option>
+                      <option value="expired">باقات منتهية (0 حصص) ⚠️</option>
+                      <option value="not_subscribed">طلاب غير مشتركين 🔒</option>
                     </select>
                   </div>
 
@@ -1520,9 +1596,11 @@ export default function AdminLiveSessions() {
                         </thead>
                         <tbody className="divide-y divide-gray-100 dark:divide-slate-700 text-sm">
                           {filteredPackages.map(pkg => {
-                            const remaining = pkg.remaining_sessions;
-                            const isExpired = remaining <= 0;
-                            const percent = Math.round((remaining / 8) * 100);
+                            const isNotSubscribed = pkg.status === 'not_subscribed';
+                            const isPending = pkg.status === 'pending';
+                            const isExpired = pkg.status === 'expired' || (!isNotSubscribed && !isPending && pkg.remaining_sessions <= 0);
+                            const remaining = pkg.remaining_sessions || 0;
+                            const percent = isNotSubscribed ? 0 : Math.round((remaining / 8) * 100);
 
                             return (
                               <tr key={pkg.id} className="hover:bg-gray-50/50 dark:hover:bg-slate-755 transition-colors">
@@ -1536,21 +1614,50 @@ export default function AdminLiveSessions() {
                                 <td className="py-4 px-4">
                                   <div className="w-48">
                                     <div className="flex justify-between text-xs font-black mb-1">
-                                      <span className={isExpired ? 'text-red-500' : 'text-emerald-600 dark:text-emerald-400'}>
-                                        {remaining} من 8 حصص متبقية
-                                      </span>
+                                      {isNotSubscribed ? (
+                                        <span className="text-gray-400">غير مشترك (0 حصص)</span>
+                                      ) : isPending ? (
+                                        <span className="text-amber-600 dark:text-amber-400 font-bold">طلب جديد (8 حصص)</span>
+                                      ) : isExpired ? (
+                                        <span className="text-red-500 font-bold">0 من 8 حصص متبقية</span>
+                                      ) : (
+                                        <span className={remaining <= 2 ? 'text-amber-500 font-bold' : 'text-emerald-600 dark:text-emerald-400 font-bold'}>
+                                          {remaining} من 8 حصص متبقية
+                                        </span>
+                                      )}
                                       <span className="text-gray-400">{percent}%</span>
                                     </div>
                                     <div className="w-full h-2 rounded-full bg-gray-200 dark:bg-slate-700 overflow-hidden">
                                       <div 
-                                        className={`h-full transition-all duration-500 ${isExpired ? 'bg-red-500' : remaining <= 2 ? 'bg-amber-500' : 'bg-emerald-500'}`}
-                                        style={{ width: `${percent}%` }}
+                                        className={`h-full transition-all duration-500 ${
+                                          isNotSubscribed ? 'bg-gray-300 dark:bg-slate-600' :
+                                          isPending ? 'bg-amber-500 animate-pulse' :
+                                          isExpired ? 'bg-red-500' :
+                                          remaining <= 2 ? 'bg-amber-500' : 'bg-emerald-500'
+                                        }`}
+                                        style={{ width: `${isPending ? 100 : percent}%` }}
                                       ></div>
                                     </div>
+                                    {isPending && pkg.wallet_number && (
+                                      <div className="text-[11px] text-gray-500 dark:text-gray-400 mt-1 flex items-center gap-1">
+                                        <span>محفظة:</span>
+                                        <span className="font-mono font-bold" dir="ltr">{pkg.wallet_number}</span>
+                                      </div>
+                                    )}
                                   </div>
                                 </td>
                                 <td className="py-4 px-4">
-                                  {isExpired ? (
+                                  {isNotSubscribed ? (
+                                    <span className="inline-flex items-center gap-1 px-3 py-1 rounded-full text-xs font-bold bg-slate-100 text-slate-700 dark:bg-slate-800 dark:text-slate-300">
+                                      <UserX className="w-3.5 h-3.5" />
+                                      غير مشترك
+                                    </span>
+                                  ) : isPending ? (
+                                    <span className="inline-flex items-center gap-1 px-3 py-1 rounded-full text-xs font-bold bg-amber-100 text-amber-800 dark:bg-amber-950 dark:text-amber-300 animate-pulse">
+                                      <Clock className="w-3.5 h-3.5" />
+                                      قيد المراجعة والتفعيل
+                                    </span>
+                                  ) : isExpired ? (
                                     <span className="inline-flex items-center gap-1 px-3 py-1 rounded-full text-xs font-bold bg-red-100 text-red-700 dark:bg-red-900/30 dark:text-red-400">
                                       <AlertCircle className="w-3.5 h-3.5" />
                                       منتهية (بحاجة للتجديد)
@@ -1558,48 +1665,81 @@ export default function AdminLiveSessions() {
                                   ) : (
                                     <span className="inline-flex items-center gap-1 px-3 py-1 rounded-full text-xs font-bold bg-emerald-100 text-emerald-700 dark:bg-emerald-900/30 dark:text-emerald-400">
                                       <CheckCircle className="w-3.5 h-3.5" />
-                                      نشطة
+                                      نشطة ({remaining})
                                     </span>
                                   )}
                                 </td>
                                 <td className="py-4 px-4">
                                   <div className="flex items-center justify-center gap-2">
-                                    <button
-                                      onClick={() => handleOpenDeductModal(pkg)}
-                                      disabled={remaining <= 0}
-                                      className="px-3.5 py-1.5 rounded-xl bg-amber-50 hover:bg-amber-100 dark:bg-amber-950/40 text-amber-700 dark:text-amber-400 text-xs font-bold flex items-center gap-1.5 transition-colors disabled:opacity-40 disabled:cursor-not-allowed cursor-pointer shadow-sm"
-                                      title="تسجيل حضور وخصم حصة واحدة مع إضافة عنوان وملاحظات"
-                                    >
-                                      <MinusCircle className="w-4 h-4" />
-                                      خصم حصة (-1)
-                                    </button>
-
-                                    <button
-                                      onClick={() => handleUpdatePackageSessions(pkg, 1)}
-                                      className="px-3 py-1.5 rounded-xl bg-gray-100 hover:bg-gray-200 dark:bg-slate-700 text-gray-700 dark:text-gray-300 text-xs font-bold flex items-center gap-1 transition-colors cursor-pointer"
-                                      title="إضافة حصة تعويضية (+1)"
-                                    >
-                                      <PlusCircle className="w-3.5 h-3.5" />
-                                      +1
-                                    </button>
-
-                                    <button
-                                      onClick={() => handleRenewPackage(pkg)}
-                                      className="px-4 py-1.5 rounded-xl bg-emerald-600 hover:bg-emerald-700 text-white text-xs font-black flex items-center gap-1 transition-colors shadow-sm cursor-pointer"
-                                      title="تجديد باقة 8 حصص جديدة"
-                                    >
-                                      <RefreshCw className="w-3.5 h-3.5" />
-                                      تجديد (8 حصص)
-                                    </button>
-
-                                    {pkg.receipt_url && (
+                                    {isNotSubscribed ? (
                                       <button
-                                        onClick={() => setReceiptPreviewUrl(pkg.receipt_url)}
-                                        className="p-1.5 rounded-lg bg-blue-50 text-blue-600 dark:bg-blue-900/30 dark:text-blue-400 hover:bg-blue-100 transition-colors"
-                                        title="عرض إيصال التحويل"
+                                        onClick={() => handleRenewPackage(pkg)}
+                                        className="px-4 py-2 rounded-xl bg-emerald-600 hover:bg-emerald-700 text-white text-xs font-black flex items-center gap-1.5 transition-colors shadow-sm cursor-pointer"
+                                        title="تفعيل باقة 8 حصص لهذا الطالب"
                                       >
-                                        <Eye className="w-4 h-4" />
+                                        <CheckCircle2 className="w-4 h-4" />
+                                        تفعيل الباقة (8 حصص)
                                       </button>
+                                    ) : isPending ? (
+                                      <>
+                                        <button
+                                          onClick={() => handleRenewPackage(pkg)}
+                                          className="px-4 py-2 rounded-xl bg-emerald-600 hover:bg-emerald-700 text-white text-xs font-black flex items-center gap-1.5 transition-colors shadow-sm cursor-pointer"
+                                          title="قبول التحويل وتفعيل باقة 8 حصص"
+                                        >
+                                          <CheckCircle2 className="w-4 h-4" />
+                                          قبول وتفعيل (8 حصص)
+                                        </button>
+                                        {pkg.receipt_url && (
+                                          <button
+                                            onClick={() => setReceiptPreviewUrl(pkg.receipt_url)}
+                                            className="p-2 rounded-xl bg-blue-50 text-blue-600 dark:bg-blue-900/30 dark:text-blue-400 hover:bg-blue-100 transition-colors cursor-pointer"
+                                            title="معاينة إيصال التحويل"
+                                          >
+                                            <Eye className="w-4 h-4" />
+                                          </button>
+                                        )}
+                                      </>
+                                    ) : (
+                                      <>
+                                        <button
+                                          onClick={() => handleOpenDeductModal(pkg)}
+                                          disabled={remaining <= 0}
+                                          className="px-3.5 py-1.5 rounded-xl bg-amber-50 hover:bg-amber-100 dark:bg-amber-950/40 text-amber-700 dark:text-amber-400 text-xs font-bold flex items-center gap-1.5 transition-colors disabled:opacity-40 disabled:cursor-not-allowed cursor-pointer shadow-sm"
+                                          title="تسجيل حضور وخصم حصة واحدة مع إضافة عنوان وملاحظات"
+                                        >
+                                          <MinusCircle className="w-4 h-4" />
+                                          خصم حصة (-1)
+                                        </button>
+
+                                        <button
+                                          onClick={() => handleUpdatePackageSessions(pkg, 1)}
+                                          className="px-3 py-1.5 rounded-xl bg-gray-100 hover:bg-gray-200 dark:bg-slate-700 text-gray-700 dark:text-gray-300 text-xs font-bold flex items-center gap-1 transition-colors cursor-pointer"
+                                          title="إضافة حصة تعويضية (+1)"
+                                        >
+                                          <PlusCircle className="w-3.5 h-3.5" />
+                                          +1
+                                        </button>
+
+                                        <button
+                                          onClick={() => handleRenewPackage(pkg)}
+                                          className="px-4 py-1.5 rounded-xl bg-emerald-600 hover:bg-emerald-700 text-white text-xs font-black flex items-center gap-1 transition-colors shadow-sm cursor-pointer"
+                                          title="تجديد باقة 8 حصص جديدة"
+                                        >
+                                          <RefreshCw className="w-3.5 h-3.5" />
+                                          تجديد (8 حصص)
+                                        </button>
+
+                                        {pkg.receipt_url && (
+                                          <button
+                                            onClick={() => setReceiptPreviewUrl(pkg.receipt_url)}
+                                            className="p-1.5 rounded-lg bg-blue-50 text-blue-600 dark:bg-blue-900/30 dark:text-blue-400 hover:bg-blue-100 transition-colors cursor-pointer"
+                                            title="عرض إيصال التحويل"
+                                          >
+                                            <Eye className="w-4 h-4" />
+                                          </button>
+                                        )}
+                                      </>
                                     )}
                                   </div>
                                 </td>

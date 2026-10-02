@@ -611,7 +611,7 @@ const clearChatHandler = async (req, res) => {
 // @access  Private/Admin
 const updateLivePackageAttendance = async (req, res) => {
   try {
-    const { user_id, grade_level, remaining_sessions, delta } = req.body;
+    const { user_id, grade_level, remaining_sessions, delta, session_title, teacher_notes } = req.body;
     if (!user_id) return res.status(400).json({ success: false, error: 'User ID is required' });
 
     const { data: existing } = await supabaseAdmin
@@ -621,11 +621,11 @@ const updateLivePackageAttendance = async (req, res) => {
       .order('created_at', { ascending: false })
       .limit(1);
 
+    const current = existing && existing.length > 0 ? existing[0].remaining_sessions : 8;
     let newRemaining;
     if (remaining_sessions !== undefined) {
       newRemaining = Math.max(0, parseInt(remaining_sessions));
     } else {
-      const current = existing && existing.length > 0 ? existing[0].remaining_sessions : 8;
       newRemaining = Math.max(0, current + (delta || 0));
     }
     const newStatus = newRemaining === 0 ? 'expired' : 'active';
@@ -658,6 +658,29 @@ const updateLivePackageAttendance = async (req, res) => {
         .single();
       if (error) throw error;
       result = data;
+    }
+
+    // If session was deducted, record attendance in completed_live_sessions
+    if (newRemaining < current) {
+      try {
+        const { data: profile } = await supabaseAdmin
+          .from('profiles')
+          .select('full_name, grade_level')
+          .eq('id', user_id)
+          .single();
+
+        await supabaseAdmin.from('completed_live_sessions').insert([{
+          student_id: user_id,
+          student_name: profile?.full_name || req.body.student_name || 'طالب',
+          grade_level: grade_level || profile?.grade_level || 'prep_1',
+          session_title: session_title || 'حصة أونلاين مباشرة',
+          session_type: 'package',
+          completed_at: new Date().toISOString(),
+          teacher_notes: teacher_notes || 'تم حضور الحصة واكتمالها بنجاح'
+        }]);
+      } catch (logErr) {
+        console.warn('Could not insert completed session log:', logErr.message);
+      }
     }
 
     return res.json({ success: true, data: result });
@@ -723,12 +746,12 @@ const renewLivePackage = async (req, res) => {
 // @access  Private/Admin
 const bulkLiveAttendance = async (req, res) => {
   try {
-    const { grade_level } = req.body;
+    const { grade_level, session_title, teacher_notes } = req.body;
     if (!grade_level) return res.status(400).json({ success: false, error: 'Grade level is required' });
 
     const { data: students, error: sErr } = await supabaseAdmin
       .from('profiles')
-      .select('id, grade_level')
+      .select('id, full_name, grade_level')
       .eq('role', 'student')
       .eq('grade_level', grade_level);
 
@@ -738,6 +761,8 @@ const bulkLiveAttendance = async (req, res) => {
     }
 
     let updatedCount = 0;
+    const completedEntries = [];
+
     for (const st of students) {
       const { data: existing } = await supabaseAdmin
         .from('live_subscriptions')
@@ -746,32 +771,77 @@ const bulkLiveAttendance = async (req, res) => {
         .limit(1);
 
       if (existing && existing.length > 0) {
-        const newRemaining = Math.max(0, existing[0].remaining_sessions - 1);
-        await supabaseAdmin
-          .from('live_subscriptions')
-          .update({
-            remaining_sessions: newRemaining,
-            status: newRemaining === 0 ? 'expired' : 'active'
-          })
-          .eq('id', existing[0].id);
-        updatedCount++;
-      } else {
-        await supabaseAdmin
-          .from('live_subscriptions')
-          .insert([{
-            user_id: st.id,
-            grade_level: st.grade_level,
-            total_sessions: 8,
-            remaining_sessions: 7,
-            status: 'active'
-          }]);
-        updatedCount++;
+        if (existing[0].remaining_sessions > 0) {
+          const newRemaining = Math.max(0, existing[0].remaining_sessions - 1);
+          await supabaseAdmin
+            .from('live_subscriptions')
+            .update({
+              remaining_sessions: newRemaining,
+              status: newRemaining === 0 ? 'expired' : 'active'
+            })
+            .eq('id', existing[0].id);
+          updatedCount++;
+
+          completedEntries.push({
+            student_id: st.id,
+            student_name: st.full_name || 'طالب',
+            grade_level: grade_level,
+            session_title: session_title || `حصة ${grade_level} الأونلاين المباشرة`,
+            session_type: 'weekly',
+            completed_at: new Date().toISOString(),
+            teacher_notes: teacher_notes || 'حضور جماعي للصف الدراسي'
+          });
+        }
+      }
+    }
+
+    if (completedEntries.length > 0) {
+      try {
+        await supabaseAdmin.from('completed_live_sessions').insert(completedEntries);
+      } catch (logErr) {
+        console.warn('Could not insert bulk completed sessions logs:', logErr.message);
       }
     }
 
     return res.json({ success: true, updatedCount });
   } catch (error) {
     console.error('Error in bulkLiveAttendance:', error);
+    return res.status(500).json({ success: false, error: error.message });
+  }
+};
+
+// @desc    Get completed sessions history
+// @route   GET /api/admin/live-subscriptions/completed
+// @access  Private/Admin
+const getCompletedLiveSessions = async (req, res) => {
+  try {
+    const { student_id, grade_level } = req.query;
+    let query = supabaseAdmin
+      .from('completed_live_sessions')
+      .select('*')
+      .order('completed_at', { ascending: false });
+
+    if (student_id) query = query.eq('student_id', student_id);
+    if (grade_level && grade_level !== 'all') query = query.eq('grade_level', grade_level);
+
+    const { data, error } = await query;
+    if (error) throw error;
+    return res.json({ success: true, data: data || [] });
+  } catch (error) {
+    console.warn('Error fetching completed sessions:', error.message);
+    return res.json({ success: true, data: [] });
+  }
+};
+
+// @desc    Delete completed session log
+// @route   DELETE /api/admin/live-subscriptions/completed/:id
+// @access  Private/Admin
+const deleteCompletedLiveSession = async (req, res) => {
+  try {
+    const { id } = req.params;
+    await supabaseAdmin.from('completed_live_sessions').delete().eq('id', id);
+    return res.json({ success: true, message: 'Deleted successfully' });
+  } catch (error) {
     return res.status(500).json({ success: false, error: error.message });
   }
 };
@@ -791,5 +861,7 @@ module.exports = {
   clearChatHandler,
   updateLivePackageAttendance,
   renewLivePackage,
-  bulkLiveAttendance
+  bulkLiveAttendance,
+  getCompletedLiveSessions,
+  deleteCompletedLiveSession
 };

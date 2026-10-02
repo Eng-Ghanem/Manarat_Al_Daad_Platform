@@ -14,7 +14,9 @@ const {
   clearChatHandler,
   updateLivePackageAttendance,
   renewLivePackage,
-  bulkLiveAttendance
+  bulkLiveAttendance,
+  getCompletedLiveSessions,
+  deleteCompletedLiveSession
 } = require('../controllers/adminController');
 
 const router = express.Router();
@@ -42,6 +44,8 @@ router.delete('/subscriptions/:id', deleteSubscription);
 router.post('/live-subscriptions/attendance', updateLivePackageAttendance);
 router.post('/live-subscriptions/renew', renewLivePackage);
 router.post('/live-subscriptions/bulk-attendance', bulkLiveAttendance);
+router.get('/live-subscriptions/completed', getCompletedLiveSessions);
+router.delete('/live-subscriptions/completed/:id', deleteCompletedLiveSession);
 
 // Route: POST /api/admin/students
 router.post('/students', createStudent);

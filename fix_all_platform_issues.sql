@@ -443,17 +443,26 @@ GRANT EXECUTE ON FUNCTION public.submit_quiz(UUID, JSONB) TO authenticated;
 -- ==============================================================================
 CREATE TABLE IF NOT EXISTS public.weekly_schedules (
     id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
-    grade_level TEXT NOT NULL,
+    grade_level TEXT,
     days TEXT[] NOT NULL,
     start_time TEXT NOT NULL,
     end_time TEXT NOT NULL,
     zoom_link TEXT NOT NULL,
     title TEXT DEFAULT 'الحصة الأسبوعية الثابتة',
+    target_type TEXT DEFAULT 'grade',
+    target_student_id UUID,
+    target_student_name TEXT,
     notes TEXT,
     is_active BOOLEAN DEFAULT true,
     created_at TIMESTAMPTZ DEFAULT now(),
     updated_at TIMESTAMPTZ DEFAULT now()
 );
+
+ALTER TABLE public.weekly_schedules ALTER COLUMN grade_level DROP NOT NULL;
+ALTER TABLE public.weekly_schedules ADD COLUMN IF NOT EXISTS target_type TEXT DEFAULT 'grade';
+ALTER TABLE public.weekly_schedules ADD COLUMN IF NOT EXISTS target_student_id UUID;
+ALTER TABLE public.weekly_schedules ADD COLUMN IF NOT EXISTS target_student_name TEXT;
+
 
 ALTER TABLE public.weekly_schedules ENABLE ROW LEVEL SECURITY;
 
@@ -597,3 +606,40 @@ USING (
         AND profiles.role IN ('admin', 'teacher')
     )
 );
+
+-- ==============================================================================
+-- 13. جدول الحصص المكتملة وسجل حضور الطلاب (completed_live_sessions)
+-- يسجل الحصص المنتهية والمخصومة من باقة الـ 8 حصص مع التاريخ والتفاصيل
+-- ==============================================================================
+CREATE TABLE IF NOT EXISTS public.completed_live_sessions (
+    id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+    student_id UUID NOT NULL REFERENCES public.profiles(id) ON DELETE CASCADE,
+    student_name TEXT NOT NULL,
+    grade_level TEXT NOT NULL,
+    session_title TEXT NOT NULL DEFAULT 'حصة أونلاين مباشرة',
+    session_type TEXT DEFAULT 'package',
+    completed_at TIMESTAMPTZ DEFAULT now(),
+    teacher_notes TEXT DEFAULT 'تم حضور الحصة واكتمالها بنجاح',
+    created_at TIMESTAMPTZ DEFAULT now()
+);
+
+ALTER TABLE public.completed_live_sessions ENABLE ROW LEVEL SECURITY;
+
+DROP POLICY IF EXISTS "Students can view their own completed sessions" ON public.completed_live_sessions;
+CREATE POLICY "Students can view their own completed sessions"
+ON public.completed_live_sessions FOR SELECT
+TO authenticated
+USING (student_id = (SELECT auth.uid()));
+
+DROP POLICY IF EXISTS "Admins full control on completed_live_sessions" ON public.completed_live_sessions;
+CREATE POLICY "Admins full control on completed_live_sessions"
+ON public.completed_live_sessions FOR ALL
+TO authenticated
+USING (
+    EXISTS (
+        SELECT 1 FROM public.profiles
+        WHERE profiles.id = (SELECT auth.uid())
+        AND profiles.role IN ('admin', 'teacher')
+    )
+);
+

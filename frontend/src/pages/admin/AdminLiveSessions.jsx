@@ -65,6 +65,7 @@ export default function AdminLiveSessions() {
   });
   const [scheduleStudentSearch, setScheduleStudentSearch] = useState('');
   const [deleteScheduleModal, setDeleteScheduleModal] = useState({ isOpen: false, id: null });
+  const [scheduleSubmitting, setScheduleSubmitting] = useState(false);
 
   // 8-Session Packages State
   const [packages, setPackages] = useState([]);
@@ -73,12 +74,37 @@ export default function AdminLiveSessions() {
   const [packageGradeFilter, setPackageGradeFilter] = useState('all');
   const [bulkAttendanceGrade, setBulkAttendanceGrade] = useState('');
   const [receiptPreviewUrl, setReceiptPreviewUrl] = useState(null);
+  const [packageSubTab, setPackageSubTab] = useState('packages'); // 'packages' | 'history'
+
+  // Completed Live Sessions History State
+  const [completedSessions, setCompletedSessions] = useState([]);
+  const [completedLoading, setCompletedLoading] = useState(false);
+  const [completedSearch, setCompletedSearch] = useState('');
+  const [deleteCompletedModal, setDeleteCompletedModal] = useState({ isOpen: false, id: null });
+
+  // Deduct & Bulk Attendance Modals
+  const [deductModal, setDeductModal] = useState({
+    isOpen: false,
+    pkg: null,
+    sessionTitle: '',
+    teacherNotes: '',
+    submitting: false
+  });
+  const [bulkDeductModal, setBulkDeductModal] = useState({
+    isOpen: false,
+    gradeLevel: '',
+    sessionTitle: '',
+    teacherNotes: '',
+    submitting: false
+  });
 
   // Trial Sessions State
   const [trialSessions, setTrialSessions] = useState([]);
   const [trialRequests, setTrialRequests] = useState([]);
   const [trialLoading, setTrialLoading] = useState(false);
+  const [trialSubmitting, setTrialSubmitting] = useState(false);
   const [isTrialModalOpen, setIsTrialModalOpen] = useState(false);
+  const [deleteTrialModal, setDeleteTrialModal] = useState({ isOpen: false, id: null, title: '' });
   const [trialForm, setTrialForm] = useState({
     title: 'حصة تجريبية مجانية (30 دقيقة)',
     description: 'حصة تعريفية لشرح المنهج وأسلوب التدريس وطريقة استخدام المنصة',
@@ -107,6 +133,7 @@ export default function AdminLiveSessions() {
     fetchData();
     fetchWeeklySchedules();
     fetchPackages();
+    fetchCompletedSessions();
     fetchTrialData();
   }, []);
 
@@ -152,18 +179,45 @@ export default function AdminLiveSessions() {
         .select('*')
         .order('created_at', { ascending: true });
 
-      if (!error && data) {
-        setWeeklySchedules(data);
-        localStorage.setItem('manarat_weekly_schedules', JSON.stringify(data));
+      if (!error && data && data.length > 0) {
+        const mapped = data.map(s => {
+          let extra = {};
+          if (s.notes && s.notes.startsWith('{') && s.notes.endsWith('}')) {
+            try {
+              const p = JSON.parse(s.notes);
+              extra = {
+                notes: p.custom_notes !== undefined ? p.custom_notes : s.notes,
+                target_type: p.target_type || s.target_type || 'grade',
+                target_student_id: p.target_student_id || s.target_student_id || null,
+                target_student_name: p.target_student_name || s.target_student_name || null
+              };
+            } catch (_) {}
+          }
+          return { ...s, ...extra };
+        });
+        setWeeklySchedules(mapped);
+        localStorage.setItem('manarat_weekly_schedules', JSON.stringify(mapped));
       } else {
-        // Fallback to local storage if DB table not yet created
+        // Fallback to local storage if DB empty or errored
         const local = localStorage.getItem('manarat_weekly_schedules');
-        if (local) setWeeklySchedules(JSON.parse(local));
+        if (local) {
+          try {
+            const parsed = JSON.parse(local);
+            if (Array.isArray(parsed) && parsed.length > 0) {
+              setWeeklySchedules(parsed);
+            }
+          } catch (_) {}
+        }
       }
     } catch (err) {
       console.warn('weekly_schedules fetch warning:', err);
       const local = localStorage.getItem('manarat_weekly_schedules');
-      if (local) setWeeklySchedules(JSON.parse(local));
+      if (local) {
+        try {
+          const parsed = JSON.parse(local);
+          if (Array.isArray(parsed)) setWeeklySchedules(parsed);
+        } catch (_) {}
+      }
     }
   };
 
@@ -216,7 +270,44 @@ export default function AdminLiveSessions() {
     }
   };
 
-  // 4. Fetch Trial Sessions & Requests
+  // 4. Fetch Completed Live Sessions
+  const fetchCompletedSessions = async () => {
+    setCompletedLoading(true);
+    try {
+      const { data: { session } } = await supabase.auth.getSession();
+      const token = session?.access_token;
+      const apiBase = import.meta.env.VITE_API_URL || (typeof window !== 'undefined' && window.location.hostname !== 'localhost' ? '' : 'http://localhost:5000');
+
+      if (token) {
+        const res = await fetch(`${apiBase}/api/admin/live-subscriptions/completed`, {
+          headers: { 'Authorization': `Bearer ${token}` }
+        });
+        if (res.ok) {
+          const json = await res.json();
+          if (json.success && json.data) {
+            setCompletedSessions(json.data);
+            return;
+          }
+        }
+      }
+
+      // Direct Supabase fallback
+      const { data, error } = await supabase
+        .from('completed_live_sessions')
+        .select('*')
+        .order('completed_at', { ascending: false });
+
+      if (!error && data) {
+        setCompletedSessions(data);
+      }
+    } catch (err) {
+      console.warn('Completed sessions fetch warning:', err);
+    } finally {
+      setCompletedLoading(false);
+    }
+  };
+
+  // 5. Fetch Trial Sessions & Requests
   const fetchTrialData = async () => {
     setTrialLoading(true);
     try {
@@ -225,7 +316,17 @@ export default function AdminLiveSessions() {
         .select('*')
         .order('start_time', { ascending: true });
 
-      if (tSessions) setTrialSessions(tSessions);
+      if (tSessions) {
+        const seen = new Set();
+        const unique = [];
+        for (const s of tSessions) {
+          if (!seen.has(s.id)) {
+            seen.add(s.id);
+            unique.push(s);
+          }
+        }
+        setTrialSessions(unique);
+      }
 
       const { data: tRequests } = await supabase
         .from('trial_requests')
@@ -243,17 +344,32 @@ export default function AdminLiveSessions() {
   // ==================== Weekly Schedule Handlers ====================
   const handleOpenScheduleModal = (schedule = null) => {
     if (schedule) {
+      let customNotes = schedule.notes || '';
+      let targetType = schedule.target_type || 'grade';
+      let targetStudentId = schedule.target_student_id || '';
+      let targetStudentName = schedule.target_student_name || '';
+
+      if (schedule.notes && schedule.notes.startsWith('{') && schedule.notes.endsWith('}')) {
+        try {
+          const p = JSON.parse(schedule.notes);
+          if (p.custom_notes !== undefined) customNotes = p.custom_notes;
+          if (p.target_type) targetType = p.target_type;
+          if (p.target_student_id) targetStudentId = p.target_student_id;
+          if (p.target_student_name) targetStudentName = p.target_student_name;
+        } catch (_) {}
+      }
+
       setScheduleForm({
         title: schedule.title || 'الحصة الأسبوعية الثابتة',
-        target_type: schedule.target_type || 'grade',
+        target_type: targetType,
         grade_level: schedule.grade_level || 'prep_1',
-        target_student_id: schedule.target_student_id || '',
-        target_student_name: schedule.target_student_name || '',
+        target_student_id: targetStudentId,
+        target_student_name: targetStudentName,
         days: schedule.days || ['السبت', 'الأربعاء'],
         start_time: schedule.start_time || '13:00',
         end_time: schedule.end_time || '14:00',
         zoom_link: schedule.zoom_link || '',
-        notes: schedule.notes || '',
+        notes: customNotes,
         is_active: schedule.is_active !== undefined ? schedule.is_active : true
       });
       setIsEditingSchedule(true);
@@ -302,62 +418,135 @@ export default function AdminLiveSessions() {
       return;
     }
 
-    const payload = {
-      title: scheduleForm.title.trim(),
+    setScheduleSubmitting(true);
+
+    const metaNotes = JSON.stringify({
+      custom_notes: scheduleForm.notes?.trim() || '',
       target_type: scheduleForm.target_type,
-      grade_level: scheduleForm.grade_level,
       target_student_id: scheduleForm.target_type === 'student' ? scheduleForm.target_student_id : null,
       target_student_name: scheduleForm.target_type === 'student' ? scheduleForm.target_student_name : null,
+    });
+
+    const safePayload = {
+      title: scheduleForm.title.trim(),
+      grade_level: scheduleForm.grade_level,
       days: scheduleForm.days,
       start_time: scheduleForm.start_time,
       end_time: scheduleForm.end_time,
       zoom_link: getCleanZoomUrl(scheduleForm.zoom_link),
+      is_active: scheduleForm.is_active,
+      notes: metaNotes
+    };
+
+    const fullPayload = {
+      ...safePayload,
+      target_type: scheduleForm.target_type,
+      target_student_id: scheduleForm.target_type === 'student' ? scheduleForm.target_student_id : null,
+      target_student_name: scheduleForm.target_type === 'student' ? scheduleForm.target_student_name : null,
+    };
+
+    const clientItem = {
+      title: scheduleForm.title.trim(),
+      grade_level: scheduleForm.grade_level,
+      days: scheduleForm.days,
+      start_time: scheduleForm.start_time,
+      end_time: scheduleForm.end_time,
+      zoom_link: getCleanZoomUrl(scheduleForm.zoom_link),
+      is_active: scheduleForm.is_active,
       notes: scheduleForm.notes?.trim() || '',
-      is_active: scheduleForm.is_active
+      target_type: scheduleForm.target_type,
+      target_student_id: scheduleForm.target_type === 'student' ? scheduleForm.target_student_id : null,
+      target_student_name: scheduleForm.target_type === 'student' ? scheduleForm.target_student_name : null,
     };
 
     try {
+      let finalId = currentScheduleId;
+      const isUUID = currentScheduleId && /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(currentScheduleId);
+
       if (isEditingSchedule) {
-        await supabase.from('weekly_schedules').update(payload).eq('id', currentScheduleId);
-        setWeeklySchedules(prev => prev.map(s => s.id === currentScheduleId ? { ...s, ...payload } : s));
+        if (isUUID) {
+          let { error } = await supabase.from('weekly_schedules').update(fullPayload).eq('id', currentScheduleId);
+          if (error) {
+            await supabase.from('weekly_schedules').update(safePayload).eq('id', currentScheduleId);
+          }
+        } else {
+          // If non-UUID ID, insert into DB
+          let { data, error } = await supabase.from('weekly_schedules').insert([fullPayload]).select().single();
+          if (error) {
+            const res = await supabase.from('weekly_schedules').insert([safePayload]).select().single();
+            data = res.data;
+          }
+          if (data?.id) finalId = data.id;
+        }
+
+        const updated = weeklySchedules.map(s => s.id === currentScheduleId ? { ...s, ...clientItem, id: finalId } : s);
+        setWeeklySchedules(updated);
+        localStorage.setItem('manarat_weekly_schedules', JSON.stringify(updated));
       } else {
-        const { data } = await supabase.from('weekly_schedules').insert([payload]).select().single();
-        const newObj = data || { id: Date.now().toString(), ...payload };
-        setWeeklySchedules(prev => [...prev, newObj]);
+        let newId = Date.now().toString();
+        let { data, error } = await supabase.from('weekly_schedules').insert([fullPayload]).select().single();
+        if (error) {
+          const res = await supabase.from('weekly_schedules').insert([safePayload]).select().single();
+          data = res.data;
+        }
+        if (data?.id) newId = data.id;
+
+        const updated = [...weeklySchedules, { ...clientItem, id: newId }];
+        setWeeklySchedules(updated);
+        localStorage.setItem('manarat_weekly_schedules', JSON.stringify(updated));
       }
 
-      toast.success('تم حفظ الموعد الأسبوعي بنجاح');
+      toast.success(isEditingSchedule ? 'تم تحديث الموعد الأسبوعي بنجاح' : 'تم حفظ الموعد الأسبوعي بنجاح');
       setIsScheduleModalOpen(false);
-      fetchWeeklySchedules();
     } catch (err) {
-      console.warn('Saving schedule direct to DB failed, updating locally:', err);
-      // Local fallback
-      const updated = isEditingSchedule 
-        ? weeklySchedules.map(s => s.id === currentScheduleId ? { ...s, ...payload } : s)
-        : [...weeklySchedules, { id: Date.now().toString(), ...payload }];
+      console.warn('Save schedule exception:', err);
+      const fallbackId = currentScheduleId || Date.now().toString();
+      const updated = isEditingSchedule
+        ? weeklySchedules.map(s => s.id === currentScheduleId ? { ...s, ...clientItem } : s)
+        : [...weeklySchedules, { ...clientItem, id: fallbackId }];
       setWeeklySchedules(updated);
       localStorage.setItem('manarat_weekly_schedules', JSON.stringify(updated));
       toast.success('تم حفظ الموعد الأسبوعي بنجاح');
       setIsScheduleModalOpen(false);
+    } finally {
+      setScheduleSubmitting(false);
     }
   };
 
   const handleDeleteSchedule = async () => {
     const id = deleteScheduleModal.id;
     setDeleteScheduleModal({ isOpen: false, id: null });
-    try {
-      await supabase.from('weekly_schedules').delete().eq('id', id);
-    } catch (_) {}
+    if (/^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(id)) {
+      try {
+        await supabase.from('weekly_schedules').delete().eq('id', id);
+      } catch (_) {}
+    }
     const updated = weeklySchedules.filter(s => s.id !== id);
     setWeeklySchedules(updated);
     localStorage.setItem('manarat_weekly_schedules', JSON.stringify(updated));
-    toast.success('تم حذف الموعد الأسبوعي');
+    toast.success('تم حذف الموعد الأسبوعي بنجاح');
   };
 
   // ==================== 8-Session Packages Handlers ====================
-  const handleUpdatePackageSessions = async (pkg, delta) => {
-    const newRemaining = Math.max(0, pkg.remaining_sessions + delta);
+  const handleOpenDeductModal = (pkg) => {
+    setDeductModal({
+      isOpen: true,
+      pkg,
+      sessionTitle: `حصة أونلاين - ${formatGradeName(pkg.grade_level)}`,
+      teacherNotes: '',
+      submitting: false
+    });
+  };
+
+  const handleConfirmDeduct = async () => {
+    if (!deductModal.pkg) return;
+    const pkg = deductModal.pkg;
+    const newRemaining = Math.max(0, pkg.remaining_sessions - 1);
     const newStatus = newRemaining === 0 ? 'expired' : 'active';
+    const sTitle = deductModal.sessionTitle.trim() || `حصة أونلاين - ${formatGradeName(pkg.grade_level)}`;
+    const tNotes = deductModal.teacherNotes.trim() || 'تم حضور الحصة واكتمالها بنجاح';
+
+    setDeductModal(prev => ({ ...prev, submitting: true }));
 
     // Optimistic UI update
     setPackages(prev => prev.map(p => p.id === pkg.id ? { 
@@ -367,7 +556,84 @@ export default function AdminLiveSessions() {
     } : p));
 
     try {
-      // 1. Try backend API first (uses admin privileges and bypasses RLS)
+      const { data: { session } } = await supabase.auth.getSession();
+      const token = session?.access_token;
+      const apiBase = import.meta.env.VITE_API_URL || (typeof window !== 'undefined' && window.location.hostname !== 'localhost' ? '' : 'http://localhost:5000');
+
+      if (token) {
+        const res = await fetch(`${apiBase}/api/admin/live-subscriptions/attendance`, {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+            'Authorization': `Bearer ${token}`
+          },
+          body: JSON.stringify({
+            user_id: pkg.user_id,
+            grade_level: pkg.grade_level,
+            remaining_sessions: newRemaining,
+            session_title: sTitle,
+            teacher_notes: tNotes
+          })
+        });
+        if (res.ok) {
+          toast.success(`تم تسجيل الحضور وخصم حصة بنجاح (المتبقي: ${newRemaining})`);
+          setDeductModal({ isOpen: false, pkg: null, sessionTitle: '', teacherNotes: '', submitting: false });
+          fetchPackages();
+          fetchCompletedSessions();
+          return;
+        }
+      }
+
+      // Supabase direct fallback
+      if (pkg.sub_id) {
+        await supabase
+          .from('live_subscriptions')
+          .update({ remaining_sessions: newRemaining, status: newStatus })
+          .eq('id', pkg.sub_id);
+      } else {
+        await supabase
+          .from('live_subscriptions')
+          .upsert({
+            user_id: pkg.user_id,
+            grade_level: pkg.grade_level,
+            total_sessions: 8,
+            remaining_sessions: newRemaining,
+            status: newStatus
+          }, { onConflict: 'user_id' });
+      }
+
+      await supabase.from('completed_live_sessions').insert([{
+        student_id: pkg.user_id,
+        student_name: pkg.full_name,
+        grade_level: pkg.grade_level,
+        session_title: sTitle,
+        session_type: 'package',
+        completed_at: new Date().toISOString(),
+        teacher_notes: tNotes
+      }]);
+
+      toast.success(`تم تسجيل الحضور وخصم حصة بنجاح (المتبقي: ${newRemaining})`);
+      setDeductModal({ isOpen: false, pkg: null, sessionTitle: '', teacherNotes: '', submitting: false });
+      fetchPackages();
+      fetchCompletedSessions();
+    } catch (err) {
+      console.warn('Deduct session error:', err);
+      toast.error('حدث خطأ أثناء خصم الحصة');
+      setDeductModal(prev => ({ ...prev, submitting: false }));
+    }
+  };
+
+  const handleUpdatePackageSessions = async (pkg, delta) => {
+    const newRemaining = Math.max(0, pkg.remaining_sessions + delta);
+    const newStatus = newRemaining === 0 ? 'expired' : 'active';
+
+    setPackages(prev => prev.map(p => p.id === pkg.id ? { 
+      ...p, 
+      remaining_sessions: newRemaining,
+      status: newStatus 
+    } : p));
+
+    try {
       const { data: { session } } = await supabase.auth.getSession();
       const token = session?.access_token;
       const apiBase = import.meta.env.VITE_API_URL || (typeof window !== 'undefined' && window.location.hostname !== 'localhost' ? '' : 'http://localhost:5000');
@@ -392,11 +658,11 @@ export default function AdminLiveSessions() {
               : `تم تحديث الرصيد (المتبقي: ${newRemaining})`
           );
           fetchPackages();
+          fetchCompletedSessions();
           return;
         }
       }
 
-      // 2. Direct Supabase update with onConflict: 'user_id'
       if (pkg.sub_id) {
         await supabase
           .from('live_subscriptions')
@@ -419,13 +685,13 @@ export default function AdminLiveSessions() {
           : `تم تحديث الرصيد (المتبقي: ${newRemaining})`
       );
       fetchPackages();
+      fetchCompletedSessions();
     } catch (err) {
       console.warn('Update package sessions error:', err);
     }
   };
 
   const handleRenewPackage = async (pkg) => {
-    // Reset to full 8 sessions
     setPackages(prev => prev.map(p => p.id === pkg.id ? { 
       ...p, 
       remaining_sessions: 8,
@@ -474,20 +740,40 @@ export default function AdminLiveSessions() {
     }
   };
 
-  const handleBulkAttendance = async () => {
+  const handleOpenBulkDeductModal = () => {
     if (!bulkAttendanceGrade) {
-      toast.error('يرجى اختيار الصف الدراسي لتسجيل الحضور');
+      toast.error('يرجى اختيار الصف الدراسي أولاً لتسجيل الحضور');
       return;
     }
-
     const eligible = packages.filter(p => p.grade_level === bulkAttendanceGrade && p.remaining_sessions > 0);
     if (eligible.length === 0) {
       toast.error('لا يوجد طلاب لديهم رصيد حصص نشط في هذا الصف');
       return;
     }
+    setBulkDeductModal({
+      isOpen: true,
+      gradeLevel: bulkAttendanceGrade,
+      sessionTitle: `حصة جماعية - ${formatGradeName(bulkAttendanceGrade)}`,
+      teacherNotes: '',
+      submitting: false
+    });
+  };
+
+  const handleConfirmBulkDeduct = async () => {
+    const grade = bulkDeductModal.gradeLevel;
+    const sTitle = bulkDeductModal.sessionTitle.trim() || `حصة جماعية - ${formatGradeName(grade)}`;
+    const tNotes = bulkDeductModal.teacherNotes.trim() || 'تم تسجيل الحضور الجماعي بنجاح';
+
+    const eligible = packages.filter(p => p.grade_level === grade && p.remaining_sessions > 0);
+    if (eligible.length === 0) {
+      toast.error('لا يوجد طلاب لديهم رصيد حصص نشط في هذا الصف');
+      return;
+    }
+
+    setBulkDeductModal(prev => ({ ...prev, submitting: true }));
 
     setPackages(prev => prev.map(p => {
-      if (p.grade_level === bulkAttendanceGrade && p.remaining_sessions > 0) {
+      if (p.grade_level === grade && p.remaining_sessions > 0) {
         const nextRem = p.remaining_sessions - 1;
         return { ...p, remaining_sessions: nextRem, status: nextRem === 0 ? 'expired' : 'active' };
       }
@@ -506,11 +792,17 @@ export default function AdminLiveSessions() {
             'Content-Type': 'application/json',
             'Authorization': `Bearer ${token}`
           },
-          body: JSON.stringify({ grade_level: bulkAttendanceGrade })
+          body: JSON.stringify({ 
+            grade_level: grade,
+            session_title: sTitle,
+            teacher_notes: tNotes
+          })
         });
         if (res.ok) {
           toast.success(`✅ تم تسجيل حضور ${eligible.length} طالب وخصم حصة واحدة لكل منهم`);
+          setBulkDeductModal({ isOpen: false, gradeLevel: '', sessionTitle: '', teacherNotes: '', submitting: false });
           fetchPackages();
+          fetchCompletedSessions();
           return;
         }
       }
@@ -526,11 +818,49 @@ export default function AdminLiveSessions() {
             remaining_sessions: nextRem,
             status: nextRem === 0 ? 'expired' : 'active'
           }, { onConflict: 'user_id' });
+
+        await supabase.from('completed_live_sessions').insert([{
+          student_id: p.user_id,
+          student_name: p.full_name,
+          grade_level: p.grade_level,
+          session_title: sTitle,
+          session_type: 'package',
+          completed_at: new Date().toISOString(),
+          teacher_notes: tNotes
+        }]);
       }
       toast.success(`✅ تم تسجيل حضور ${eligible.length} طالب وخصم حصة واحدة لكل منهم`);
+      setBulkDeductModal({ isOpen: false, gradeLevel: '', sessionTitle: '', teacherNotes: '', submitting: false });
       fetchPackages();
+      fetchCompletedSessions();
     } catch (err) {
       console.warn('Bulk attendance error:', err);
+      toast.error('حدث خطأ أثناء تسجيل الحضور الجماعي');
+      setBulkDeductModal(prev => ({ ...prev, submitting: false }));
+    }
+  };
+
+  const handleDeleteCompletedSession = async () => {
+    const id = deleteCompletedModal.id;
+    setDeleteCompletedModal({ isOpen: false, id: null });
+    try {
+      const { data: { session } } = await supabase.auth.getSession();
+      const token = session?.access_token;
+      const apiBase = import.meta.env.VITE_API_URL || (typeof window !== 'undefined' && window.location.hostname !== 'localhost' ? '' : 'http://localhost:5000');
+
+      if (token) {
+        await fetch(`${apiBase}/api/admin/live-subscriptions/completed/${id}`, {
+          method: 'DELETE',
+          headers: { 'Authorization': `Bearer ${token}` }
+        });
+      } else {
+        await supabase.from('completed_live_sessions').delete().eq('id', id);
+      }
+      setCompletedSessions(prev => prev.filter(c => c.id !== id));
+      toast.success('تم حذف سجل الحصة المكتملة بنجاح');
+    } catch (err) {
+      console.warn('Delete completed session error:', err);
+      toast.error('فشل حذف سجل الحصة');
     }
   };
 
@@ -550,6 +880,8 @@ export default function AdminLiveSessions() {
       return;
     }
 
+    setTrialSubmitting(true);
+
     const payload = {
       title: trialForm.title.trim(),
       description: trialForm.description?.trim() || '',
@@ -566,9 +898,7 @@ export default function AdminLiveSessions() {
     try {
       const { data, error } = await supabase.from('trial_sessions').insert([payload]).select().single();
       const newObj = data || { id: Date.now().toString(), ...payload };
-      setTrialSessions(prev => [...prev, newObj]);
 
-      // Automatically register selected students into trial_requests for tracking
       if (trialForm.target_type === 'specific_students' && trialForm.target_student_ids.length > 0) {
         const invites = trialForm.target_student_ids.map(sId => {
           const sObj = packages.find(p => p.user_id === sId) || packages.find(p => p.id === sId);
@@ -582,19 +912,33 @@ export default function AdminLiveSessions() {
           };
         });
         await supabase.from('trial_requests').insert(invites).catch(err => console.warn('Invites error:', err));
-        await fetchTrialData();
       }
 
       toast.success('تمت جدولة الحصة التجريبية بنجاح (30 دقيقة)');
       setIsTrialModalOpen(false);
-      fetchTrialData();
+      await fetchTrialData();
     } catch (err) {
       console.warn('Save trial session fallback:', err);
       const fallbackObj = { id: Date.now().toString(), ...payload };
-      setTrialSessions(prev => [...prev, fallbackObj]);
+      setTrialSessions(prev => [...prev.filter(t => t.id !== fallbackObj.id), fallbackObj]);
       toast.success('تمت جدولة الحصة التجريبية بنجاح');
       setIsTrialModalOpen(false);
+    } finally {
+      setTrialSubmitting(false);
     }
+  };
+
+  const handleDeleteTrialSession = async () => {
+    const id = deleteTrialModal.id;
+    setDeleteTrialModal({ isOpen: false, id: null, title: '' });
+    try {
+      await supabase.from('trial_sessions').delete().eq('id', id);
+      await supabase.from('trial_requests').delete().eq('trial_session_id', id);
+    } catch (err) {
+      console.warn('Delete trial session error:', err);
+    }
+    setTrialSessions(prev => prev.filter(t => t.id !== id));
+    toast.success('تم حذف الحصة التجريبية بنجاح');
   };
 
   const handleApproveTrialStudent = async (req) => {
@@ -1056,14 +1400,14 @@ export default function AdminLiveSessions() {
             <div className="bg-white dark:bg-slate-800 rounded-3xl p-6 md:p-8 shadow-sm border border-gray-100 dark:border-slate-700 mb-8">
               
               {/* Header & Bulk Attendance */}
-              <div className="flex flex-col lg:flex-row justify-between items-start lg:items-center gap-4 mb-8 pb-6 border-b border-gray-100 dark:border-slate-700">
+              <div className="flex flex-col lg:flex-row justify-between items-start lg:items-center gap-4 mb-6 pb-6 border-b border-gray-100 dark:border-slate-700">
                 <div>
                   <h2 className="text-2xl font-black text-gray-900 dark:text-white flex items-center gap-2">
                     <CreditCard className="w-7 h-7 text-emerald-500" />
-                    نظام باقات الحصص الأونلاين (8 حصص مقدماً)
+                    نظام باقات الحصص وسجل الحضور (8 حصص مقدماً)
                   </h2>
                   <p className="text-gray-500 dark:text-gray-400 text-sm mt-1">
-                    يدفع كل طالب ثمن 8 حصص مقدماً، وعند حضور الحصص يقل رصيده تلقائياً. عند انتهاء الـ 8 حصص يطالب بالنظام بالتجديد للمتابعة.
+                    إدارة اشتراكات الطلاب، تسجيل حضور الحصص مع الملاحظات، ومتابعة سجل الحصص المكتملة المتزامن مع لوحة الطالب.
                   </p>
                 </div>
 
@@ -1083,7 +1427,7 @@ export default function AdminLiveSessions() {
                     <option value="sec_3">{formatGradeName('sec_3')}</option>
                   </select>
                   <button
-                    onClick={handleBulkAttendance}
+                    onClick={handleOpenBulkDeductModal}
                     className="px-4 py-2 bg-emerald-600 hover:bg-emerald-700 text-white rounded-xl text-xs font-bold flex items-center gap-1.5 transition-colors shadow-sm shrink-0 cursor-pointer"
                   >
                     <UserCheck className="w-4 h-4" />
@@ -1092,144 +1436,286 @@ export default function AdminLiveSessions() {
                 </div>
               </div>
 
-              {/* Filters */}
-              <div className="flex flex-col sm:flex-row gap-4 mb-6">
-                <input
-                  type="text"
-                  placeholder="بحث باسم الطالب، الإيميل، أو الهاتف..."
-                  value={packageSearch}
-                  onChange={(e) => setPackageSearch(e.target.value)}
-                  className="flex-1 px-4 py-3 rounded-xl bg-gray-50 dark:bg-slate-900 border border-gray-200 dark:border-slate-700 text-sm font-bold text-gray-900 dark:text-white outline-none"
-                />
-                <select
-                  value={packageGradeFilter}
-                  onChange={(e) => setPackageGradeFilter(e.target.value)}
-                  className="px-4 py-3 rounded-xl bg-gray-50 dark:bg-slate-900 border border-gray-200 dark:border-slate-700 text-sm font-bold text-gray-700 dark:text-gray-300 outline-none sm:w-60"
+              {/* Sub-tab Navigation */}
+              <div className="flex items-center gap-2 mb-6 border-b border-gray-100 dark:border-slate-700 pb-3">
+                <button
+                  onClick={() => setPackageSubTab('packages')}
+                  className={`px-5 py-2.5 rounded-2xl text-xs font-black transition-all flex items-center gap-2 cursor-pointer ${
+                    packageSubTab === 'packages'
+                      ? 'bg-emerald-600 text-white shadow-md shadow-emerald-600/20'
+                      : 'text-gray-600 dark:text-gray-400 hover:bg-gray-100 dark:hover:bg-slate-700/60'
+                  }`}
                 >
-                  <option value="all">جميع الصفوف الدراسية</option>
-                  <option value="prep_1">{formatGradeName('prep_1')}</option>
-                  <option value="prep_2">{formatGradeName('prep_2')}</option>
-                  <option value="prep_3">{formatGradeName('prep_3')}</option>
-                  <option value="sec_1">{formatGradeName('sec_1')}</option>
-                  <option value="sec_2">{formatGradeName('sec_2')}</option>
-                  <option value="sec_3">{formatGradeName('sec_3')}</option>
-                </select>
+                  <CreditCard className="w-4 h-4" />
+                  <span>باقات واشتراكات الطلاب</span>
+                  <span className="px-2 py-0.5 rounded-full text-[10px] font-black bg-white/20">
+                    {packages.length}
+                  </span>
+                </button>
+
+                <button
+                  onClick={() => setPackageSubTab('history')}
+                  className={`px-5 py-2.5 rounded-2xl text-xs font-black transition-all flex items-center gap-2 cursor-pointer ${
+                    packageSubTab === 'history'
+                      ? 'bg-emerald-600 text-white shadow-md shadow-emerald-600/20'
+                      : 'text-gray-600 dark:text-gray-400 hover:bg-gray-100 dark:hover:bg-slate-700/60'
+                  }`}
+                >
+                  <BookOpen className="w-4 h-4" />
+                  <span>سجل الحصص المكتملة والحضور</span>
+                  <span className="px-2 py-0.5 rounded-full text-[10px] font-black bg-emerald-100 text-emerald-800 dark:bg-emerald-950 dark:text-emerald-300">
+                    {completedSessions.length}
+                  </span>
+                </button>
               </div>
 
-              {/* Packages Table */}
-              {packagesLoading ? (
-                <div className="flex justify-center py-20">
-                  <div className="animate-spin rounded-full h-12 w-12 border-4 border-blue-500 border-t-transparent"></div>
-                </div>
-              ) : filteredPackages.length === 0 ? (
-                <div className="text-center py-12 bg-gray-50 dark:bg-slate-900/30 rounded-2xl">
-                  <Users className="w-12 h-12 text-gray-300 dark:text-slate-600 mx-auto mb-3" />
-                  <p className="text-gray-600 dark:text-gray-400 font-bold">لا توجد اشتراكات مطابقة للبحث.</p>
-                </div>
-              ) : (
-                <div className="overflow-x-auto">
-                  <table className="w-full text-right">
-                    <thead>
-                      <tr className="border-b border-gray-200 dark:border-slate-700 text-xs font-black text-gray-500 dark:text-gray-400 uppercase">
-                        <th className="py-4 px-4">الطالب</th>
-                        <th className="py-4 px-4">الصف</th>
-                        <th className="py-4 px-4">رصيد الحصص (من 8)</th>
-                        <th className="py-4 px-4">الحالة</th>
-                        <th className="py-4 px-4 text-center">إجراءات الباقة والحضور</th>
-                      </tr>
-                    </thead>
-                    <tbody className="divide-y divide-gray-100 dark:divide-slate-700 text-sm">
-                      {filteredPackages.map(pkg => {
-                        const remaining = pkg.remaining_sessions;
-                        const isExpired = remaining <= 0;
-                        const percent = Math.round((remaining / 8) * 100);
+              {/* TAB 1: PACKAGES & SUBSCRIPTIONS */}
+              {packageSubTab === 'packages' && (
+                <div>
+                  {/* Filters */}
+                  <div className="flex flex-col sm:flex-row gap-4 mb-6">
+                    <input
+                      type="text"
+                      placeholder="بحث باسم الطالب، الإيميل، أو الهاتف..."
+                      value={packageSearch}
+                      onChange={(e) => setPackageSearch(e.target.value)}
+                      className="flex-1 px-4 py-3 rounded-xl bg-gray-50 dark:bg-slate-900 border border-gray-200 dark:border-slate-700 text-sm font-bold text-gray-900 dark:text-white outline-none"
+                    />
+                    <select
+                      value={packageGradeFilter}
+                      onChange={(e) => setPackageGradeFilter(e.target.value)}
+                      className="px-4 py-3 rounded-xl bg-gray-50 dark:bg-slate-900 border border-gray-200 dark:border-slate-700 text-sm font-bold text-gray-700 dark:text-gray-300 outline-none sm:w-60"
+                    >
+                      <option value="all">جميع الصفوف الدراسية</option>
+                      <option value="prep_1">{formatGradeName('prep_1')}</option>
+                      <option value="prep_2">{formatGradeName('prep_2')}</option>
+                      <option value="prep_3">{formatGradeName('prep_3')}</option>
+                      <option value="sec_1">{formatGradeName('sec_1')}</option>
+                      <option value="sec_2">{formatGradeName('sec_2')}</option>
+                      <option value="sec_3">{formatGradeName('sec_3')}</option>
+                    </select>
+                  </div>
 
-                        return (
-                          <tr key={pkg.id} className="hover:bg-gray-50/50 dark:hover:bg-slate-750 transition-colors">
-                            <td className="py-4 px-4">
-                              <div className="font-bold text-gray-900 dark:text-white">{pkg.full_name}</div>
-                              <div className="text-xs text-gray-400" dir="ltr">{pkg.phone_number}</div>
-                            </td>
-                            <td className="py-4 px-4 font-bold text-gray-600 dark:text-gray-300">
-                              {formatGradeName(pkg.grade_level)}
-                            </td>
-                            <td className="py-4 px-4">
-                              <div className="w-48">
-                                <div className="flex justify-between text-xs font-black mb-1">
-                                  <span className={isExpired ? 'text-red-500' : 'text-emerald-600 dark:text-emerald-400'}>
-                                    {remaining} من 8 حصص متبقية
-                                  </span>
-                                  <span className="text-gray-400">{percent}%</span>
-                                </div>
-                                <div className="w-full h-2 rounded-full bg-gray-200 dark:bg-slate-700 overflow-hidden">
-                                  <div 
-                                    className={`h-full transition-all duration-500 ${isExpired ? 'bg-red-500' : remaining <= 2 ? 'bg-amber-500' : 'bg-emerald-500'}`}
-                                    style={{ width: `${percent}%` }}
-                                  ></div>
-                                </div>
-                              </div>
-                            </td>
-                            <td className="py-4 px-4">
-                              {isExpired ? (
-                                <span className="inline-flex items-center gap-1 px-3 py-1 rounded-full text-xs font-bold bg-red-100 text-red-700 dark:bg-red-900/30 dark:text-red-400">
-                                  <AlertCircle className="w-3.5 h-3.5" />
-                                  منتهية (بحاجة للتجديد)
-                                </span>
-                              ) : (
-                                <span className="inline-flex items-center gap-1 px-3 py-1 rounded-full text-xs font-bold bg-emerald-100 text-emerald-700 dark:bg-emerald-900/30 dark:text-emerald-400">
-                                  <CheckCircle className="w-3.5 h-3.5" />
-                                  نشطة
-                                </span>
-                              )}
-                            </td>
-                            <td className="py-4 px-4">
-                              <div className="flex items-center justify-center gap-2">
-                                <button
-                                  onClick={() => handleUpdatePackageSessions(pkg, -1)}
-                                  disabled={remaining <= 0}
-                                  className="px-3 py-1.5 rounded-xl bg-amber-50 hover:bg-amber-100 dark:bg-amber-950/40 text-amber-700 dark:text-amber-400 text-xs font-bold flex items-center gap-1 transition-colors disabled:opacity-40 disabled:cursor-not-allowed cursor-pointer"
-                                  title="تسجيل حضور وخصم حصة واحدة"
-                                >
-                                  <MinusCircle className="w-3.5 h-3.5" />
-                                  خصم حصة
-                                </button>
-
-                                <button
-                                  onClick={() => handleUpdatePackageSessions(pkg, 1)}
-                                  className="px-3 py-1.5 rounded-xl bg-gray-100 hover:bg-gray-200 dark:bg-slate-700 text-gray-700 dark:text-gray-300 text-xs font-bold flex items-center gap-1 transition-colors cursor-pointer"
-                                  title="إضافة حصة تعويضية (+1)"
-                                >
-                                  <PlusCircle className="w-3.5 h-3.5" />
-                                  +1
-                                </button>
-
-                                <button
-                                  onClick={() => handleRenewPackage(pkg)}
-                                  className="px-4 py-1.5 rounded-xl bg-emerald-600 hover:bg-emerald-700 text-white text-xs font-black flex items-center gap-1 transition-colors shadow-sm cursor-pointer"
-                                  title="تجديد باقة 8 حصص جديدة"
-                                >
-                                  <RefreshCw className="w-3.5 h-3.5" />
-                                  تجديد (8 حصص)
-                                </button>
-
-                                {pkg.receipt_url && (
-                                  <button
-                                    onClick={() => setReceiptPreviewUrl(pkg.receipt_url)}
-                                    className="p-1.5 rounded-lg bg-blue-50 text-blue-600 dark:bg-blue-900/30 dark:text-blue-400 hover:bg-blue-100 transition-colors"
-                                    title="عرض إيصال التحويل"
-                                  >
-                                    <Eye className="w-4 h-4" />
-                                  </button>
-                                )}
-                              </div>
-                            </td>
+                  {/* Packages Table */}
+                  {packagesLoading ? (
+                    <div className="flex justify-center py-20">
+                      <div className="animate-spin rounded-full h-12 w-12 border-4 border-blue-500 border-t-transparent"></div>
+                    </div>
+                  ) : filteredPackages.length === 0 ? (
+                    <div className="text-center py-12 bg-gray-50 dark:bg-slate-900/30 rounded-2xl">
+                      <Users className="w-12 h-12 text-gray-300 dark:text-slate-600 mx-auto mb-3" />
+                      <p className="text-gray-600 dark:text-gray-400 font-bold">لا توجد اشتراكات مطابقة للبحث.</p>
+                    </div>
+                  ) : (
+                    <div className="overflow-x-auto">
+                      <table className="w-full text-right">
+                        <thead>
+                          <tr className="border-b border-gray-200 dark:border-slate-700 text-xs font-black text-gray-500 dark:text-gray-400 uppercase">
+                            <th className="py-4 px-4">الطالب</th>
+                            <th className="py-4 px-4">الصف</th>
+                            <th className="py-4 px-4">رصيد الحصص (من 8)</th>
+                            <th className="py-4 px-4">الحالة</th>
+                            <th className="py-4 px-4 text-center">إجراءات الباقة والحضور</th>
                           </tr>
-                        );
-                      })}
-                    </tbody>
-                  </table>
+                        </thead>
+                        <tbody className="divide-y divide-gray-100 dark:divide-slate-700 text-sm">
+                          {filteredPackages.map(pkg => {
+                            const remaining = pkg.remaining_sessions;
+                            const isExpired = remaining <= 0;
+                            const percent = Math.round((remaining / 8) * 100);
+
+                            return (
+                              <tr key={pkg.id} className="hover:bg-gray-50/50 dark:hover:bg-slate-755 transition-colors">
+                                <td className="py-4 px-4">
+                                  <div className="font-bold text-gray-900 dark:text-white">{pkg.full_name}</div>
+                                  <div className="text-xs text-gray-400" dir="ltr">{pkg.phone_number}</div>
+                                </td>
+                                <td className="py-4 px-4 font-bold text-gray-600 dark:text-gray-300">
+                                  {formatGradeName(pkg.grade_level)}
+                                </td>
+                                <td className="py-4 px-4">
+                                  <div className="w-48">
+                                    <div className="flex justify-between text-xs font-black mb-1">
+                                      <span className={isExpired ? 'text-red-500' : 'text-emerald-600 dark:text-emerald-400'}>
+                                        {remaining} من 8 حصص متبقية
+                                      </span>
+                                      <span className="text-gray-400">{percent}%</span>
+                                    </div>
+                                    <div className="w-full h-2 rounded-full bg-gray-200 dark:bg-slate-700 overflow-hidden">
+                                      <div 
+                                        className={`h-full transition-all duration-500 ${isExpired ? 'bg-red-500' : remaining <= 2 ? 'bg-amber-500' : 'bg-emerald-500'}`}
+                                        style={{ width: `${percent}%` }}
+                                      ></div>
+                                    </div>
+                                  </div>
+                                </td>
+                                <td className="py-4 px-4">
+                                  {isExpired ? (
+                                    <span className="inline-flex items-center gap-1 px-3 py-1 rounded-full text-xs font-bold bg-red-100 text-red-700 dark:bg-red-900/30 dark:text-red-400">
+                                      <AlertCircle className="w-3.5 h-3.5" />
+                                      منتهية (بحاجة للتجديد)
+                                    </span>
+                                  ) : (
+                                    <span className="inline-flex items-center gap-1 px-3 py-1 rounded-full text-xs font-bold bg-emerald-100 text-emerald-700 dark:bg-emerald-900/30 dark:text-emerald-400">
+                                      <CheckCircle className="w-3.5 h-3.5" />
+                                      نشطة
+                                    </span>
+                                  )}
+                                </td>
+                                <td className="py-4 px-4">
+                                  <div className="flex items-center justify-center gap-2">
+                                    <button
+                                      onClick={() => handleOpenDeductModal(pkg)}
+                                      disabled={remaining <= 0}
+                                      className="px-3.5 py-1.5 rounded-xl bg-amber-50 hover:bg-amber-100 dark:bg-amber-950/40 text-amber-700 dark:text-amber-400 text-xs font-bold flex items-center gap-1.5 transition-colors disabled:opacity-40 disabled:cursor-not-allowed cursor-pointer shadow-sm"
+                                      title="تسجيل حضور وخصم حصة واحدة مع إضافة عنوان وملاحظات"
+                                    >
+                                      <MinusCircle className="w-4 h-4" />
+                                      خصم حصة (-1)
+                                    </button>
+
+                                    <button
+                                      onClick={() => handleUpdatePackageSessions(pkg, 1)}
+                                      className="px-3 py-1.5 rounded-xl bg-gray-100 hover:bg-gray-200 dark:bg-slate-700 text-gray-700 dark:text-gray-300 text-xs font-bold flex items-center gap-1 transition-colors cursor-pointer"
+                                      title="إضافة حصة تعويضية (+1)"
+                                    >
+                                      <PlusCircle className="w-3.5 h-3.5" />
+                                      +1
+                                    </button>
+
+                                    <button
+                                      onClick={() => handleRenewPackage(pkg)}
+                                      className="px-4 py-1.5 rounded-xl bg-emerald-600 hover:bg-emerald-700 text-white text-xs font-black flex items-center gap-1 transition-colors shadow-sm cursor-pointer"
+                                      title="تجديد باقة 8 حصص جديدة"
+                                    >
+                                      <RefreshCw className="w-3.5 h-3.5" />
+                                      تجديد (8 حصص)
+                                    </button>
+
+                                    {pkg.receipt_url && (
+                                      <button
+                                        onClick={() => setReceiptPreviewUrl(pkg.receipt_url)}
+                                        className="p-1.5 rounded-lg bg-blue-50 text-blue-600 dark:bg-blue-900/30 dark:text-blue-400 hover:bg-blue-100 transition-colors"
+                                        title="عرض إيصال التحويل"
+                                      >
+                                        <Eye className="w-4 h-4" />
+                                      </button>
+                                    )}
+                                  </div>
+                                </td>
+                              </tr>
+                            );
+                          })}
+                        </tbody>
+                      </table>
+                    </div>
+                  )}
                 </div>
               )}
+
+              {/* TAB 2: COMPLETED SESSIONS HISTORY */}
+              {packageSubTab === 'history' && (
+                <div>
+                  {/* Search Filter */}
+                  <div className="mb-6">
+                    <input
+                      type="text"
+                      placeholder="بحث في الحصص المكتملة باسم الطالب، الصف، أو عنوان الحصة..."
+                      value={completedSearch}
+                      onChange={(e) => setCompletedSearch(e.target.value)}
+                      className="w-full px-4 py-3 rounded-xl bg-gray-50 dark:bg-slate-900 border border-gray-200 dark:border-slate-700 text-sm font-bold text-gray-900 dark:text-white outline-none"
+                    />
+                  </div>
+
+                  {completedLoading ? (
+                    <div className="flex justify-center py-20">
+                      <div className="animate-spin rounded-full h-12 w-12 border-4 border-emerald-500 border-t-transparent"></div>
+                    </div>
+                  ) : completedSessions.length === 0 ? (
+                    <div className="text-center py-16 bg-gray-50 dark:bg-slate-900/40 rounded-2xl border border-dashed border-gray-200 dark:border-slate-700">
+                      <BookOpen className="w-12 h-12 text-gray-300 dark:text-slate-600 mx-auto mb-3" />
+                      <p className="text-gray-600 dark:text-gray-400 font-bold">لا توجد حصص مكتملة مسجلة حتى الآن.</p>
+                      <p className="text-xs text-gray-400 mt-1">عند تسجيل حضور أي طالب وخصم حصة، ستظهر تلقائياً هنا وفي حساب الطالب مع التاريخ والملاحظات.</p>
+                    </div>
+                  ) : (
+                    <div className="overflow-x-auto">
+                      <table className="w-full text-right text-sm">
+                        <thead>
+                          <tr className="border-b border-gray-200 dark:border-slate-700 text-xs font-black text-gray-500 dark:text-gray-400 uppercase">
+                            <th className="py-4 px-4">تاريخ الحصة وتوقيتها</th>
+                            <th className="py-4 px-4">الطالب</th>
+                            <th className="py-4 px-4">الصف الدراسي</th>
+                            <th className="py-4 px-4">عنوان الحصة / الدرس</th>
+                            <th className="py-4 px-4">ملاحظات المعلم</th>
+                            <th className="py-4 px-4 text-center">حذف السجل</th>
+                          </tr>
+                        </thead>
+                        <tbody className="divide-y divide-gray-100 dark:divide-slate-700">
+                          {completedSessions
+                            .filter(cs => {
+                              if (!completedSearch.trim()) return true;
+                              const q = completedSearch.toLowerCase();
+                              return (
+                                (cs.student_name || '').toLowerCase().includes(q) ||
+                                (cs.session_title || '').toLowerCase().includes(q) ||
+                                (cs.teacher_notes || '').toLowerCase().includes(q) ||
+                                (formatGradeName(cs.grade_level) || '').toLowerCase().includes(q)
+                              );
+                            })
+                            .map(item => {
+                              const dateObj = new Date(item.completed_at || item.created_at);
+                              const formattedDate = !isNaN(dateObj.getTime())
+                                ? dateObj.toLocaleDateString('ar-EG', { weekday: 'long', year: 'numeric', month: 'short', day: 'numeric' })
+                                : '-';
+                              const formattedTime = !isNaN(dateObj.getTime())
+                                ? dateObj.toLocaleTimeString('ar-EG', { hour: '2-digit', minute: '2-digit' })
+                                : '';
+
+                              return (
+                                <tr key={item.id} className="hover:bg-gray-50/50 dark:hover:bg-slate-750 transition-colors">
+                                  <td className="py-4 px-4">
+                                    <div className="font-bold text-gray-900 dark:text-white flex items-center gap-1.5">
+                                      <Calendar className="w-3.5 h-3.5 text-emerald-500 shrink-0" />
+                                      <span>{formattedDate}</span>
+                                    </div>
+                                    <div className="text-xs text-gray-400 flex items-center gap-1 mt-0.5">
+                                      <Clock className="w-3 h-3" />
+                                      <span>{formattedTime}</span>
+                                    </div>
+                                  </td>
+                                  <td className="py-4 px-4 font-black text-gray-900 dark:text-white">
+                                    {item.student_name || 'طالب'}
+                                  </td>
+                                  <td className="py-4 px-4">
+                                    <span className="px-2.5 py-1 rounded-full text-xs font-bold bg-slate-100 dark:bg-slate-700 text-slate-700 dark:text-slate-300">
+                                      {formatGradeName(item.grade_level)}
+                                    </span>
+                                  </td>
+                                  <td className="py-4 px-4 font-bold text-emerald-700 dark:text-emerald-400">
+                                    {item.session_title || 'حصة أونلاين مباشرة'}
+                                  </td>
+                                  <td className="py-4 px-4 text-xs text-gray-600 dark:text-gray-300 max-w-xs">
+                                    {item.teacher_notes || <span className="text-gray-400 italic">لا توجد ملاحظات</span>}
+                                  </td>
+                                  <td className="py-4 px-4 text-center">
+                                    <button
+                                      onClick={() => setDeleteCompletedModal({ isOpen: true, id: item.id })}
+                                      className="p-2 rounded-xl text-red-600 hover:bg-red-50 dark:hover:bg-red-950/40 transition-colors cursor-pointer"
+                                      title="حذف هذا السجل من قائمة الحصص المكتملة"
+                                    >
+                                      <Trash2 className="w-4 h-4" />
+                                    </button>
+                                  </td>
+                                </tr>
+                              );
+                            })}
+                        </tbody>
+                      </table>
+                    </div>
+                  )}
+                </div>
+              )}
+
             </div>
           </FadeIn>
         )}
@@ -1288,9 +1774,18 @@ export default function AdminLiveSessions() {
                                   {formatGradeName(tSession.grade_level)}
                                 </span>
                               )}
-                              <span className="text-xs font-bold text-amber-700 dark:text-amber-400 bg-amber-100/50 px-2 py-0.5 rounded-md">
-                                30 دقيقة
-                              </span>
+                              <div className="flex items-center gap-1.5">
+                                <span className="text-xs font-bold text-amber-700 dark:text-amber-400 bg-amber-100/50 px-2 py-0.5 rounded-md">
+                                  30 دقيقة
+                                </span>
+                                <button
+                                  onClick={() => setDeleteTrialModal({ isOpen: true, id: tSession.id, title: tSession.title })}
+                                  className="p-1.5 rounded-lg bg-red-50 text-red-600 hover:bg-red-600 hover:text-white transition-colors cursor-pointer"
+                                  title="حذف الحصة التجريبية"
+                                >
+                                  <Trash2 className="w-3.5 h-3.5" />
+                                </button>
+                              </div>
                             </div>
 
                             <h4 className="font-bold text-base text-gray-900 dark:text-white mb-1">{tSession.title}</h4>
@@ -1615,9 +2110,11 @@ export default function AdminLiveSessions() {
                 </button>
                 <button
                   type="submit"
-                  className="px-6 py-2.5 rounded-xl font-bold bg-indigo-600 hover:bg-indigo-700 text-white text-xs shadow-md cursor-pointer"
+                  disabled={scheduleSubmitting}
+                  className="px-6 py-2.5 rounded-xl font-bold bg-indigo-600 hover:bg-indigo-700 text-white text-xs shadow-md cursor-pointer disabled:opacity-50 flex items-center gap-2"
                 >
-                  حفظ الموعد الأسبوعي
+                  {scheduleSubmitting ? <Loader className="w-4 h-4 animate-spin" /> : null}
+                  <span>{isEditingSchedule ? 'تحديث وحفظ الموعد' : 'حفظ الموعد الأسبوعي'}</span>
                 </button>
               </div>
             </form>
@@ -1815,9 +2312,11 @@ export default function AdminLiveSessions() {
                 </button>
                 <button
                   type="submit"
-                  className="px-6 py-2.5 rounded-xl font-bold bg-amber-600 hover:bg-amber-700 text-white text-xs shadow-md cursor-pointer"
+                  disabled={trialSubmitting}
+                  className="px-6 py-2.5 rounded-xl font-bold bg-amber-600 hover:bg-amber-700 text-white text-xs shadow-md cursor-pointer disabled:opacity-50 flex items-center gap-2"
                 >
-                  حفظ وجدولة الحصة
+                  {trialSubmitting ? <Loader className="w-4 h-4 animate-spin" /> : null}
+                  <span>حفظ وجدولة الحصة</span>
                 </button>
               </div>
             </form>
@@ -1978,6 +2477,177 @@ export default function AdminLiveSessions() {
         title="استبعاد الطالب من الحصة التجريبية"
         message={`هل أنت متأكد من استبعاد الطالب (${removeStudentModal.studentName}) وإزالته من الحصة التجريبية؟`}
         confirmText="استبعاد"
+        cancelText="إلغاء"
+        isDanger={true}
+      />
+
+      {/* Individual Deduct Attendance Modal */}
+      {deductModal.isOpen && deductModal.pkg && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-sm p-4 overflow-y-auto">
+          <div className="bg-white dark:bg-slate-800 rounded-3xl max-w-lg w-full p-6 md:p-8 shadow-2xl border border-gray-100 dark:border-slate-700 my-8">
+            <div className="flex justify-between items-center mb-6 pb-4 border-b border-gray-100 dark:border-slate-700">
+              <h3 className="text-xl font-black text-gray-900 dark:text-white flex items-center gap-2">
+                <MinusCircle className="w-6 h-6 text-amber-500" />
+                تسجيل حضور وخصم حصة (-1)
+              </h3>
+              <button 
+                onClick={() => setDeductModal({ isOpen: false, pkg: null, sessionTitle: '', teacherNotes: '', submitting: false })}
+                className="text-gray-400 hover:text-gray-600 p-1 cursor-pointer"
+              >
+                <X className="w-5 h-5" />
+              </button>
+            </div>
+
+            <div className="mb-5 p-3.5 rounded-2xl bg-amber-50/60 dark:bg-amber-950/30 border border-amber-200 dark:border-amber-800/40 text-xs">
+              <div className="flex justify-between items-center mb-1">
+                <span className="font-bold text-gray-600 dark:text-gray-300">الطالب المستهدف:</span>
+                <span className="font-black text-gray-900 dark:text-white text-sm">{deductModal.pkg.full_name}</span>
+              </div>
+              <div className="flex justify-between items-center mb-1">
+                <span className="font-bold text-gray-600 dark:text-gray-300">الصف الدراسي:</span>
+                <span className="font-black text-amber-700 dark:text-amber-400">{formatGradeName(deductModal.pkg.grade_level)}</span>
+              </div>
+              <div className="flex justify-between items-center">
+                <span className="font-bold text-gray-600 dark:text-gray-300">رصيد الحصص الحالي:</span>
+                <span className="font-black text-emerald-600 dark:text-emerald-400">{deductModal.pkg.remaining_sessions} من 8 حصص</span>
+              </div>
+            </div>
+
+            <form onSubmit={(e) => { e.preventDefault(); handleConfirmDeduct(); }} className="space-y-4">
+              <div>
+                <label className="block text-xs font-bold text-gray-700 dark:text-gray-300 mb-1">عنوان الحصة / الدرس المشروح</label>
+                <input
+                  type="text"
+                  required
+                  value={deductModal.sessionTitle}
+                  onChange={(e) => setDeductModal({ ...deductModal, sessionTitle: e.target.value })}
+                  placeholder="مثال: حصة نحو - الأفعال الخمسة"
+                  className="w-full px-4 py-2.5 rounded-xl bg-gray-50 dark:bg-slate-900 border border-gray-200 dark:border-slate-700 text-sm font-bold text-gray-900 dark:text-white outline-none"
+                />
+              </div>
+
+              <div>
+                <label className="block text-xs font-bold text-gray-700 dark:text-gray-300 mb-1">ملاحظات المعلم للطالب (تظهر في حسابه بالسجل)</label>
+                <textarea
+                  rows={3}
+                  value={deductModal.teacherNotes}
+                  onChange={(e) => setDeductModal({ ...deductModal, teacherNotes: e.target.value })}
+                  placeholder="مثال: تم شرح الدرس وحل تدريبات الكتاب المدرسي، برجاء مذاكرة القاعدة وحل الواجب صـ 24"
+                  className="w-full px-4 py-2 rounded-xl bg-gray-50 dark:bg-slate-900 border border-gray-200 dark:border-slate-700 text-xs text-gray-900 dark:text-white outline-none resize-none"
+                />
+              </div>
+
+              <div className="flex justify-end gap-3 pt-4 border-t border-gray-100 dark:border-slate-700">
+                <button
+                  type="button"
+                  onClick={() => setDeductModal({ isOpen: false, pkg: null, sessionTitle: '', teacherNotes: '', submitting: false })}
+                  className="px-5 py-2.5 rounded-xl font-bold bg-gray-100 hover:bg-gray-200 dark:bg-slate-700 dark:hover:bg-slate-600 text-gray-800 dark:text-slate-100 text-xs border border-gray-300 dark:border-slate-600 transition-colors cursor-pointer"
+                >
+                  إلغاء
+                </button>
+                <button
+                  type="submit"
+                  disabled={deductModal.submitting}
+                  className="px-6 py-2.5 rounded-xl font-bold bg-amber-600 hover:bg-amber-700 text-white text-xs shadow-md cursor-pointer disabled:opacity-50 flex items-center gap-2"
+                >
+                  {deductModal.submitting ? <Loader className="w-4 h-4 animate-spin" /> : <MinusCircle className="w-4 h-4" />}
+                  <span>تأكيد خصم الحصة وتسجيل الحضور</span>
+                </button>
+              </div>
+            </form>
+          </div>
+        </div>
+      )}
+
+      {/* Bulk Deduct Attendance Modal */}
+      {bulkDeductModal.isOpen && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-sm p-4 overflow-y-auto">
+          <div className="bg-white dark:bg-slate-800 rounded-3xl max-w-lg w-full p-6 md:p-8 shadow-2xl border border-gray-100 dark:border-slate-700 my-8">
+            <div className="flex justify-between items-center mb-6 pb-4 border-b border-gray-100 dark:border-slate-700">
+              <h3 className="text-xl font-black text-gray-900 dark:text-white flex items-center gap-2">
+                <UserCheck className="w-6 h-6 text-emerald-500" />
+                تسجيل حضور جماعي للصف ({formatGradeName(bulkDeductModal.gradeLevel)})
+              </h3>
+              <button 
+                onClick={() => setBulkDeductModal({ isOpen: false, gradeLevel: '', sessionTitle: '', teacherNotes: '', submitting: false })}
+                className="text-gray-400 hover:text-gray-600 p-1 cursor-pointer"
+              >
+                <X className="w-5 h-5" />
+              </button>
+            </div>
+
+            <div className="mb-5 p-3.5 rounded-2xl bg-emerald-50/60 dark:bg-emerald-950/30 border border-emerald-200 dark:border-emerald-800/40 text-xs">
+              <p className="font-bold text-emerald-900 dark:text-emerald-200">
+                سيتم خصم حصة واحدة (-1) لجميع الطلاب أصحاب الرصيد النشط في هذا الصف، وإضافة الحصة تلقائياً في سجل الحصص المكتملة لديهم.
+              </p>
+            </div>
+
+            <form onSubmit={(e) => { e.preventDefault(); handleConfirmBulkDeduct(); }} className="space-y-4">
+              <div>
+                <label className="block text-xs font-bold text-gray-700 dark:text-gray-300 mb-1">عنوان الحصة الجماعية / الدرس</label>
+                <input
+                  type="text"
+                  required
+                  value={bulkDeductModal.sessionTitle}
+                  onChange={(e) => setBulkDeductModal({ ...bulkDeductModal, sessionTitle: e.target.value })}
+                  placeholder="مثال: مراجعة الوحدة الأولى - نحو ونصوص"
+                  className="w-full px-4 py-2.5 rounded-xl bg-gray-50 dark:bg-slate-900 border border-gray-200 dark:border-slate-700 text-sm font-bold text-gray-900 dark:text-white outline-none"
+                />
+              </div>
+
+              <div>
+                <label className="block text-xs font-bold text-gray-700 dark:text-gray-300 mb-1">ملاحظات وتوجيهات الحصة للطلاب</label>
+                <textarea
+                  rows={3}
+                  value={bulkDeductModal.teacherNotes}
+                  onChange={(e) => setBulkDeductModal({ ...bulkDeductModal, teacherNotes: e.target.value })}
+                  placeholder="مثال: تم شرح ومراجعة الدروس وحل النماذج الامتحانية"
+                  className="w-full px-4 py-2 rounded-xl bg-gray-50 dark:bg-slate-900 border border-gray-200 dark:border-slate-700 text-xs text-gray-900 dark:text-white outline-none resize-none"
+                />
+              </div>
+
+              <div className="flex justify-end gap-3 pt-4 border-t border-gray-100 dark:border-slate-700">
+                <button
+                  type="button"
+                  onClick={() => setBulkDeductModal({ isOpen: false, gradeLevel: '', sessionTitle: '', teacherNotes: '', submitting: false })}
+                  className="px-5 py-2.5 rounded-xl font-bold bg-gray-100 hover:bg-gray-200 dark:bg-slate-700 dark:hover:bg-slate-600 text-gray-800 dark:text-slate-100 text-xs border border-gray-300 dark:border-slate-600 transition-colors cursor-pointer"
+                >
+                  إلغاء
+                </button>
+                <button
+                  type="submit"
+                  disabled={bulkDeductModal.submitting}
+                  className="px-6 py-2.5 rounded-xl font-bold bg-emerald-600 hover:bg-emerald-700 text-white text-xs shadow-md cursor-pointer disabled:opacity-50 flex items-center gap-2"
+                >
+                  {bulkDeductModal.submitting ? <Loader className="w-4 h-4 animate-spin" /> : <UserCheck className="w-4 h-4" />}
+                  <span>تأكيد تسجيل الحضور الجماعي</span>
+                </button>
+              </div>
+            </form>
+          </div>
+        </div>
+      )}
+
+      {/* Delete Trial Session Modal */}
+      <ConfirmModal
+        isOpen={deleteTrialModal.isOpen}
+        onClose={() => setDeleteTrialModal({ isOpen: false, id: null, title: '' })}
+        onConfirm={handleDeleteTrialSession}
+        title="حذف الحصة التجريبية"
+        message={`هل أنت متأكد من رغبتك في حذف الحصة التجريبية (${deleteTrialModal.title})؟`}
+        confirmText="حذف"
+        cancelText="إلغاء"
+        isDanger={true}
+      />
+
+      {/* Delete Completed Session Modal */}
+      <ConfirmModal
+        isOpen={deleteCompletedModal.isOpen}
+        onClose={() => setDeleteCompletedModal({ isOpen: false, id: null })}
+        onConfirm={handleDeleteCompletedSession}
+        title="حذف سجل الحصة المكتملة"
+        message="هل أنت متأكد من رغبتك في حذف هذا السجل من قائمة الحصص المكتملة؟"
+        confirmText="حذف"
         cancelText="إلغاء"
         isDanger={true}
       />

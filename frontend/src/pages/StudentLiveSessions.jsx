@@ -44,6 +44,10 @@ export default function StudentLiveSessions() {
   const [hasRequestedTrial, setHasRequestedTrial] = useState(false);
   const [trialRequestLoading, setTrialRequestLoading] = useState(false);
 
+  // Completed Sessions History State
+  const [completedSessions, setCompletedSessions] = useState([]);
+  const [completedLoading, setCompletedLoading] = useState(false);
+
   // Filters for individual sessions
   const [filterMonth, setFilterMonth] = useState('all');
   const [filterStatus, setFilterStatus] = useState('all');
@@ -56,6 +60,26 @@ export default function StudentLiveSessions() {
     fetchWeeklySchedules();
     fetchMyPackage();
     fetchTrialSessions();
+    fetchCompletedSessions();
+  }, [user]);
+
+  // Real-time listener for package and completed sessions updates from teacher
+  useEffect(() => {
+    if (!user) return;
+    const channel = supabase
+      .channel(`student_live_sync_${user.id}`)
+      .on('postgres_changes', { event: '*', schema: 'public', table: 'live_subscriptions', filter: `user_id=eq.${user.id}` }, () => {
+        fetchMyPackage();
+      })
+      .on('postgres_changes', { event: '*', schema: 'public', table: 'completed_live_sessions', filter: `student_id=eq.${user.id}` }, () => {
+        fetchCompletedSessions();
+        fetchMyPackage();
+      })
+      .subscribe();
+
+    return () => {
+      supabase.removeChannel(channel);
+    };
   }, [user]);
 
   // Check imminent session every 30 seconds
@@ -99,8 +123,23 @@ export default function StudentLiveSessions() {
         .eq('is_active', true)
         .order('created_at', { ascending: true });
 
-      if (!error && data) {
-        setWeeklySchedules(data);
+      if (!error && data && data.length > 0) {
+        const mapped = data.map(s => {
+          let extra = {};
+          if (s.notes && s.notes.startsWith('{') && s.notes.endsWith('}')) {
+            try {
+              const p = JSON.parse(s.notes);
+              extra = {
+                notes: p.custom_notes || '',
+                target_type: p.target_type || s.target_type || 'grade',
+                target_student_id: p.target_student_id || s.target_student_id,
+                target_student_name: p.target_student_name || s.target_student_name
+              };
+            } catch (_) {}
+          }
+          return { ...s, ...extra };
+        });
+        setWeeklySchedules(mapped);
       } else {
         const local = localStorage.getItem('manarat_weekly_schedules');
         if (local) setWeeklySchedules(JSON.parse(local));
@@ -108,6 +147,32 @@ export default function StudentLiveSessions() {
     } catch (err) {
       const local = localStorage.getItem('manarat_weekly_schedules');
       if (local) setWeeklySchedules(JSON.parse(local));
+    }
+  };
+
+  const fetchCompletedSessions = async () => {
+    if (!user) return;
+    setCompletedLoading(true);
+    try {
+      const { data, error } = await supabase
+        .from('completed_live_sessions')
+        .select('*')
+        .eq('student_id', user.id)
+        .order('completed_at', { ascending: false });
+
+      if (!error && data) {
+        setCompletedSessions(data);
+        localStorage.setItem(`manarat_completed_${user.id}`, JSON.stringify(data));
+      } else {
+        const local = localStorage.getItem(`manarat_completed_${user.id}`);
+        if (local) setCompletedSessions(JSON.parse(local));
+      }
+    } catch (err) {
+      console.warn('Completed sessions fetch fallback:', err);
+      const local = localStorage.getItem(`manarat_completed_${user.id}`);
+      if (local) setCompletedSessions(JSON.parse(local));
+    } finally {
+      setCompletedLoading(false);
     }
   };
 
@@ -403,7 +468,7 @@ export default function StudentLiveSessions() {
 
         {/* ===================== Top Navigation Switcher ===================== */}
         <div className="bg-white dark:bg-slate-800 rounded-3xl p-2.5 shadow-md border border-gray-100 dark:border-slate-700 mb-8">
-          <div className="grid grid-cols-1 sm:grid-cols-3 gap-2">
+          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-2">
             <button
               onClick={() => setActiveTab('schedule')}
               className={`py-3.5 px-4 rounded-2xl font-bold transition-all text-sm flex items-center justify-center gap-2 cursor-pointer ${
@@ -429,6 +494,23 @@ export default function StudentLiveSessions() {
               {myPackage && (
                 <span className={`px-2 py-0.5 rounded-full text-xs font-black ${hasLiveAccess ? 'bg-emerald-500 text-white' : 'bg-red-500 text-white'}`}>
                   {myPackage.remaining_sessions} / 8
+                </span>
+              )}
+            </button>
+
+            <button
+              onClick={() => setActiveTab('completed')}
+              className={`py-3.5 px-4 rounded-2xl font-bold transition-all text-sm flex items-center justify-center gap-2 cursor-pointer ${
+                activeTab === 'completed'
+                  ? 'bg-blue-600 text-white shadow-md shadow-blue-500/20'
+                  : 'text-gray-600 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-slate-700/50'
+              }`}
+            >
+              <CheckCircle className="w-4 h-4" />
+              <span>سجل الحصص المكتملة</span>
+              {completedSessions.length > 0 && (
+                <span className="px-2 py-0.5 rounded-full text-xs font-black bg-purple-500 text-white">
+                  {completedSessions.length}
                 </span>
               )}
             </button>
@@ -641,6 +723,133 @@ export default function StudentLiveSessions() {
                 <p>• في حالة الاعتذار المسبق عن الحصة، لا يتم خصمها وتظل محفوظة في رصيدك.</p>
                 <p>• عند وصول الرصيد إلى 0 حصص، يقفل رابط الزووم تلقائياً لحين تجديد الباقة.</p>
               </div>
+
+            </div>
+          </FadeIn>
+        )}
+
+        {/* ========================================================================= */}
+        {/* TAB: COMPLETED SESSIONS HISTORY                                          */}
+        {/* ========================================================================= */}
+        {activeTab === 'completed' && (
+          <FadeIn>
+            <div className="bg-white dark:bg-slate-800 rounded-3xl p-6 md:p-8 shadow-sm border border-gray-100 dark:border-slate-700 mb-8 max-w-4xl mx-auto">
+              
+              <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4 mb-8 pb-6 border-b border-gray-100 dark:border-slate-700">
+                <div>
+                  <h2 className="text-2xl font-black text-gray-900 dark:text-white flex items-center gap-2">
+                    <CheckCircle2 className="w-7 h-7 text-purple-600 dark:text-purple-400" />
+                    سجل الحصص المكتملة والحضور
+                  </h2>
+                  <p className="text-gray-500 dark:text-gray-400 text-sm mt-1">
+                    توثيق كامل لكافة الحصص الأونلاين التي حضرتها مع المعلم بالتاريخ والوقت والتفاصيل.
+                  </p>
+                </div>
+                
+                <div className="flex items-center gap-2">
+                  <span className="px-3.5 py-1.5 rounded-full text-xs font-black bg-purple-100 text-purple-800 dark:bg-purple-950/50 dark:text-purple-300 border border-purple-200 dark:border-purple-800">
+                    إجمالي الحصص المكتملة: {completedSessions.length}
+                  </span>
+                </div>
+              </div>
+
+              {/* Summary Cards */}
+              <div className="grid grid-cols-1 sm:grid-cols-3 gap-4 mb-8">
+                <div className="p-4 rounded-2xl bg-purple-50 dark:bg-purple-950/20 border border-purple-100 dark:border-purple-900/30">
+                  <span className="text-xs font-bold text-purple-600 dark:text-purple-400 block mb-1">الحصص التي حضرتها</span>
+                  <span className="text-2xl font-black text-gray-900 dark:text-white">{completedSessions.length} حصة</span>
+                </div>
+                <div className="p-4 rounded-2xl bg-blue-50 dark:bg-blue-950/20 border border-blue-100 dark:border-blue-900/30">
+                  <span className="text-xs font-bold text-blue-600 dark:text-blue-400 block mb-1">الرصيد المتبقي بالباقة</span>
+                  <span className="text-2xl font-black text-gray-900 dark:text-white">{myPackage?.remaining_sessions ?? 8} من 8 حصص</span>
+                </div>
+                <div className="p-4 rounded-2xl bg-emerald-50 dark:bg-emerald-950/20 border border-emerald-100 dark:border-emerald-900/30">
+                  <span className="text-xs font-bold text-emerald-600 dark:text-emerald-400 block mb-1">حالة الباقة الحالية</span>
+                  <span className="text-lg font-black text-emerald-700 dark:text-emerald-400">
+                    {hasLiveAccess ? 'نشطة وجاهزة للحصص ✅' : 'منتهية (تحتاج تجديد) ⚠️'}
+                  </span>
+                </div>
+              </div>
+
+              {/* Sessions List */}
+              {completedLoading ? (
+                <div className="text-center py-12">
+                  <Loader className="w-8 h-8 animate-spin mx-auto text-purple-600 mb-2" />
+                  <p className="text-sm font-bold text-gray-500">جاري تحميل سجل الحصص المكتملة...</p>
+                </div>
+              ) : completedSessions.length === 0 ? (
+                <div className="text-center py-16 px-4 bg-gray-50 dark:bg-slate-900/40 rounded-3xl border border-dashed border-gray-200 dark:border-slate-700">
+                  <div className="w-16 h-16 rounded-2xl bg-purple-50 dark:bg-purple-950/40 text-purple-600 dark:text-purple-400 flex items-center justify-center mx-auto mb-4">
+                    <CheckCircle className="w-8 h-8" />
+                  </div>
+                  <h3 className="text-lg font-black text-gray-900 dark:text-white mb-2">لا توجد حصص مكتملة مسجلة بعد</h3>
+                  <p className="text-sm text-gray-500 dark:text-gray-400 max-w-md mx-auto">
+                    بمجرد انتهاء حصتك المباشرة وخصمها من قبل المعلم، ستظهر تفاصيلها وتاريخها وساعتها هنا تلقائياً لتوثيق حضورك.
+                  </p>
+                </div>
+              ) : (
+                <div className="space-y-3">
+                  {completedSessions.map(cs => {
+                    const dateObj = new Date(cs.completed_at);
+                    const formattedDate = dateObj.toLocaleDateString('ar-EG', {
+                      weekday: 'long',
+                      year: 'numeric',
+                      month: 'long',
+                      day: 'numeric'
+                    });
+                    const formattedTime = dateObj.toLocaleTimeString('ar-EG', {
+                      hour: '2-digit',
+                      minute: '2-digit'
+                    });
+
+                    return (
+                      <div 
+                        key={cs.id}
+                        className="p-4 sm:p-5 rounded-2xl border border-gray-100 dark:border-slate-700 bg-white dark:bg-slate-900/60 shadow-xs hover:border-purple-200 dark:hover:border-purple-800 transition-all flex flex-col sm:flex-row justify-between items-start sm:items-center gap-3"
+                      >
+                        <div className="space-y-1">
+                          <div className="flex items-center gap-2 flex-wrap">
+                            <h4 className="font-black text-base text-gray-900 dark:text-white">{cs.session_title}</h4>
+                            <span className="px-2.5 py-0.5 rounded-full text-[11px] font-bold bg-green-100 text-green-700 dark:bg-green-950/50 dark:text-green-300">
+                              مكتملة ومحسوبة ✅
+                            </span>
+                          </div>
+                          
+                          <div className="flex items-center gap-3 text-xs text-gray-500 dark:text-gray-400 font-bold flex-wrap">
+                            <span className="flex items-center gap-1">
+                              <Calendar className="w-3.5 h-3.5 text-purple-500" />
+                              {formattedDate}
+                            </span>
+                            <span>•</span>
+                            <span className="flex items-center gap-1">
+                              <Clock className="w-3.5 h-3.5 text-blue-500" />
+                              {formattedTime}
+                            </span>
+                            {cs.grade_level && (
+                              <>
+                                <span>•</span>
+                                <span>{formatGradeName(cs.grade_level)}</span>
+                              </>
+                            )}
+                          </div>
+
+                          {cs.teacher_notes && (
+                            <p className="text-xs text-gray-600 dark:text-gray-300 bg-gray-50 dark:bg-slate-800/60 p-2 rounded-xl mt-2 font-medium">
+                              📝 ملاحظات: {cs.teacher_notes}
+                            </p>
+                          )}
+                        </div>
+
+                        <div className="shrink-0 self-end sm:self-center">
+                          <span className="px-3 py-1.5 rounded-xl bg-purple-50 dark:bg-purple-950/40 text-purple-700 dark:text-purple-300 text-xs font-black border border-purple-200 dark:border-purple-800/50">
+                            -1 حصة من الباقة
+                          </span>
+                        </div>
+                      </div>
+                    );
+                  })}
+                </div>
+              )}
 
             </div>
           </FadeIn>

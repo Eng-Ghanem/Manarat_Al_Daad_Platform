@@ -91,18 +91,50 @@ BEGIN
 END;
 $$ LANGUAGE plpgsql SECURITY DEFINER;
 
--- صلاحيات كاملة للإدارة على جدول profiles (تعديل وحذف وإضافة بيانات الطلاب)
+-- صلاحيات جدول profiles خالية من أي استدعاء ذاتي (Recursion Loop)
+CREATE OR REPLACE FUNCTION public.is_admin_or_teacher()
+RETURNS BOOLEAN
+LANGUAGE sql
+STABLE
+SECURITY DEFINER
+SET search_path = public
+AS $$
+  SELECT EXISTS (
+    SELECT 1 FROM public.profiles
+    WHERE id = (SELECT auth.uid())
+    AND (role IN ('admin', 'teacher') OR email = '41147332a@gmail.com')
+  );
+$$;
+
+GRANT EXECUTE ON FUNCTION public.is_admin_or_teacher() TO authenticated, anon;
+
+ALTER TABLE public.profiles ENABLE ROW LEVEL SECURITY;
 DROP POLICY IF EXISTS "Admins full access on profiles" ON public.profiles;
-CREATE POLICY "Admins full access on profiles"
-ON public.profiles FOR ALL
+DROP POLICY IF EXISTS "Public profiles viewable by everyone" ON public.profiles;
+DROP POLICY IF EXISTS "Users can update own profile or admin update all" ON public.profiles;
+DROP POLICY IF EXISTS "Users can insert own profile or admin insert" ON public.profiles;
+DROP POLICY IF EXISTS "Only admins can delete profiles" ON public.profiles;
+
+CREATE POLICY "Public profiles viewable by everyone"
+ON public.profiles FOR SELECT
+TO authenticated, anon
+USING (true);
+
+CREATE POLICY "Users can update own profile or admin update all"
+ON public.profiles FOR UPDATE
 TO authenticated
-USING (
-  EXISTS (
-    SELECT 1 FROM public.profiles p
-    WHERE p.id = (SELECT auth.uid()) 
-    AND (p.role IN ('admin', 'teacher') OR p.email = '41147332a@gmail.com')
-  )
-);
+USING (id = (SELECT auth.uid()) OR public.is_admin_or_teacher())
+WITH CHECK (id = (SELECT auth.uid()) OR public.is_admin_or_teacher());
+
+CREATE POLICY "Users can insert own profile or admin insert"
+ON public.profiles FOR INSERT
+TO authenticated
+WITH CHECK (id = (SELECT auth.uid()) OR public.is_admin_or_teacher());
+
+CREATE POLICY "Only admins can delete profiles"
+ON public.profiles FOR DELETE
+TO authenticated
+USING (public.is_admin_or_teacher());
 
 -- ==============================================================================
 -- 4. دعم تحديد طلاب معينين في الحصص التجريبية المجانية (trial_sessions)

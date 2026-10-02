@@ -5,6 +5,101 @@
 -- ==============================================================================
 
 -- ==============================================================================
+-- 0. إصلاح حاسم: إزالة التكرار اللانهائي (Infinite Recursion) واستعادة ظهور الأسماء والبيانات فوراً في profiles
+-- يحل مشكلة اختفاء الاسم ورقم الهاتف والصف وظهور البريد الإلكتروني فقط في الحساب
+-- ==============================================================================
+
+-- 1. دالة التحقق من رتبة الإدارة أو المعلمين كـ SECURITY DEFINER (تمنع الاستدعاء الذاتي تماماً)
+CREATE OR REPLACE FUNCTION public.is_admin_or_teacher()
+RETURNS BOOLEAN
+LANGUAGE sql
+STABLE
+SECURITY DEFINER
+SET search_path = public
+AS $$
+  SELECT EXISTS (
+    SELECT 1 FROM public.profiles
+    WHERE id = (SELECT auth.uid())
+    AND (role IN ('admin', 'teacher') OR email = '41147332a@gmail.com')
+  );
+$$;
+
+GRANT EXECUTE ON FUNCTION public.is_admin_or_teacher() TO authenticated, anon;
+
+-- 2. تفعيل RLS على جدول profiles
+ALTER TABLE public.profiles ENABLE ROW LEVEL SECURITY;
+
+-- 3. حذف السياسة المسببة للمشكلة "Admins full access on profiles" وجميع السياسات المتعارضة
+DROP POLICY IF EXISTS "Admins full access on profiles" ON public.profiles;
+DROP POLICY IF EXISTS "Public profiles are viewable by everyone." ON public.profiles;
+DROP POLICY IF EXISTS "Public profiles viewable by authenticated" ON public.profiles;
+DROP POLICY IF EXISTS "Public profiles viewable by everyone" ON public.profiles;
+DROP POLICY IF EXISTS "Anyone can view profiles" ON public.profiles;
+DROP POLICY IF EXISTS "Users can view profiles" ON public.profiles;
+DROP POLICY IF EXISTS "Users can update their own profile." ON public.profiles;
+DROP POLICY IF EXISTS "Admins can update all profiles." ON public.profiles;
+DROP POLICY IF EXISTS "Admins can update any profile" ON public.profiles;
+DROP POLICY IF EXISTS "Users can update their own profile or Admins can update all" ON public.profiles;
+DROP POLICY IF EXISTS "Users can update own profile or admin update all" ON public.profiles;
+DROP POLICY IF EXISTS "Users can insert own profile or admin insert" ON public.profiles;
+DROP POLICY IF EXISTS "Only admins can delete profiles" ON public.profiles;
+DROP POLICY IF EXISTS "Admins can delete profiles" ON public.profiles;
+
+-- 4. سياسات RLS الجديدة السليمة والخالية من التكرار 100%:
+-- أ. القراءة: متاحة للجميع (المصادقين والزوار) لعرض أسماء الطلاب ولوحة الشرف والإعدادات
+CREATE POLICY "Public profiles viewable by everyone"
+ON public.profiles FOR SELECT
+TO authenticated, anon
+USING (true);
+
+-- ب. التعديل: الطالب يعدل بياناته، والإدارة تعدل أي حساب
+CREATE POLICY "Users can update own profile or admin update all"
+ON public.profiles FOR UPDATE
+TO authenticated
+USING (id = (SELECT auth.uid()) OR public.is_admin_or_teacher())
+WITH CHECK (id = (SELECT auth.uid()) OR public.is_admin_or_teacher());
+
+-- ج. الإضافة: الطالب يضيف حسابه أو الإدارة
+CREATE POLICY "Users can insert own profile or admin insert"
+ON public.profiles FOR INSERT
+TO authenticated
+WITH CHECK (id = (SELECT auth.uid()) OR public.is_admin_or_teacher());
+
+-- د. الحذف: المشرفون فقط
+CREATE POLICY "Only admins can delete profiles"
+ON public.profiles FOR DELETE
+TO authenticated
+USING (public.is_admin_or_teacher());
+
+-- 5. تحديث دالة تريجر إنشاء البروفايل لتسجيل وحفظ كافة البيانات تلقائياً
+CREATE OR REPLACE FUNCTION public.handle_new_user()
+RETURNS trigger
+LANGUAGE plpgsql
+SECURITY DEFINER
+SET search_path = public
+AS $$
+BEGIN
+  INSERT INTO public.profiles (id, email, full_name, role, phone_number, gender, grade_level)
+  VALUES (
+    new.id, 
+    new.email,
+    COALESCE(new.raw_user_meta_data->>'full_name', new.raw_user_meta_data->>'name', 'Student'), 
+    COALESCE(new.raw_user_meta_data->>'role', 'student'),
+    COALESCE(new.raw_user_meta_data->>'phone_number', new.raw_user_meta_data->>'phone', new.phone),
+    new.raw_user_meta_data->>'gender',
+    new.raw_user_meta_data->>'grade_level'
+  )
+  ON CONFLICT (id) DO UPDATE SET
+    full_name = COALESCE(public.profiles.full_name, EXCLUDED.full_name),
+    email = COALESCE(public.profiles.email, EXCLUDED.email),
+    phone_number = COALESCE(public.profiles.phone_number, EXCLUDED.phone_number),
+    grade_level = COALESCE(public.profiles.grade_level, EXCLUDED.grade_level);
+  RETURN new;
+END;
+$$;
+
+
+-- ==============================================================================
 -- 1. إصلاح صلاحيات جدول أسئلة الامتحانات (quiz_questions)
 -- يتيح للطلاب عرض أسئلة الامتحانات المنشورة ويحمي التعديل للإدارة فقط
 -- ==============================================================================

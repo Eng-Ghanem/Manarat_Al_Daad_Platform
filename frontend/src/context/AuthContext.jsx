@@ -90,7 +90,40 @@ export const AuthProvider = ({ children }) => {
         
       if (error) {
         console.error('Error fetching profile:', error);
+        // Fallback to active user metadata if profile table query fails or RLS recursion occurs
+        const { data: userData } = await supabase.auth.getUser();
+        const activeUser = userData?.user;
+        if (activeUser) {
+          const meta = activeUser.user_metadata || {};
+          const fallbackData = {
+            id: userId,
+            email: activeUser.email,
+            full_name: meta.full_name || meta.name || activeUser.email?.split('@')[0] || 'طالب',
+            phone_number: meta.phone_number || meta.phone || '',
+            grade_level: meta.grade_level || '',
+            role: meta.role || (activeUser.email === '41147332a@gmail.com' ? 'admin' : 'student'),
+            xp_points: 0
+          };
+          setProfile(prev => prev || fallbackData);
+          try {
+            localStorage.setItem('manarat_cached_profile', JSON.stringify(fallbackData));
+          } catch {}
+        }
       } else if (data) {
+        // If profile exists but some fields are missing while present in user_metadata, enrich them
+        const { data: userData } = await supabase.auth.getUser();
+        const activeUser = userData?.user;
+        const meta = activeUser?.user_metadata || {};
+        if (!data.full_name && (meta.full_name || meta.name)) {
+          data.full_name = meta.full_name || meta.name;
+        }
+        if (!data.phone_number && (meta.phone_number || meta.phone)) {
+          data.phone_number = meta.phone_number || meta.phone;
+        }
+        if (!data.grade_level && meta.grade_level) {
+          data.grade_level = meta.grade_level;
+        }
+
         // Platform Admins & Teachers should NEVER accumulate student XP or be ranked with students
         if ((data.role === 'admin' || data.role === 'teacher') && data.xp_points > 0) {
           supabase.from('profiles').update({ xp_points: 0 }).eq('id', userId).then(() => {});

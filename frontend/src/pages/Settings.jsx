@@ -22,11 +22,18 @@ export default function Settings() {
   const [error, setError] = useState('');
 
   useEffect(() => {
-    if (user) setEmail(user.email || '');
+    if (user) {
+      setEmail(user.email || '');
+      if (!profile) {
+        setFullName(user.user_metadata?.full_name || user.user_metadata?.name || '');
+        setPhoneNumber(user.user_metadata?.phone_number || user.user_metadata?.phone || '');
+        setGradeLevel(user.user_metadata?.grade_level || '');
+      }
+    }
     if (profile) {
-      setFullName(profile.full_name || '');
-      setPhoneNumber(profile.phone_number || '');
-      setGradeLevel(profile.grade_level || '');
+      setFullName(profile.full_name || user?.user_metadata?.full_name || user?.user_metadata?.name || '');
+      setPhoneNumber(profile.phone_number || user?.user_metadata?.phone_number || user?.user_metadata?.phone || '');
+      setGradeLevel(profile.grade_level || user?.user_metadata?.grade_level || '');
     }
   }, [user, profile]);
 

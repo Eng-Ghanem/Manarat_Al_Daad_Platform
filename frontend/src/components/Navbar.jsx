@@ -80,7 +80,7 @@ export default function Navbar() {
                   {user ? (
                     <>
                       <div className="px-4 py-2 text-sm font-bold text-gray-500 dark:text-gray-400 truncate text-right rtl:text-right ltr:text-left">
-                        {profile?.full_name || user.email}
+                        {profile?.full_name || user?.user_metadata?.full_name || user?.user_metadata?.name || user.email}
                       </div>
                       <div className="h-px bg-gray-100 dark:bg-slate-700 my-1"></div>
                       <Link 
@@ -217,7 +217,7 @@ export default function Navbar() {
                   {user ? (
                     <>
                       <div className="px-3 py-2 text-xs font-bold text-gray-500 dark:text-gray-400 text-center bg-gray-50 dark:bg-slate-800/50 rounded-xl">
-                        {t('nav_welcome_prefix')}{profile?.full_name || user.email}
+                        {t('nav_welcome_prefix')}{profile?.full_name || user?.user_metadata?.full_name || user?.user_metadata?.name || user.email}
                       </div>
                       <Link 
                         to={profile?.role === 'admin' ? "/admin-dashboard" : "/dashboard"}

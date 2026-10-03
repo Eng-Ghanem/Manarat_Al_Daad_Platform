@@ -64,6 +64,20 @@ export default function AdminDashboard() {
     fetchXpRulesAsync().then(rules => {
       if (rules) setXpRules(rules);
     });
+
+    const channel = supabase
+      .channel('admin_dashboard_subscriptions_realtime')
+      .on('postgres_changes', { event: '*', schema: 'public', table: 'subscriptions' }, () => {
+        fetchDashboardData();
+      })
+      .on('postgres_changes', { event: '*', schema: 'public', table: 'live_subscriptions' }, () => {
+        fetchDashboardData();
+      })
+      .subscribe();
+
+    return () => {
+      supabase.removeChannel(channel);
+    };
   }, []);
 
   const fetchDashboardData = async () => {
@@ -82,10 +96,18 @@ export default function AdminDashboard() {
         .select('*', { count: 'exact' })
         .order('created_at', { ascending: false });
 
-      const { count: pendingSubscriptions } = await supabase
-        .from('subscriptions')
-        .select('*', { count: 'exact', head: true })
-        .eq('status', 'pending');
+      const [{ count: coursePending }, { count: livePending }] = await Promise.all([
+        supabase
+          .from('subscriptions')
+          .select('*', { count: 'exact', head: true })
+          .eq('status', 'pending'),
+        supabase
+          .from('live_subscriptions')
+          .select('*', { count: 'exact', head: true })
+          .eq('status', 'pending')
+      ]);
+
+      const totalPending = (coursePending || 0) + (livePending || 0);
 
       const { count: quizzesCount } = await supabase
         .from('quizzes')
@@ -97,7 +119,7 @@ export default function AdminDashboard() {
         students: studentsCount || 0,
         courses: coursesCount || 0,
         publishedCourses: publishedCount,
-        pendingSubscriptions: pendingSubscriptions || 0,
+        pendingSubscriptions: totalPending,
         quizzes: quizzesCount || 0
       };
 

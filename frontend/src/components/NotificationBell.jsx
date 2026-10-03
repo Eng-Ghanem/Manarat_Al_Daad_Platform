@@ -46,18 +46,24 @@ export default function NotificationBell() {
       })
       .subscribe();
 
-    // 2. If admin, also listen for pending subscriptions
+    // 2. If admin, also listen for pending subscriptions & live packages
     let subSub = null;
     if (profile.role === 'admin') {
       const fetchPendingCount = async () => {
         try {
-          const { count, error } = await supabase
-            .from('subscriptions')
-            .select('*', { count: 'exact', head: true })
-            .eq('status', 'pending');
+          const [{ count: courseCount }, { count: liveCount }] = await Promise.all([
+            supabase
+              .from('subscriptions')
+              .select('*', { count: 'exact', head: true })
+              .eq('status', 'pending'),
+            supabase
+              .from('live_subscriptions')
+              .select('*', { count: 'exact', head: true })
+              .eq('status', 'pending')
+          ]);
             
-          if (error) throw error;
-          setAdminCount(count || 0);
+          const total = (courseCount || 0) + (liveCount || 0);
+          setAdminCount(total);
         } catch (err) {
           console.error('Error fetching notification count:', err);
         }
@@ -66,8 +72,11 @@ export default function NotificationBell() {
       fetchPendingCount();
 
       subSub = supabase
-        .channel('public:subscriptions')
+        .channel('public:admin_pending_subs_and_live')
         .on('postgres_changes', { event: '*', schema: 'public', table: 'subscriptions' }, () => {
+          fetchPendingCount();
+        })
+        .on('postgres_changes', { event: '*', schema: 'public', table: 'live_subscriptions' }, () => {
           fetchPendingCount();
         })
         .subscribe();
@@ -175,7 +184,7 @@ export default function NotificationBell() {
               onClick={() => setIsOpen(false)}
               className="flex items-center justify-between p-2 rounded-xl bg-amber-500/15 text-amber-800 dark:text-amber-200 hover:bg-amber-500/25 transition-colors text-xs font-bold"
             >
-              <span>طلبات اشتراك بانتظار التفعيل</span>
+              <span>طلبات اشتراك وباقات بانتظار التفعيل</span>
               <span className="px-2 py-0.5 rounded-full bg-amber-600 text-white text-[10px]">{adminCount}</span>
             </Link>
           </div>

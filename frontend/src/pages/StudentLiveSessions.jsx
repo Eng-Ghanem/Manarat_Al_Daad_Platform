@@ -397,24 +397,28 @@ export default function StudentLiveSessions() {
         created_at: new Date().toISOString()
       };
 
-      // 1. Try upsert
-      let { error: dbError } = await supabase
+      // Safely check if user already has an existing live_subscription
+      const { data: existing } = await supabase
         .from('live_subscriptions')
-        .upsert([payload], { onConflict: 'user_id' });
+        .select('id')
+        .eq('user_id', user.id)
+        .maybeSingle();
 
-      // 2. If upsert returned error (e.g. missing RLS update policy), try direct update
-      if (dbError) {
-        console.warn('Upsert fallback to update:', dbError);
-        const { error: updateErr } = await supabase
+      let dbError = null;
+      if (existing?.id) {
+        const res = await supabase
           .from('live_subscriptions')
           .update(payload)
-          .eq('user_id', user.id);
-
-        if (updateErr) {
-          // 3. Fallback to insert
-          await supabase.from('live_subscriptions').insert([payload]);
-        }
+          .eq('id', existing.id);
+        dbError = res.error;
+      } else {
+        const res = await supabase
+          .from('live_subscriptions')
+          .insert([payload]);
+        dbError = res.error;
       }
+
+      if (dbError) throw dbError;
 
       toast.success(
         isFirstSub

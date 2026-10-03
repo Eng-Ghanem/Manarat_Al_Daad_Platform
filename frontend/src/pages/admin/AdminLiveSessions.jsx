@@ -5,7 +5,7 @@ import {
   Link as LinkIcon, BookOpen, AlertCircle, Loader, Users, CheckCircle, 
   XCircle, Clock4, Filter, CreditCard, Sparkles, UserCheck, ShieldAlert,
   CalendarDays, RefreshCw, MinusCircle, PlusCircle, CheckCircle2, Eye, UserX,
-  Search, Check
+  Search, Check, FileText
 } from 'lucide-react';
 import { Link } from 'react-router-dom';
 import FadeIn from '../../components/FadeIn';
@@ -2434,8 +2434,10 @@ export default function AdminLiveSessions() {
                           </div>
 
                           {item.teacher_notes && (
-                            <div className="text-xs text-gray-700 dark:text-gray-300 bg-gray-50 dark:bg-slate-800/70 p-2.5 rounded-xl font-medium border border-gray-100 dark:border-slate-700/60 mt-1 inline-block max-w-full">
-                              📝 <span className="font-bold">ملاحظات:</span> {cleanTeacherNotes(item.teacher_notes)}
+                            <div className="text-xs text-gray-700 dark:text-gray-300 bg-gray-50 dark:bg-slate-800/70 p-2.5 rounded-xl font-medium border border-gray-100 dark:border-slate-700/60 mt-1 inline-flex items-center gap-1.5 max-w-full">
+                              <FileText className="w-3.5 h-3.5 text-purple-600 dark:text-purple-400 shrink-0" />
+                              <span className="font-bold">ملاحظات:</span> 
+                              <span>{cleanTeacherNotes(item.teacher_notes)}</span>
                             </div>
                           )}
                         </div>
@@ -2508,10 +2510,17 @@ export default function AdminLiveSessions() {
                               </span>
                             </td>
                             <td className="py-4 px-4 font-bold text-purple-700 dark:text-purple-400">
-                              {item.session_title || 'حصة أونلاين مباشرة'}
+                              {cleanSessionTitle(item.session_title) || 'حصة أونلاين مباشرة'}
                             </td>
                             <td className="py-4 px-4 text-xs text-gray-600 dark:text-gray-300 max-w-xs">
-                              {cleanTeacherNotes(item.teacher_notes) || <span className="text-gray-400 italic">لا توجد ملاحظات</span>}
+                              {item.teacher_notes ? (
+                                <div className="bg-gray-50 dark:bg-slate-800/60 p-2.5 rounded-xl border border-gray-100 dark:border-slate-700/60 font-medium flex items-center gap-1.5">
+                                  <FileText className="w-3.5 h-3.5 text-purple-600 dark:text-purple-400 shrink-0" />
+                                  <span>{cleanTeacherNotes(item.teacher_notes)}</span>
+                                </div>
+                              ) : (
+                                <span className="text-gray-400 italic">لا توجد ملاحظات</span>
+                              )}
                             </td>
                             <td className="py-4 px-4 text-center">
                               <div className="flex items-center justify-center gap-1.5">
@@ -3426,7 +3435,7 @@ export default function AdminLiveSessions() {
                   required
                   value={deductModal.sessionTitle}
                   onChange={(e) => setDeductModal({ ...deductModal, sessionTitle: e.target.value })}
-                  placeholder="مثال: حصة نحو - الأفعال الخمسة"
+                  placeholder="مثال: حصة السبت (من 09:00 م إلى 10:00 م)"
                   className="w-full px-4 py-2.5 rounded-xl bg-gray-50 dark:bg-slate-900 border border-gray-200 dark:border-slate-700 text-sm font-bold text-gray-900 dark:text-white outline-none"
                 />
               </div>
@@ -3437,7 +3446,7 @@ export default function AdminLiveSessions() {
                   rows={3}
                   value={deductModal.teacherNotes}
                   onChange={(e) => setDeductModal({ ...deductModal, teacherNotes: e.target.value })}
-                  placeholder="مثال: تم شرح الدرس وحل تدريبات الكتاب المدرسي، برجاء مذاكرة القاعدة وحل الواجب صـ 24"
+                  placeholder="مثال: تم حضور الحصة واكتمالها بنجاح وفق الجدول المقرر"
                   className="w-full px-4 py-2 rounded-xl bg-gray-50 dark:bg-slate-900 border border-gray-200 dark:border-slate-700 text-xs text-gray-900 dark:text-white outline-none resize-none"
                 />
               </div>
@@ -3525,7 +3534,7 @@ export default function AdminLiveSessions() {
                   required
                   value={bulkDeductModal.sessionTitle}
                   onChange={(e) => setBulkDeductModal({ ...bulkDeductModal, sessionTitle: e.target.value })}
-                  placeholder="مثال: مراجعة الوحدة الأولى - نحو ونصوص"
+                  placeholder="مثال: حصة السبت (من 09:00 م إلى 10:00 م)"
                   className="w-full px-4 py-2.5 rounded-xl bg-gray-50 dark:bg-slate-900 border border-gray-200 dark:border-slate-700 text-sm font-bold text-gray-900 dark:text-white outline-none"
                 />
               </div>
@@ -3536,7 +3545,7 @@ export default function AdminLiveSessions() {
                   rows={3}
                   value={bulkDeductModal.teacherNotes}
                   onChange={(e) => setBulkDeductModal({ ...bulkDeductModal, teacherNotes: e.target.value })}
-                  placeholder="مثال: تم شرح ومراجعة الدروس وحل النماذج الامتحانية"
+                  placeholder="مثال: تم حضور الحصة واكتمالها بنجاح وفق الجدول المقرر"
                   className="w-full px-4 py-2 rounded-xl bg-gray-50 dark:bg-slate-900 border border-gray-200 dark:border-slate-700 text-xs text-gray-900 dark:text-white outline-none resize-none"
                 />
               </div>

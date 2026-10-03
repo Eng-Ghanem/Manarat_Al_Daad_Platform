@@ -76,6 +76,63 @@ app.use('/api/auth', authLimiter, authRoutes);
 app.use('/api/quizzes', quizRoutes);
 app.use('/api/gamification', gamificationRoutes);
 
+// Student Live Package Subscription / Renewal Endpoint (Authenticated)
+app.post('/api/live-subscriptions/renew', protect, async (req, res) => {
+  try {
+    const userId = req.user.id;
+    const { grade_level, payment_method, wallet_number, receipt_url, notes } = req.body;
+
+    const supabaseAdmin = require('./src/lib/supabaseAdmin');
+    if (!supabaseAdmin) {
+      return res.status(500).json({ success: false, error: 'Supabase admin client unavailable' });
+    }
+
+    const { data: existing } = await supabaseAdmin
+      .from('live_subscriptions')
+      .select('id, remaining_sessions')
+      .eq('user_id', userId)
+      .maybeSingle();
+
+    const payload = {
+      user_id: userId,
+      grade_level: grade_level || 'prep_1',
+      total_sessions: 8,
+      remaining_sessions: existing?.remaining_sessions !== undefined ? existing.remaining_sessions : 0,
+      status: 'pending',
+      payment_method: payment_method || 'vodafone_cash',
+      wallet_number: wallet_number ? String(wallet_number).trim() : '-',
+      receipt_url: receipt_url || null,
+      notes: notes || 'طلب تجديد باقة 8 حصص',
+      created_at: new Date().toISOString()
+    };
+
+    let result;
+    if (existing?.id) {
+      const { data, error } = await supabaseAdmin
+        .from('live_subscriptions')
+        .update(payload)
+        .eq('id', existing.id)
+        .select()
+        .single();
+      if (error) throw error;
+      result = data;
+    } else {
+      const { data, error } = await supabaseAdmin
+        .from('live_subscriptions')
+        .insert([payload])
+        .select()
+        .single();
+      if (error) throw error;
+      result = data;
+    }
+
+    return res.json({ success: true, data: result });
+  } catch (err) {
+    console.error('Error submitting live subscription renewal:', err);
+    return res.status(500).json({ success: false, error: err.message });
+  }
+});
+
 // Secure Mention Notifications Dispatcher (Requires Authentication)
 app.post('/api/chat/mention-notify', protect, async (req, res) => {
   try {

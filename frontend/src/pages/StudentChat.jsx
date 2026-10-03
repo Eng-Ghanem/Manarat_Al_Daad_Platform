@@ -75,13 +75,17 @@ export default function StudentChat() {
   }, [adminProfile, profile, activeChat, user.id]);
 
   useEffect(() => {
-    if (activeChat && adminProfile && profile) {
-      loadMessages();
+    if (activeChat && profile) {
+      if (activeChat.type === 'general' || (activeChat.type === 'private' && adminProfile)) {
+        loadMessages();
+      }
     }
   }, [activeChat, adminProfile, profile]);
 
   useEffect(() => {
-    if (activeChat && adminProfile && profile) {
+    if (activeChat && profile) {
+      if (activeChat.type === 'private' && !adminProfile) return;
+
       const unsubscribe = chatService.subscribeToMessages((payload) => {
         const event = payload.eventType;
         const newMsg = payload.new;
@@ -89,7 +93,7 @@ export default function StudentChat() {
 
         if (event === 'INSERT') {
           const isForGeneral = activeChat.type === 'general' && newMsg.grade_level === profile.grade_level && !newMsg.receiver_id;
-          const isForPrivate = activeChat.type === 'private' &&
+          const isForPrivate = activeChat.type === 'private' && adminProfile &&
             ((newMsg.sender_id === user.id && newMsg.receiver_id === adminProfile.id) ||
               (newMsg.sender_id === adminProfile.id && newMsg.receiver_id === user.id));
 
@@ -137,12 +141,13 @@ export default function StudentChat() {
       const { data, error } = await supabase
         .from('profiles')
         .select('*')
-        .eq('role', 'admin')
-        .limit(1)
-        .single();
+        .or('role.eq.admin,role.eq.teacher')
+        .order('created_at', { ascending: true })
+        .limit(1);
 
-      if (error && error.code !== 'PGRST116') throw error;
-      setAdminProfile(data);
+      if (!error && data && data.length > 0) {
+        setAdminProfile(data[0]);
+      }
     } catch (err) {
       console.error('Error fetching admin profile:', err);
     }
@@ -520,10 +525,12 @@ export default function StudentChat() {
   };
   const getSenderName = (msg) => {
     if (msg.sender_id === user.id) return profile?.full_name || t('chat_student_default');
-    if (msg.sender?.role === 'admin' || msg.sender_id === adminProfile?.id) return adminProfile?.full_name || t('chat_platform_admin');
+    if (msg.sender?.role === 'admin' || msg.sender?.role === 'teacher' || msg.sender_id === adminProfile?.id) {
+      return adminProfile?.full_name || (msg.sender?.role === 'teacher' ? (isRTL ? 'معلم المادة' : 'Teacher') : t('chat_platform_admin'));
+    }
     return msg.sender?.full_name || t('chat_student_default');
   };
-  const isAdminSender = (msg) => msg.sender?.role === 'admin' || msg.sender_id === adminProfile?.id;
+  const isAdminSender = (msg) => msg.sender?.role === 'admin' || msg.sender?.role === 'teacher' || msg.sender_id === adminProfile?.id;
 
   const formatMsgTime = (dateStr) => {
     try {
@@ -593,7 +600,13 @@ export default function StudentChat() {
         <div className="bg-white dark:bg-slate-800 p-8 rounded-3xl shadow-xl text-center max-w-md w-full mx-4 border border-gray-100 dark:border-slate-700">
           <ShieldAlert className="w-16 h-16 text-orange-500 mx-auto mb-4" />
           <h2 className="text-2xl font-bold text-gray-900 dark:text-white mb-2">{t('chat_complete_profile_warning')}</h2>
-          <p className="text-gray-500 dark:text-gray-400">{t('chat_complete_profile_desc', 'يجب عليك تحديد صفك الدراسي أولاً لتتمكن من استخدام نظام الدردشة والتواصل مع زملائك.')}</p>
+          <p className="text-gray-500 dark:text-gray-400 mb-6">{t('chat_complete_profile_desc', 'يجب عليك تحديد صفك الدراسي أولاً لتتمكن من استخدام نظام الدردشة والتواصل مع زملائك ومعلمك.')}</p>
+          <button
+            onClick={() => navigate('/settings')}
+            className="w-full py-3.5 px-6 bg-gradient-to-r from-blue-600 to-indigo-600 hover:from-blue-700 hover:to-indigo-700 text-white rounded-2xl font-bold shadow-lg shadow-blue-500/20 active:scale-95 transition-all flex items-center justify-center gap-2"
+          >
+            <span>{isRTL ? 'الانتقال للإعدادات وتحديد الصف الدراسي ←' : 'Go to Settings & Set Grade →'}</span>
+          </button>
         </div>
       </div>
     );

@@ -517,6 +517,13 @@ ON public.live_subscriptions FOR INSERT
 TO authenticated
 WITH CHECK (user_id = (SELECT auth.uid()));
 
+DROP POLICY IF EXISTS "Students can update their own live subscriptions" ON public.live_subscriptions;
+CREATE POLICY "Students can update their own live subscriptions"
+ON public.live_subscriptions FOR UPDATE
+TO authenticated
+USING (user_id = (SELECT auth.uid()))
+WITH CHECK (user_id = (SELECT auth.uid()));
+
 DROP POLICY IF EXISTS "Admins full control on live_subscriptions" ON public.live_subscriptions;
 CREATE POLICY "Admins full control on live_subscriptions"
 ON public.live_subscriptions FOR ALL

@@ -75,7 +75,7 @@ export default function CourseForm() {
             setStage(parts[0]);
             setGrade(parts[1]);
             setTerm(parts[3]);
-          } else if (parts.length === 2 && parts[0] === 'sec' && parts[1] === '3') {
+          } else if (parts.length === 2 && ['sec', 'prep', 'primary'].includes(parts[0])) {
             setCourseType('grades');
             setStage(parts[0]);
             setGrade(parts[1]);

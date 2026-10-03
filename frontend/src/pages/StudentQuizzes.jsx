@@ -3,7 +3,7 @@ import { Link } from 'react-router-dom';
 import { useTranslation } from 'react-i18next';
 import { 
   ClipboardList, CheckCircle, Clock, PlayCircle, 
-  Search, AlertCircle, Calendar, Sparkles
+  Search, AlertCircle, Calendar, Sparkles, Lock
 } from 'lucide-react';
 import { supabase } from '../lib/supabase';
 import { useAuth } from '../context/AuthContext';
@@ -206,14 +206,16 @@ export default function StudentQuizzes() {
                                !userGrade ||
                                quiz.grade_level === userGrade ||
                                quiz.grade_level === getArabicGrade(userGrade);
-          const matchesCourse = !quiz.course_id || enrolledCourseIds.includes(quiz.course_id);
+          const isEnrolledInCourse = !quiz.course_id || enrolledCourseIds.includes(quiz.course_id);
 
-          if (matchesGrade && matchesCourse) {
+          // Student should see quizzes for their grade OR courses they are enrolled in
+          if (matchesGrade || isEnrolledInCourse) {
             seenIds.add(quiz.id);
             combinedQuizzes.push({
               ...quiz,
               submission: null,
-              questionCount: qCount
+              questionCount: qCount,
+              isEnrolledInCourse
             });
           }
         }
@@ -433,13 +435,23 @@ export default function StudentQuizzes() {
                   </div>
 
                   {activeTab === 'available' ? (
-                    <Link 
-                      to={`/quizzes/${quiz.id}`}
-                      className="flex items-center justify-center gap-2 w-full py-3 bg-blue-50 dark:bg-blue-900/20 hover:bg-blue-600 text-blue-600 hover:text-white dark:text-blue-400 rounded-xl font-bold transition-colors group-hover:shadow-md"
-                    >
-                      <PlayCircle className="w-5 h-5" />
-                      {t('quiz_start_btn')}
-                    </Link>
+                    quiz.isEnrolledInCourse === false && quiz.course_id ? (
+                      <Link 
+                        to={`/course/${quiz.course_id}`}
+                        className="flex items-center justify-center gap-2 w-full py-3 bg-amber-50 dark:bg-amber-950/30 hover:bg-amber-100 dark:hover:bg-amber-900/40 text-amber-700 dark:text-amber-300 rounded-xl font-bold transition-colors border border-amber-200 dark:border-amber-800/60"
+                      >
+                        <Lock className="w-4 h-4 text-amber-500" />
+                        {isRTL ? 'خاص بمشتركي الكورس - اشترك للفتح' : 'Course Subscribers - View Course'}
+                      </Link>
+                    ) : (
+                      <Link 
+                        to={`/quizzes/${quiz.id}`}
+                        className="flex items-center justify-center gap-2 w-full py-3 bg-blue-50 dark:bg-blue-900/20 hover:bg-blue-600 text-blue-600 hover:text-white dark:text-blue-400 rounded-xl font-bold transition-colors group-hover:shadow-md"
+                      >
+                        <PlayCircle className="w-5 h-5" />
+                        {t('quiz_start_btn')}
+                      </Link>
+                    )
                   ) : (
                     <Link 
                       to={`/quizzes/${quiz.id}/result`}

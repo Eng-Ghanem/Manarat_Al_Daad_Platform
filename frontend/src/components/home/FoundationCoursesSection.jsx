@@ -25,7 +25,7 @@ export default function FoundationCoursesSection() {
       const { data, error } = await supabase
         .from('courses')
         .select('*')
-        .eq('category', 'كورسات-تأسيسية')
+        .or('category.eq.كورسات-تأسيسية,category.ilike.%تأسيس%,category.ilike.%foundation%')
         .eq('is_published', true)
         .order('created_at', { ascending: false });
 

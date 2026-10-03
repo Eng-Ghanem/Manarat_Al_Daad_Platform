@@ -324,17 +324,33 @@ export const compressImage = async (file, maxWidth = 1200, maxHeight = 1200, qua
 /**
  * Cleans duplicate identical parenthesized time ranges or phrases in teacher notes
  * e.g. "تم حضور الحصة... (من 01:00 م إلى 02:00 م) (من 01:00 م إلى 02:00 م)" -> "... (من 01:00 م إلى 02:00 م)"
+ * and removes trailing redundant time specs when "وفق الجدول المقرر" is already stated.
  */
 export const cleanTeacherNotes = (notes) => {
   if (!notes || typeof notes !== 'string') return '';
   let cleaned = notes.trim();
+  // Remove duplicate parenthesized phrases
   cleaned = cleaned.replace(/(\([^\)]+\))\s*\1+/g, '$1');
-  return cleaned;
+  // Strip trailing time specifications after "وفق الجدول المقرر"
+  cleaned = cleaned.replace(/(وفق الجدول المقرر)\s*\([^)]*\)/g, '$1');
+  // Strip trailing standalone time ranges (e.g. (من 09:00 م إلى 10:00 م))
+  cleaned = cleaned.replace(/\s*\(من\s+\d{1,2}:\d{2}\s*[صم]\s*إلى\s*\d{1,2}:\d{2}\s*[صم]\)\s*$/g, '');
+  return cleaned.trim();
 };
 
+/**
+ * Cleans session titles, removes duplicate parenthesized time ranges,
+ * and strips redundant grade suffixes (e.g. " - الصف الثالث الإعدادي")
+ * since the grade is already displayed in its own dedicated table column.
+ */
 export const cleanSessionTitle = (title) => {
   if (!title || typeof title !== 'string') return '';
-  return title.trim().replace(/(\([^\)]+\))\s*\1+/g, '$1');
+  let cleaned = title.trim();
+  // Remove duplicate parenthesized time ranges
+  cleaned = cleaned.replace(/(\([^\)]+\))\s*\1+/g, '$1');
+  // Strip redundant grade suffix at the end (e.g. " - الصف الثالث الإعدادي")
+  cleaned = cleaned.replace(/\s*[-–—]\s*(الصف\s+[^()]+|جميع الصفوف|كل الصفوف)\s*$/i, '');
+  return cleaned.trim();
 };
 
 /**
@@ -391,17 +407,15 @@ export const getScheduledSessionInfo = (
   // Real-time moment of submission / deduction
   const completedAt = validDate.toISOString();
 
-  const gradeName = formatGradeName(gradeLevel);
+  // Concise session title: Day + Time window (without repeating the grade name)
   const title = customTitle && customTitle.trim()
     ? cleanSessionTitle(customTitle)
-    : `حصة ${dayName} (${timeFormatted}) - ${gradeName}`;
+    : `حصة ${dayName} (${timeFormatted})`;
 
-  // If customNotes is provided, use it directly without re-appending timeFormatted
+  // Concise teacher attendance notes
   let notes = customNotes && customNotes.trim()
-    ? customNotes.trim()
-    : `تم حضور الحصة واكتمالها بنجاح وفق الجدول المقرر (${timeFormatted})`;
-
-  notes = cleanTeacherNotes(notes);
+    ? cleanTeacherNotes(customNotes)
+    : 'تم حضور الحصة واكتمالها بنجاح وفق الجدول المقرر';
 
   return {
     dayName,

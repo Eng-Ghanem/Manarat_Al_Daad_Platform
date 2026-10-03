@@ -108,10 +108,10 @@ function App() {
                   <Route path="/privacy" element={<Privacy />} />
                   <Route path="/classes" element={<Grades />} />
                   <Route path="/courses" element={<FoundationCourses />} />
+                  <Route path="/courses/category/:categoryId" element={<CategoryCourses />} />
+                  <Route path="/course/:id" element={<CourseDetails />} />
 
                   {/* Protected Platform Routes */}
-                  <Route path="/courses/category/:categoryId" element={<ProtectedRoute><CategoryCourses /></ProtectedRoute>} />
-                  <Route path="/course/:id" element={<ProtectedRoute><CourseDetails /></ProtectedRoute>} />
                   <Route path="/checkout/:courseId" element={<ProtectedRoute><Checkout /></ProtectedRoute>} />
 
                   {/* Protected Student Routes */}

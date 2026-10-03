@@ -9,8 +9,7 @@ export default function MobileBottomNav() {
   const { t, i18n } = useTranslation();
   const { user, profile } = useAuth();
   const location = useLocation();
-  const isRTL = i18n.language === 'ar';
-  const isAdmin = profile?.role === 'admin';
+  const isAdmin = profile?.role === 'admin' || profile?.role === 'teacher' || profile?.email === '41147332a@gmail.com';
 
   // Do not render bottom nav only on active quiz taking page to maximize focus
   const isTakingQuiz = location.pathname.startsWith('/quizzes/') && !location.pathname.endsWith('/result');

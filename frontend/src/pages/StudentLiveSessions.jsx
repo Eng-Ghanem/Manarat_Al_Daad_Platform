@@ -4,7 +4,7 @@ import {
   Video, Calendar, Clock, BookOpen, Link as LinkIcon,
   CheckCircle, Loader, PlayCircle, XCircle, Clock4, Filter,
   CreditCard, Sparkles, Lock, RefreshCw, AlertTriangle, ArrowRight,
-  Bell, UploadCloud, X, CheckCircle2, ShieldCheck, Eye, Info
+  Bell, UploadCloud, X, CheckCircle2, ShieldCheck, Eye, Info, FileText
 } from 'lucide-react';
 import FadeIn from '../components/FadeIn';
 import { supabase } from '../lib/supabase';
@@ -470,34 +470,68 @@ export default function StudentLiveSessions() {
       }
 
       const isFirstSub = !myPackage || myPackage.status === 'not_subscribed';
+      const remainingCount = isFirstSub ? 0 : (existing?.remaining_sessions !== undefined ? existing.remaining_sessions : 0);
+      const notesText = isFirstSub ? 'طلب اشتراك جديد في باقة 8 حصص' : 'طلب تجديد باقة 8 حصص';
+      
       const payload = {
         user_id: user.id,
         grade_level: profile?.grade_level || 'prep_1',
         total_sessions: 8,
-        remaining_sessions: 8,
+        remaining_sessions: remainingCount,
         status: 'pending',
         payment_method: renewForm.payment_method,
         wallet_number: renewForm.wallet_number.trim(),
         receipt_url: receiptUrl,
-        notes: isFirstSub ? 'طلب اشتراك جديد في باقة 8 حصص' : 'طلب تجديد باقة 8 حصص',
+        notes: notesText,
         created_at: new Date().toISOString()
       };
 
-      let dbError = null;
-      if (existing?.id) {
-        const res = await supabase
-          .from('live_subscriptions')
-          .update(payload)
-          .eq('id', existing.id);
-        dbError = res.error;
-      } else {
-        const res = await supabase
-          .from('live_subscriptions')
-          .insert([payload]);
-        dbError = res.error;
+      // 1. Try Backend API first (bypasses RLS issues reliably)
+      let backendSuccess = false;
+      try {
+        const apiUrl = import.meta.env.VITE_API_URL || 'http://localhost:5000';
+        const { data: { session } } = await supabase.auth.getSession();
+        if (session?.access_token) {
+          const apiRes = await fetch(`${apiUrl}/api/live-subscriptions/renew`, {
+            method: 'POST',
+            headers: {
+              'Content-Type': 'application/json',
+              'Authorization': `Bearer ${session.access_token}`
+            },
+            body: JSON.stringify({
+              grade_level: profile?.grade_level || 'prep_1',
+              payment_method: renewForm.payment_method,
+              wallet_number: renewForm.wallet_number.trim(),
+              receipt_url: receiptUrl,
+              notes: notesText
+            })
+          });
+          const apiJson = await apiRes.json();
+          if (apiRes.ok && apiJson.success) {
+            backendSuccess = true;
+          }
+        }
+      } catch (apiErr) {
+        console.warn('Backend renewal endpoint fallback:', apiErr);
       }
 
-      if (dbError) throw dbError;
+      // 2. Direct Supabase fallback if backend endpoint was not reached
+      if (!backendSuccess) {
+        let dbError = null;
+        if (existing?.id) {
+          const res = await supabase
+            .from('live_subscriptions')
+            .update(payload)
+            .eq('id', existing.id);
+          dbError = res.error;
+        } else {
+          const res = await supabase
+            .from('live_subscriptions')
+            .insert([payload]);
+          dbError = res.error;
+        }
+        if (dbError) throw dbError;
+      }
 
       toast.success(
         isFirstSub
@@ -533,6 +567,10 @@ export default function StudentLiveSessions() {
 
   // Filter sessions
   const filteredSessions = sessions.filter(s => {
+    // Only show sessions for the student's grade or global sessions
+    if (profile?.grade_level && s.grade_level && s.grade_level !== profile.grade_level) {
+      return false;
+    }
     if (filterStatus !== 'all') {
       const compStatus = getSessionComputedStatus(s);
       if (filterStatus === 'scheduled') {
@@ -1253,8 +1291,9 @@ export default function StudentLiveSessions() {
                           </div>
 
                           {cs.teacher_notes && (
-                            <p className="text-xs text-gray-600 dark:text-gray-300 bg-gray-50 dark:bg-slate-800/60 p-2 rounded-xl mt-2 font-medium">
-                              📝 ملاحظات: {cleanTeacherNotes(cs.teacher_notes)}
+                            <p className="text-xs text-gray-600 dark:text-gray-300 bg-gray-50 dark:bg-slate-800/60 p-2.5 rounded-xl mt-2 font-medium flex items-center gap-1.5">
+                              <FileText className="w-3.5 h-3.5 text-purple-600 dark:text-purple-400 shrink-0" />
+                              <span>{cleanTeacherNotes(cs.teacher_notes)}</span>
                             </p>
                           )}
                         </div>
@@ -1321,8 +1360,9 @@ export default function StudentLiveSessions() {
                             </td>
                             <td className="py-4 px-4 text-xs text-gray-600 dark:text-gray-300 max-w-xs">
                               {cs.teacher_notes ? (
-                                <div className="bg-gray-50 dark:bg-slate-800/60 p-2 rounded-xl border border-gray-100 dark:border-slate-700/60 font-medium">
-                                  📝 {cleanTeacherNotes(cs.teacher_notes)}
+                                <div className="bg-gray-50 dark:bg-slate-800/60 p-2.5 rounded-xl border border-gray-100 dark:border-slate-700/60 font-medium flex items-center gap-1.5">
+                                  <FileText className="w-3.5 h-3.5 text-purple-600 dark:text-purple-400 shrink-0" />
+                                  <span>{cleanTeacherNotes(cs.teacher_notes)}</span>
                                 </div>
                               ) : (
                                 <span className="text-gray-400 italic">لا توجد ملاحظات إضافية</span>

@@ -2,7 +2,7 @@ import { useState, useEffect } from 'react';
 import { useParams, useNavigate, Link } from 'react-router-dom';
 import { useTranslation } from 'react-i18next';
 import { motion, AnimatePresence } from 'framer-motion';
-import { CreditCard, Wallet, Smartphone, UploadCloud, Loader, CheckCircle, ChevronRight, BookOpen, ShieldCheck } from 'lucide-react';
+import { CreditCard, Wallet, Smartphone, UploadCloud, Loader, CheckCircle, ChevronRight, BookOpen, ShieldCheck, Sparkles } from 'lucide-react';
 import { supabase } from '../lib/supabase';
 import { getDirectImageUrl } from '../utils/helpers';
 import FadeIn from '../components/FadeIn';
@@ -176,6 +176,40 @@ export default function Checkout() {
     }
   };
 
+  const handleFreeEnrollment = async () => {
+    setProcessing(true);
+    try {
+      const { error: insertError } = await supabase
+        .from('subscriptions')
+        .insert({
+          user_id: user.id,
+          course_id: courseId,
+          payment_method: 'free',
+          status: 'active'
+        });
+
+      if (insertError) throw insertError;
+
+      try {
+        await supabase
+          .from('enrollments')
+          .upsert({
+            user_id: user.id,
+            course_id: courseId,
+            status: 'active',
+            progress_percentage: 0
+          }, { onConflict: 'user_id,course_id' });
+      } catch (_) {}
+
+      setIsSuccess(true);
+    } catch (err) {
+      console.error('Error with free enrollment:', err);
+      alert('حدث خطأ أثناء تفعيل الكورس المجاني. يرجى المحاولة مرة أخرى.');
+    } finally {
+      setProcessing(false);
+    }
+  };
+
   const handlePayPalCheckout = async () => {
     // TODO: Connect to PayPal Integration
     setProcessing(true);
@@ -186,6 +220,11 @@ export default function Checkout() {
   };
 
   const handleCheckout = () => {
+    const finalPrice = course?.discounted_price !== null && course?.discounted_price !== undefined ? course.discounted_price : course?.price;
+    if (finalPrice === 0) {
+      handleFreeEnrollment();
+      return;
+    }
     if (paymentMethod === 'card') handlePaymobCheckout();
     if (paymentMethod === 'wallet') handleEWalletCheckout();
     if (paymentMethod === 'instapay') handleInstapayCheckout();
@@ -211,6 +250,8 @@ export default function Checkout() {
   }
 
   if (isSuccess) {
+    const isFreeCourse = (course?.discounted_price !== null && course?.discounted_price !== undefined ? course.discounted_price : course?.price) === 0;
+
     return (
       <div className="min-h-screen bg-gray-50 dark:bg-slate-900 pt-28 pb-20 flex items-center justify-center">
         <FadeIn>
@@ -219,17 +260,27 @@ export default function Checkout() {
               <CheckCircle className="w-12 h-12" />
             </div>
             <h2 className="text-3xl font-extrabold text-gray-900 dark:text-white mb-4 font-arabic">
-              تم استلام طلبك بنجاح!
+              {isFreeCourse ? 'تم تفعيل اشتراكك بنجاح!' : 'تم استلام طلبك بنجاح!'}
             </h2>
             <p className="text-gray-500 dark:text-gray-400 mb-8 leading-relaxed">
-              لقد قمنا باستلام بيانات التحويل الخاصة بك. سيتم مراجعة الإيصال من قبل الإدارة وتفعيل اشتراكك في أقرب وقت ممكن.
+              {isFreeCourse 
+                ? 'تهانينا! تم تفعيل اشتراكك المجاني في الكورس فوراً. يمكنك الآن البدء في مشاهدة جميع الدروس والمذكرات.' 
+                : 'لقد قمنا باستلام بيانات التحويل الخاصة بك. سيتم مراجعة الإيصال من قبل الإدارة وتفعيل اشتراكك في أقرب وقت ممكن.'}
             </p>
-            <Link 
-              to="/dashboard"
-              className="w-full flex justify-center py-4 px-6 border border-transparent rounded-xl shadow-sm text-lg font-bold text-white bg-blue-600 hover:bg-blue-700 transition-colors"
-            >
-              الذهاب إلى لوحة الطالب
-            </Link>
+            <div className="flex flex-col gap-3">
+              <Link 
+                to={`/course/${courseId}`}
+                className="w-full flex justify-center py-4 px-6 border border-transparent rounded-xl shadow-md text-lg font-bold text-white bg-blue-600 hover:bg-blue-700 transition-colors"
+              >
+                {isFreeCourse ? 'بدء دراسة الكورس الآن' : 'عرض محتوى الكورس'}
+              </Link>
+              <Link 
+                to="/dashboard"
+                className="w-full flex justify-center py-3 px-6 rounded-xl text-base font-bold text-gray-700 dark:text-gray-200 bg-gray-100 dark:bg-slate-700 hover:bg-gray-200 dark:hover:bg-slate-600 transition-colors"
+              >
+                الذهاب إلى لوحة الطالب
+              </Link>
+            </div>
           </div>
         </FadeIn>
       </div>
@@ -266,6 +317,43 @@ export default function Checkout() {
             
             {/* Payment Methods (Left/Main Content, col-span-7) */}
             <div className="lg:col-span-7 space-y-6 order-2 lg:order-1">
+              {finalPrice === 0 ? (
+                <div className="bg-white dark:bg-slate-800 rounded-3xl p-8 md:p-12 shadow-sm border-2 border-emerald-500/30 text-center relative overflow-hidden">
+                  <div className="w-20 h-20 bg-emerald-100 dark:bg-emerald-950/50 text-emerald-600 dark:text-emerald-400 rounded-3xl flex items-center justify-center mx-auto mb-6 shadow-inner">
+                    <Sparkles className="w-10 h-10 animate-bounce" />
+                  </div>
+                  <span className="px-3.5 py-1 bg-emerald-100 dark:bg-emerald-900/50 text-emerald-700 dark:text-emerald-300 rounded-full text-xs font-black uppercase mb-3 inline-block">
+                    كورس مجاني 100%
+                  </span>
+                  <h2 className="text-2xl sm:text-3xl font-black text-gray-900 dark:text-white mb-3 font-arabic">
+                    التحاق فوري ومجاني بالكورس 🎁
+                  </h2>
+                  <p className="text-gray-600 dark:text-gray-300 max-w-md mx-auto mb-8 leading-relaxed font-medium">
+                    هذا الكورس متاح مجاناً لجميع طلاب المنصة بدون أي رسوم أو إيصالات تحويل. اضغط أدناه للتفعيل والبدء فوراً!
+                  </p>
+                  <button
+                    onClick={handleFreeEnrollment}
+                    disabled={processing}
+                    className="w-full sm:w-auto px-10 py-4 bg-gradient-to-r from-emerald-600 to-teal-600 hover:from-emerald-500 hover:to-teal-500 text-white rounded-2xl font-black text-lg shadow-xl shadow-emerald-500/20 active:scale-95 transition-all flex items-center justify-center gap-3 mx-auto disabled:opacity-50 cursor-pointer"
+                  >
+                    {processing ? (
+                      <>
+                        <Loader className="w-6 h-6 animate-spin" />
+                        <span>جاري تفعيل الاشتراك المجاني...</span>
+                      </>
+                    ) : (
+                      <>
+                        <CheckCircle className="w-6 h-6" />
+                        <span>تفعيل الاشتراك والبدء الآن</span>
+                      </>
+                    )}
+                  </button>
+                  <p className="text-center text-xs text-emerald-600 dark:text-emerald-400 font-bold mt-6 flex items-center justify-center gap-1.5">
+                    <ShieldCheck className="w-4 h-4" />
+                    تفعيل فوري مباشر بدون انتظار المراجعة.
+                  </p>
+                </div>
+              ) : (
               <div className="bg-white dark:bg-slate-800 rounded-3xl p-6 md:p-8 shadow-sm border border-gray-100 dark:border-slate-700">
                 <h2 className="text-xl font-bold text-gray-900 dark:text-white mb-6 flex items-center gap-2">
                   <ShieldCheck className="w-6 h-6 text-green-500" />
@@ -407,6 +495,7 @@ export default function Checkout() {
                   </p>
                 </div>
               </div>
+              )}
             </div>
 
             {/* Order Summary (Right Column, col-span-5) */}

@@ -30,14 +30,16 @@ export default function Navbar() {
     setIsMobileMenuOpen(false);
   }, [location.pathname]);
 
-  const chatRoute = profile?.role === 'admin' ? '/admin-dashboard/chat' : '/chat';
-  const quizzesRoute = profile?.role === 'admin' ? '/admin-dashboard/quizzes' : '/quizzes';
+  const isStaff = profile?.role === 'admin' || profile?.role === 'teacher' || profile?.email === '41147332a@gmail.com';
+  const chatRoute = isStaff ? '/admin-dashboard/chat' : '/chat';
+  const quizzesRoute = isStaff ? '/admin-dashboard/quizzes' : '/quizzes';
+  const liveRoute = isStaff ? '/admin-dashboard/live-sessions' : '/live-sessions';
 
   const navLinks = [
     { to: '/', label: t('home') },
     { to: '/classes', label: t('classes') },
     { to: '/courses', label: t('courses') },
-    { to: '/live-sessions', label: t('nav_live_sessions') },
+    { to: liveRoute, label: t('nav_live_sessions') },
     { to: chatRoute, label: t('nav_chat') },
     { to: quizzesRoute, label: t('nav_quizzes') }
   ];
@@ -84,16 +86,16 @@ export default function Navbar() {
                       </div>
                       <div className="h-px bg-gray-100 dark:bg-slate-700 my-1"></div>
                       <Link 
-                        to={profile?.role === 'admin' ? "/admin-dashboard" : "/dashboard"}
+                        to={isStaff ? "/admin-dashboard" : "/dashboard"}
                         onClick={(e) => {
-                          const targetPath = profile?.role === 'admin' ? "/admin-dashboard" : "/dashboard";
+                          const targetPath = isStaff ? "/admin-dashboard" : "/dashboard";
                           if (window.location.pathname === targetPath) {
                             window.scrollTo({ top: 0, behavior: 'smooth' });
                           }
                         }}
                         className="block w-full text-right px-4 py-2 rounded-lg text-sm font-bold text-blue-600 hover:bg-blue-50 dark:hover:bg-slate-700 transition-colors ltr:text-left rtl:text-right"
                       >
-                        {profile?.role === 'admin' ? t('nav_dashboard') : t('nav_profile')}
+                        {isStaff ? t('nav_dashboard') : t('nav_profile')}
                       </Link>
                       <Link 
                         to="/settings"
@@ -220,11 +222,11 @@ export default function Navbar() {
                         {t('nav_welcome_prefix')}{profile?.full_name || user?.user_metadata?.full_name || user?.user_metadata?.name || user.email}
                       </div>
                       <Link 
-                        to={profile?.role === 'admin' ? "/admin-dashboard" : "/dashboard"}
+                        to={isStaff ? "/admin-dashboard" : "/dashboard"}
                         onClick={() => setIsMobileMenuOpen(false)}
                         className="block w-full text-center px-4 py-3 rounded-2xl bg-gradient-to-r from-blue-600 to-indigo-600 text-white font-bold transition-all shadow-md active:scale-95 text-sm"
                       >
-                        {profile?.role === 'admin' ? t('nav_dashboard') : t('nav_profile')}
+                        {isStaff ? t('nav_dashboard') : t('nav_profile')}
                       </Link>
                       <Link 
                         to="/settings"

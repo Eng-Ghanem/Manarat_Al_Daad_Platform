@@ -179,6 +179,17 @@ export default function AdminSubscriptions() {
           computedStatus = 'expired';
         }
 
+        // Smart Renewal Detection: If an expired/completed package has a renewal submission or new unverified payment receipt
+        // (i.e. created_at is newer than activated_at, or status was explicitly set to pending),
+        // treat it as 'pending' review so the admin sees it in "طلبات بانتظار الاعتماد" and "قيد المراجعة" to approve it!
+        if (
+          (computedStatus === 'expired' || (computedStatus === 'active' && remaining <= 0)) &&
+          (ls.receipt_url || (ls.wallet_number && ls.wallet_number !== '-')) &&
+          (!ls.activated_at || new Date(ls.created_at) > new Date(ls.activated_at))
+        ) {
+          computedStatus = 'pending';
+        }
+
         const studentName = prof?.full_name || prof?.email?.split('@')[0] || 'طالب المنصة';
         const gradeName = formatGradeName(grade);
 
@@ -923,6 +934,23 @@ export default function AdminSubscriptions() {
                 </button>
 
                 <button
+                  onClick={() => setFilter('expired')}
+                  className={`flex items-center gap-2 px-3.5 py-1.5 rounded-xl text-xs sm:text-sm font-bold transition-all cursor-pointer ${
+                    filter === 'expired'
+                      ? 'bg-rose-600 text-white font-black shadow-md shadow-rose-600/20'
+                      : 'text-rose-400 hover:bg-rose-500/10'
+                  }`}
+                >
+                  <AlertTriangle className="w-3.5 h-3.5" />
+                  <span>المنتهية</span>
+                  <span className={`px-2 py-0.5 rounded-full text-[11px] font-black ${
+                    filter === 'expired' ? 'bg-slate-950 text-rose-400' : 'bg-rose-500/20 text-rose-300'
+                  }`}>
+                    {expiredCount}
+                  </span>
+                </button>
+
+                <button
                   onClick={() => setFilter('rejected')}
                   className={`flex items-center gap-2 px-3.5 py-1.5 rounded-xl text-xs sm:text-sm font-bold transition-all cursor-pointer ${
                     filter === 'rejected'
@@ -1425,7 +1453,7 @@ export default function AdminSubscriptions() {
                   type="text"
                   value={deductModal.sessionTitle}
                   onChange={(e) => setDeductModal(prev => ({ ...prev, sessionTitle: e.target.value }))}
-                  placeholder="مثال: شرح درس النحو + تدريبات تفاعلية"
+                  placeholder="مثال: حصة السبت (من 09:00 م إلى 10:00 م)"
                   className="w-full px-4 py-3 bg-slate-950 border border-slate-800 rounded-xl text-sm font-bold text-white outline-none focus:border-purple-500 transition-colors"
                 />
               </div>
@@ -1438,7 +1466,7 @@ export default function AdminSubscriptions() {
                   rows="2"
                   value={deductModal.teacherNotes}
                   onChange={(e) => setDeductModal(prev => ({ ...prev, teacherNotes: e.target.value }))}
-                  placeholder="مثال: تم حضور الحصة كاملة وتفاعل ممتاز في الإجابات"
+                  placeholder="مثال: تم حضور الحصة واكتمالها بنجاح وفق الجدول المقرر"
                   className="w-full px-4 py-3 bg-slate-950 border border-slate-800 rounded-xl text-sm font-bold text-white outline-none focus:border-purple-500 transition-colors resize-none"
                 />
               </div>

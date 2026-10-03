@@ -415,15 +415,19 @@ export default function AdminSubscriptions() {
           })
           .eq('id', item.id);
 
-        await supabase.from('completed_live_sessions').insert([{
-          student_id: item.user_id,
-          student_name: item.studentName,
-          grade_level: item.studentGrade,
-          session_title: sTitle,
-          session_type: 'package',
-          completed_at: new Date().toISOString(),
-          teacher_notes: tNotes
-        }]);
+        try {
+          await supabase.from('completed_live_sessions').insert([{
+            student_id: item.user_id,
+            student_name: item.studentName,
+            grade_level: item.studentGrade,
+            session_title: sTitle,
+            session_type: 'package',
+            completed_at: new Date().toISOString(),
+            teacher_notes: tNotes
+          }]);
+        } catch (tableErr) {
+          console.warn('completed_live_sessions insert notice:', tableErr);
+        }
       }
 
       toast.success(`✅ تم خصم حصة وتسجيل الحضور للطالب ${item.studentName}! (المتبقي: ${newRemaining} حصص)`);

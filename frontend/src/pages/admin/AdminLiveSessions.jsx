@@ -630,26 +630,48 @@ export default function AdminLiveSessions() {
           .update({ remaining_sessions: newRemaining, status: newStatus })
           .eq('id', pkg.sub_id);
       } else {
-        await supabase
+        const { data: existSub } = await supabase
           .from('live_subscriptions')
-          .upsert({
-            user_id: pkg.user_id,
-            grade_level: pkg.grade_level,
-            total_sessions: 8,
-            remaining_sessions: newRemaining,
-            status: newStatus
-          }, { onConflict: 'user_id' });
+          .select('id')
+          .eq('user_id', pkg.user_id)
+          .maybeSingle();
+
+        if (existSub) {
+          await supabase
+            .from('live_subscriptions')
+            .update({
+              grade_level: pkg.grade_level,
+              total_sessions: 8,
+              remaining_sessions: newRemaining,
+              status: newStatus
+            })
+            .eq('id', existSub.id);
+        } else {
+          await supabase
+            .from('live_subscriptions')
+            .insert([{
+              user_id: pkg.user_id,
+              grade_level: pkg.grade_level,
+              total_sessions: 8,
+              remaining_sessions: newRemaining,
+              status: newStatus
+            }]);
+        }
       }
 
-      await supabase.from('completed_live_sessions').insert([{
-        student_id: pkg.user_id,
-        student_name: pkg.full_name,
-        grade_level: pkg.grade_level,
-        session_title: sTitle,
-        session_type: 'package',
-        completed_at: new Date().toISOString(),
-        teacher_notes: tNotes
-      }]);
+      try {
+        await supabase.from('completed_live_sessions').insert([{
+          student_id: pkg.user_id,
+          student_name: pkg.full_name,
+          grade_level: pkg.grade_level,
+          session_title: sTitle,
+          session_type: 'package',
+          completed_at: new Date().toISOString(),
+          teacher_notes: tNotes
+        }]);
+      } catch (tableErr) {
+        console.warn('completed_live_sessions notice:', tableErr);
+      }
 
       toast.success(`تم تسجيل الحضور وخصم حصة بنجاح (المتبقي: ${newRemaining})`);
       setDeductModal({ isOpen: false, pkg: null, sessionTitle: '', teacherNotes: '', submitting: false });
@@ -708,15 +730,33 @@ export default function AdminLiveSessions() {
           .update({ remaining_sessions: newRemaining, status: newStatus })
           .eq('id', pkg.sub_id);
       } else {
-        await supabase
+        const { data: existSub } = await supabase
           .from('live_subscriptions')
-          .upsert({
-            user_id: pkg.user_id,
-            grade_level: pkg.grade_level,
-            total_sessions: 8,
-            remaining_sessions: newRemaining,
-            status: newStatus
-          }, { onConflict: 'user_id' });
+          .select('id')
+          .eq('user_id', pkg.user_id)
+          .maybeSingle();
+
+        if (existSub) {
+          await supabase
+            .from('live_subscriptions')
+            .update({
+              grade_level: pkg.grade_level,
+              total_sessions: 8,
+              remaining_sessions: newRemaining,
+              status: newStatus
+            })
+            .eq('id', existSub.id);
+        } else {
+          await supabase
+            .from('live_subscriptions')
+            .insert([{
+              user_id: pkg.user_id,
+              grade_level: pkg.grade_level,
+              total_sessions: 8,
+              remaining_sessions: newRemaining,
+              status: newStatus
+            }]);
+        }
       }
       toast.success(
         delta < 0 
@@ -777,16 +817,35 @@ export default function AdminLiveSessions() {
           })
           .eq('id', pkg.sub_id);
       } else {
-        await supabase
+        const { data: existSub } = await supabase
           .from('live_subscriptions')
-          .upsert({
-            user_id: pkg.user_id,
-            grade_level: pkg.grade_level,
-            total_sessions: 8,
-            remaining_sessions: 8,
-            status: 'active',
-            activated_at: new Date().toISOString()
-          }, { onConflict: 'user_id' });
+          .select('id')
+          .eq('user_id', pkg.user_id)
+          .maybeSingle();
+
+        if (existSub) {
+          await supabase
+            .from('live_subscriptions')
+            .update({
+              grade_level: pkg.grade_level,
+              total_sessions: 8,
+              remaining_sessions: 8,
+              status: 'active',
+              activated_at: new Date().toISOString()
+            })
+            .eq('id', existSub.id);
+        } else {
+          await supabase
+            .from('live_subscriptions')
+            .insert([{
+              user_id: pkg.user_id,
+              grade_level: pkg.grade_level,
+              total_sessions: 8,
+              remaining_sessions: 8,
+              status: 'active',
+              activated_at: new Date().toISOString()
+            }]);
+        }
       }
 
       toast.success(
@@ -869,25 +928,49 @@ export default function AdminLiveSessions() {
 
       for (const p of eligible) {
         const nextRem = p.remaining_sessions - 1;
-        await supabase
-          .from('live_subscriptions')
-          .upsert({
-            user_id: p.user_id,
-            grade_level: p.grade_level,
-            total_sessions: 8,
-            remaining_sessions: nextRem,
-            status: nextRem === 0 ? 'expired' : 'active'
-          }, { onConflict: 'user_id' });
+        const nextStat = nextRem === 0 ? 'expired' : 'active';
 
-        await supabase.from('completed_live_sessions').insert([{
-          student_id: p.user_id,
-          student_name: p.full_name,
-          grade_level: p.grade_level,
-          session_title: sTitle,
-          session_type: 'package',
-          completed_at: new Date().toISOString(),
-          teacher_notes: tNotes
-        }]);
+        const { data: existSub } = await supabase
+          .from('live_subscriptions')
+          .select('id')
+          .eq('user_id', p.user_id)
+          .maybeSingle();
+
+        if (existSub) {
+          await supabase
+            .from('live_subscriptions')
+            .update({
+              grade_level: p.grade_level,
+              total_sessions: 8,
+              remaining_sessions: nextRem,
+              status: nextStat
+            })
+            .eq('id', existSub.id);
+        } else {
+          await supabase
+            .from('live_subscriptions')
+            .insert([{
+              user_id: p.user_id,
+              grade_level: p.grade_level,
+              total_sessions: 8,
+              remaining_sessions: nextRem,
+              status: nextStat
+            }]);
+        }
+
+        try {
+          await supabase.from('completed_live_sessions').insert([{
+            student_id: p.user_id,
+            student_name: p.full_name,
+            grade_level: p.grade_level,
+            session_title: sTitle,
+            session_type: 'package',
+            completed_at: new Date().toISOString(),
+            teacher_notes: tNotes
+          }]);
+        } catch (tableErr) {
+          console.warn('completed_live_sessions notice:', tableErr);
+        }
       }
       toast.success(`✅ تم تسجيل حضور ${eligible.length} طالب وخصم حصة واحدة لكل منهم`);
       setBulkDeductModal({ isOpen: false, gradeLevel: '', sessionTitle: '', teacherNotes: '', submitting: false });

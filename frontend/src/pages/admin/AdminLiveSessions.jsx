@@ -758,6 +758,23 @@ export default function AdminLiveSessions() {
             }]);
         }
       }
+
+      if (delta < 0) {
+        try {
+          await supabase.from('completed_live_sessions').insert([{
+            student_id: pkg.user_id,
+            student_name: pkg.full_name,
+            grade_level: pkg.grade_level,
+            session_title: `حصة أونلاين - ${formatGradeName(pkg.grade_level)}`,
+            session_type: 'package',
+            completed_at: new Date().toISOString(),
+            teacher_notes: 'تم حضور الحصة واكتمالها بنجاح'
+          }]);
+        } catch (tableErr) {
+          console.warn('completed_live_sessions notice:', tableErr);
+        }
+      }
+
       toast.success(
         delta < 0 
           ? `تم تسجيل الحضور وخصم حصة (المتبقي: ${newRemaining})` 
@@ -1786,10 +1803,10 @@ export default function AdminLiveSessions() {
                                     ) : (
                                       <>
                                         <button
-                                          onClick={() => handleOpenDeductModal(pkg)}
+                                          onClick={() => handleUpdatePackageSessions(pkg, -1)}
                                           disabled={remaining <= 0}
                                           className="px-3.5 py-1.5 rounded-xl bg-amber-50 hover:bg-amber-100 dark:bg-amber-950/40 text-amber-700 dark:text-amber-400 text-xs font-bold flex items-center gap-1.5 transition-colors disabled:opacity-40 disabled:cursor-not-allowed cursor-pointer shadow-sm"
-                                          title="تسجيل حضور وخصم حصة واحدة مع إضافة عنوان وملاحظات"
+                                          title="خصم حصة واحدة مباشرة"
                                         >
                                           <MinusCircle className="w-4 h-4" />
                                           خصم حصة (-1)

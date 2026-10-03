@@ -349,28 +349,14 @@ export default function AdminSubscriptions() {
     }
   };
 
-  // Open modal to deduct 1 session
-  const handleOpenDeductModal = (req) => {
-    setDeductModal({
-      isOpen: true,
-      item: req,
-      sessionTitle: `حصة أونلاين - ${req.gradeName || 'المستوى الدراسي'}`,
-      teacherNotes: 'تم حضور الحصة واكتمالها بنجاح',
-      submitting: false
-    });
-  };
-
-  // Confirm attendance deduction (-1 session + save to completed_live_sessions)
-  const handleConfirmDeduct = async () => {
-    const { item, sessionTitle, teacherNotes } = deductModal;
+  // Direct instant attendance deduction (-1 session) without blocking modal
+  const handleDirectDeduct = async (item) => {
     if (!item) return;
-
-    setDeductModal(prev => ({ ...prev, submitting: true }));
 
     const newRemaining = Math.max(0, item.remainingSessions - 1);
     const newStatus = newRemaining === 0 ? 'expired' : 'active';
-    const sTitle = sessionTitle.trim() || `حصة أونلاين - ${item.gradeName || ''}`;
-    const tNotes = teacherNotes.trim() || 'تم حضور الحصة واكتمالها بنجاح';
+    const sTitle = `حصة أونلاين - ${item.gradeName || ''}`;
+    const tNotes = 'تم حضور الحصة واكتمالها بنجاح';
 
     // Optimistic UI update
     setRequests(prev => prev.map(r => r.id === item.id ? {
@@ -431,12 +417,10 @@ export default function AdminSubscriptions() {
       }
 
       toast.success(`✅ تم خصم حصة وتسجيل الحضور للطالب ${item.studentName}! (المتبقي: ${newRemaining} حصص)`);
-      setDeductModal({ isOpen: false, item: null, sessionTitle: '', teacherNotes: '', submitting: false });
       fetchRequests();
     } catch (err) {
       console.error('Error deducting session:', err);
-      toast.error('حدث خطأ أثناء تسجيل الحضور وخصم الحصة');
-      setDeductModal(prev => ({ ...prev, submitting: false }));
+      toast.error('حدث خطأ أثناء خصم الحصة');
       fetchRequests();
     }
   };
@@ -1176,10 +1160,10 @@ export default function AdminSubscriptions() {
                                 {req.status === 'active' && (
                                   <>
                                     <button
-                                      onClick={() => handleOpenDeductModal(req)}
+                                      onClick={() => handleDirectDeduct(req)}
                                       disabled={req.remainingSessions <= 0}
                                       className="px-3 py-1.5 bg-gradient-to-r from-purple-600 to-indigo-600 hover:from-purple-500 hover:to-indigo-500 text-white rounded-xl font-black text-xs transition-all shadow-md shadow-purple-900/30 flex items-center gap-1 cursor-pointer hover:scale-105 disabled:opacity-50 disabled:cursor-not-allowed"
-                                      title="تسجيل حضور وخصم حصة واحدة من رصيد الطالب"
+                                      title="تسجيل حضور وخصم حصة واحدة فورياً"
                                     >
                                       <MinusCircle className="w-3.5 h-3.5" />
                                       <span>خصم حصة (-1)</span>

@@ -355,28 +355,23 @@ export default function StudentLiveSessions() {
       let receiptUrl = '';
       if (renewForm.receipt_file) {
         try {
-          // Instant client-side compression (< 30ms) produces crisp ~80KB JPEG
-          const compressed = await compressImage(renewForm.receipt_file);
+          const fileToUpload = renewForm.receipt_file;
           const fileName = `${user.id}_${Date.now()}.jpg`;
 
-          // Race with 5s timeout so the student request NEVER hangs or freezes
-          const uploadPromise = supabase.storage
+          const { data: upData, error: upErr } = await supabase.storage
             .from('receipts')
-            .upload(`live_renewals/${fileName}`, compressed, {
+            .upload(`live_renewals/${fileName}`, fileToUpload, {
               contentType: 'image/jpeg',
               upsert: true
             });
 
-          const timeoutPromise = new Promise((_, reject) =>
-            setTimeout(() => reject(new Error('Storage timeout')), 5000)
-          );
-
-          const { error: upErr } = await Promise.race([uploadPromise, timeoutPromise]);
-          if (!upErr) {
+          if (!upErr && upData) {
             const { data: pubData } = supabase.storage
               .from('receipts')
               .getPublicUrl(`live_renewals/${fileName}`);
             receiptUrl = pubData?.publicUrl || '';
+          } else if (upErr) {
+            console.error('Storage upload error:', upErr);
           }
         } catch (uploadWarning) {
           console.warn('Storage upload fallback:', uploadWarning);
@@ -1252,12 +1247,20 @@ export default function StudentLiveSessions() {
                   onChange={async (e) => {
                     const f = e.target.files[0];
                     if (f) {
-                      const compressed = await compressImage(f);
-                      setRenewForm({
-                        ...renewForm,
-                        receipt_file: compressed,
-                        receipt_preview: URL.createObjectURL(compressed)
-                      });
+                      try {
+                        const compressed = await compressImage(f);
+                        setRenewForm(prev => ({
+                          ...prev,
+                          receipt_file: compressed,
+                          receipt_preview: URL.createObjectURL(compressed)
+                        }));
+                      } catch (_) {
+                        setRenewForm(prev => ({
+                          ...prev,
+                          receipt_file: f,
+                          receipt_preview: URL.createObjectURL(f)
+                        }));
+                      }
                     }
                   }}
                   className="w-full text-xs text-gray-500 file:mr-2 file:py-2 file:px-4 file:rounded-xl file:border-0 file:text-xs file:font-bold file:bg-blue-50 file:text-blue-700 cursor-pointer"

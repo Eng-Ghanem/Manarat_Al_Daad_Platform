@@ -168,6 +168,13 @@ export default function AdminSubscriptions() {
         const studentName = prof?.full_name || prof?.email?.split('@')[0] || 'طالب المنصة';
         const gradeName = formatGradeName(grade);
 
+        // Robust receipt URL extraction with publicUrl fallback
+        let rUrl = ls.receipt_url || ls.payment_receipt || ls.payment_screenshot || ls.receipt_image || ls.proof_url || null;
+        if (rUrl && typeof rUrl === 'string' && !rUrl.startsWith('http') && !rUrl.startsWith('data:')) {
+          const { data: pubData } = supabase.storage.from('receipts').getPublicUrl(rUrl);
+          rUrl = pubData?.publicUrl || rUrl;
+        }
+
         return {
           id: ls.id,
           user_id: ls.user_id,
@@ -182,7 +189,7 @@ export default function AdminSubscriptions() {
           totalSessions: total,
           paymentMethod: ls.payment_method,
           walletNumber: ls.wallet_number || '-',
-          receiptUrl: ls.receipt_url,
+          receiptUrl: rUrl,
           status: computedStatus,
           rawStatus: ls.status,
           date: ls.created_at,
@@ -1102,7 +1109,7 @@ export default function AdminSubscriptions() {
                           <div className="flex items-center gap-2.5">
                             <div className="flex flex-col text-xs gap-0.5">
                               <span className="font-bold text-slate-200">
-                                {req.paymentMethod === 'vodafone' ? 'فودافون كاش' : req.paymentMethod === 'instapay' ? 'InstaPay' : (req.paymentMethod || 'محفظة')}
+                                {req.paymentMethod === 'vodafone' || req.paymentMethod === 'vodafone_cash' ? 'فودافون كاش' : req.paymentMethod === 'instapay' ? 'InstaPay' : (req.paymentMethod || 'محفظة')}
                               </span>
                               {req.walletNumber && req.walletNumber !== '-' && (
                                 <span className="text-slate-400 font-mono text-[11px]" dir="ltr">
@@ -1113,13 +1120,16 @@ export default function AdminSubscriptions() {
                             {req.receiptUrl ? (
                               <button
                                 onClick={() => setSelectedReceipt(getDirectImageUrl(req.receiptUrl))}
-                                className="inline-flex items-center justify-center p-1.5 bg-blue-500/20 hover:bg-blue-500/30 text-blue-300 border border-blue-500/30 rounded-xl transition-all shadow-xs cursor-pointer hover:scale-105"
+                                className="inline-flex items-center gap-1.5 px-2.5 py-1.5 bg-blue-500/20 hover:bg-blue-500/30 text-blue-300 hover:text-white border border-blue-500/40 rounded-xl transition-all shadow-xs cursor-pointer hover:scale-105 active:scale-95 text-xs font-black"
                                 title="معاينة إيصال التحويل"
                               >
-                                <Eye className="w-4 h-4" />
+                                <Eye className="w-3.5 h-3.5" />
+                                <span>عرض الإيصال</span>
                               </button>
                             ) : (
-                              <span className="text-slate-500 text-[10px]">بدون إيصال</span>
+                              <span className="text-slate-500 text-[11px] px-2 py-0.5 rounded-md bg-slate-900/60 border border-slate-800">
+                                بدون إيصال
+                              </span>
                             )}
                           </div>
                         </td>
@@ -1425,6 +1435,15 @@ export default function AdminSubscriptions() {
               >
                 <RotateCcw className="w-5 h-5" />
               </button>
+              <a 
+                href={selectedReceipt} 
+                target="_blank" 
+                rel="noreferrer"
+                className="w-10 h-10 bg-blue-600 hover:bg-blue-500 text-white rounded-xl flex items-center justify-center transition-colors cursor-pointer"
+                title="فتح في نافذة جديدة أو تنزيل"
+              >
+                <ExternalLink className="w-5 h-5" />
+              </a>
               <div className="w-px h-6 bg-slate-700 mx-1"></div>
               <button 
                 onClick={() => { setSelectedReceipt(null); setZoomLevel(1); }}

@@ -1,10 +1,10 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useMemo } from 'react';
 import { useTranslation } from 'react-i18next';
 import {
   Video, Calendar, Clock, BookOpen, Link as LinkIcon,
   CheckCircle, Loader, PlayCircle, XCircle, Clock4, Filter,
   CreditCard, Sparkles, Lock, RefreshCw, AlertTriangle, ArrowRight,
-  Bell, UploadCloud, X, CheckCircle2, ShieldCheck
+  Bell, UploadCloud, X, CheckCircle2, ShieldCheck, Eye
 } from 'lucide-react';
 import FadeIn from '../components/FadeIn';
 import { supabase } from '../lib/supabase';
@@ -38,6 +38,7 @@ export default function StudentLiveSessions() {
     receipt_preview: null
   });
   const [renewLoading, setRenewLoading] = useState(false);
+  const [compressingReceipt, setCompressingReceipt] = useState(false);
 
   // Trial Sessions State
   const [trialSessions, setTrialSessions] = useState([]);
@@ -57,10 +58,55 @@ export default function StudentLiveSessions() {
     return [];
   });
   const [completedLoading, setCompletedLoading] = useState(false);
+  const [completedMonthFilter, setCompletedMonthFilter] = useState('all');
 
   // Filters for individual sessions
   const [filterMonth, setFilterMonth] = useState('all');
   const [filterStatus, setFilterStatus] = useState('all');
+
+  // Available Months for Completed Sessions Filtering
+  const studentAvailableMonths = useMemo(() => {
+    const set = new Set();
+    const now = new Date();
+    const currentYM = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}`;
+    set.add(currentYM);
+
+    completedSessions.forEach(cs => {
+      const d = cs.completed_at || cs.created_at;
+      if (d) {
+        try {
+          const ym = new Date(d).toISOString().slice(0, 7);
+          if (ym && ym.length === 7) set.add(ym);
+        } catch (_) {}
+      }
+    });
+
+    const AR_MONTHS = ['يناير', 'فبراير', 'مارس', 'أبريل', 'مايو', 'يونيو', 'يوليو', 'أغسطس', 'سبتمبر', 'أكتوبر', 'نوفمبر', 'ديسمبر'];
+
+    return Array.from(set).sort().reverse().map(ym => {
+      const [y, m] = ym.split('-');
+      const name = AR_MONTHS[parseInt(m, 10) - 1] || m;
+      return {
+        value: ym,
+        label: `${name} ${y}`
+      };
+    });
+  }, [completedSessions]);
+
+  // Filtered Completed Sessions by selected month
+  const filteredCompletedSessions = useMemo(() => {
+    if (completedMonthFilter === 'all') return completedSessions;
+    return completedSessions.filter(cs => {
+      const d = cs.completed_at || cs.created_at;
+      if (!d) return false;
+      try {
+        const ym = new Date(d).toISOString().slice(0, 7);
+        return ym === completedMonthFilter;
+      } catch (_) {
+        return false;
+      }
+    });
+  }, [completedSessions, completedMonthFilter]);
 
   // Smart 5-minute Alert State
   const [imminentSession, setImminentSession] = useState(null);
@@ -360,30 +406,39 @@ export default function StudentLiveSessions() {
     setRenewLoading(true);
 
     try {
-      let receiptUrl = '';
+      // 1. Safely check if user already has an existing live_subscription and preserve existing receipt
+      const { data: existing } = await supabase
+        .from('live_subscriptions')
+        .select('id, receipt_url')
+        .eq('user_id', user.id)
+        .maybeSingle();
+
+      let receiptUrl = existing?.receipt_url || myPackage?.receipt_url || null;
+
+      // 2. Upload receipt if user picked a new file
       if (renewForm.receipt_file) {
-        try {
-          const fileToUpload = renewForm.receipt_file;
-          const fileName = `${user.id}_${Date.now()}.jpg`;
+        const fileToUpload = renewForm.receipt_file;
+        const fileExt = fileToUpload.name?.split('.').pop() || 'jpg';
+        const fileName = `${user.id}_${Date.now()}.${fileExt}`;
 
-          const { data: upData, error: upErr } = await supabase.storage
-            .from('receipts')
-            .upload(`live_renewals/${fileName}`, fileToUpload, {
-              contentType: 'image/jpeg',
-              upsert: true
-            });
+        const { data: upData, error: upErr } = await supabase.storage
+          .from('receipts')
+          .upload(`live_renewals/${fileName}`, fileToUpload, {
+            contentType: fileToUpload.type || 'image/jpeg',
+            upsert: true
+          });
 
-          if (!upErr && upData) {
-            const { data: pubData } = supabase.storage
-              .from('receipts')
-              .getPublicUrl(`live_renewals/${fileName}`);
-            receiptUrl = pubData?.publicUrl || '';
-          } else if (upErr) {
-            console.error('Storage upload error:', upErr);
-          }
-        } catch (uploadWarning) {
-          console.warn('Storage upload fallback:', uploadWarning);
+        if (upErr) {
+          console.error('Storage upload error:', upErr);
+          toast.error('تعذر رفع صورة الإيصال: ' + (upErr.message || 'يرجى المحاولة بصورة أصغر حجماً'));
+          setRenewLoading(false);
+          return;
         }
+
+        const { data: pubData } = supabase.storage
+          .from('receipts')
+          .getPublicUrl(`live_renewals/${fileName}`);
+        receiptUrl = pubData?.publicUrl || existing?.receipt_url || null;
       }
 
       const isFirstSub = !myPackage || myPackage.status === 'not_subscribed';
@@ -395,17 +450,10 @@ export default function StudentLiveSessions() {
         status: 'pending',
         payment_method: renewForm.payment_method,
         wallet_number: renewForm.wallet_number.trim(),
-        receipt_url: receiptUrl || null,
+        receipt_url: receiptUrl,
         notes: isFirstSub ? 'طلب اشتراك جديد في باقة 8 حصص' : 'طلب تجديد باقة 8 حصص',
         created_at: new Date().toISOString()
       };
-
-      // Safely check if user already has an existing live_subscription
-      const { data: existing } = await supabase
-        .from('live_subscriptions')
-        .select('id')
-        .eq('user_id', user.id)
-        .maybeSingle();
 
       let dbError = null;
       if (existing?.id) {
@@ -994,6 +1042,49 @@ export default function StudentLiveSessions() {
                 </div>
               </div>
 
+              {/* Month Filter Bar */}
+              {completedSessions.length > 0 && (
+                <div className="flex flex-col sm:flex-row justify-between items-stretch sm:items-center gap-3 p-4 rounded-2xl bg-gray-50 dark:bg-slate-900/60 border border-gray-100 dark:border-slate-700/80 mb-6">
+                  <div className="flex items-center gap-2.5">
+                    <div className="p-2.5 rounded-xl bg-purple-100 dark:bg-purple-950/50 text-purple-700 dark:text-purple-300">
+                      <Calendar className="w-4 h-4" />
+                    </div>
+                    <div>
+                      <span className="text-[11px] font-bold text-gray-500 dark:text-gray-400 block">فلترة الحصص حسب الشهر:</span>
+                      <span className="text-xs font-black text-gray-900 dark:text-white">
+                        {completedMonthFilter === 'all'
+                          ? `كافة الحصص (${filteredCompletedSessions.length} حصة)`
+                          : `حصص شهر ${studentAvailableMonths.find(m => m.value === completedMonthFilter)?.label || completedMonthFilter} (${filteredCompletedSessions.length} حصة)`}
+                      </span>
+                    </div>
+                  </div>
+
+                  <div className="flex items-center gap-2">
+                    <select
+                      value={completedMonthFilter}
+                      onChange={(e) => setCompletedMonthFilter(e.target.value)}
+                      className="px-4 py-2.5 rounded-xl bg-white dark:bg-slate-800 border border-gray-200 dark:border-slate-700 text-xs font-black text-gray-900 dark:text-white outline-none cursor-pointer shadow-xs focus:ring-2 focus:ring-purple-500/30"
+                    >
+                      <option value="all">📅 جميع الشهور والأعوام</option>
+                      {studentAvailableMonths.map(m => (
+                        <option key={m.value} value={m.value}>
+                          🗓️ {m.label}
+                        </option>
+                      ))}
+                    </select>
+
+                    {completedMonthFilter !== 'all' && (
+                      <button
+                        onClick={() => setCompletedMonthFilter('all')}
+                        className="px-3 py-2.5 rounded-xl text-xs font-bold bg-gray-200 dark:bg-slate-700 text-gray-700 dark:text-gray-300 hover:bg-gray-300 dark:hover:bg-slate-600 transition-colors cursor-pointer"
+                      >
+                        إلغاء الفلتر
+                      </button>
+                    )}
+                  </div>
+                </div>
+              )}
+
               {/* Sessions List */}
               {completedLoading && completedSessions.length === 0 ? (
                 <div className="text-center py-12">
@@ -1010,9 +1101,22 @@ export default function StudentLiveSessions() {
                     بمجرد انتهاء حصتك المباشرة وخصمها من قبل المعلم، ستظهر تفاصيلها وتاريخها وساعتها هنا تلقائياً لتوثيق حضورك.
                   </p>
                 </div>
+              ) : filteredCompletedSessions.length === 0 ? (
+                <div className="text-center py-12 px-4 bg-gray-50 dark:bg-slate-900/40 rounded-2xl border border-dashed border-gray-200 dark:border-slate-700">
+                  <Calendar className="w-10 h-10 text-gray-400 mx-auto mb-2" />
+                  <p className="text-sm font-bold text-gray-700 dark:text-gray-300">
+                    لا توجد حصص مكتملة مسجلة في هذا الشهر المحدد.
+                  </p>
+                  <button
+                    onClick={() => setCompletedMonthFilter('all')}
+                    className="mt-3 px-4 py-2 bg-purple-600 text-white rounded-xl text-xs font-bold hover:bg-purple-700 transition-colors cursor-pointer"
+                  >
+                    عرض جميع الحصص المكتملة
+                  </button>
+                </div>
               ) : (
                 <div className="space-y-3">
-                  {completedSessions.map(cs => {
+                  {filteredCompletedSessions.map(cs => {
                     const dateObj = new Date(cs.completed_at);
                     const formattedDate = dateObj.toLocaleDateString('ar-EG', {
                       weekday: 'long',
@@ -1248,13 +1352,16 @@ export default function StudentLiveSessions() {
               </div>
 
               <div>
-                <label className="block text-xs font-bold text-gray-700 dark:text-gray-300 mb-1">صورة إيصال التحويل (اختياري)</label>
+                <label className="block text-xs font-bold text-gray-700 dark:text-gray-300 mb-1">
+                  صورة إيصال التحويل (اختياري - لتأكيد وتفعيل الباقة فوراً)
+                </label>
                 <input
                   type="file"
                   accept="image/*"
                   onChange={async (e) => {
                     const f = e.target.files[0];
                     if (f) {
+                      setCompressingReceipt(true);
                       try {
                         const compressed = await compressImage(f);
                         setRenewForm(prev => ({
@@ -1268,15 +1375,33 @@ export default function StudentLiveSessions() {
                           receipt_file: f,
                           receipt_preview: URL.createObjectURL(f)
                         }));
+                      } finally {
+                        setCompressingReceipt(false);
                       }
                     }
                   }}
                   className="w-full text-xs text-gray-500 file:mr-2 file:py-2 file:px-4 file:rounded-xl file:border-0 file:text-xs file:font-bold file:bg-blue-50 file:text-blue-700 cursor-pointer"
                 />
-                {renewForm.receipt_preview && (
-                  <div className="mt-2 relative inline-block">
+
+                {compressingReceipt && (
+                  <p className="text-[11px] text-blue-600 dark:text-blue-400 font-bold mt-1.5 flex items-center gap-1.5 animate-pulse">
+                    <Loader className="w-3.5 h-3.5 animate-spin" />
+                    <span>جاري معالجة وضغط صورة الإيصال...</span>
+                  </p>
+                )}
+
+                {renewForm.receipt_preview && !compressingReceipt && (
+                  <div className="mt-2.5 relative inline-block">
                     <img src={renewForm.receipt_preview} alt="معاينة الإيصال" className="h-24 w-auto rounded-xl border border-gray-200 dark:border-slate-700 object-cover shadow-sm" />
-                    <span className="text-[10px] text-emerald-600 dark:text-emerald-400 font-bold block mt-1">✓ تم ضغط الصورة لتسريع الإرسال الفوري</span>
+                    <button
+                      type="button"
+                      onClick={() => setRenewForm(prev => ({ ...prev, receipt_file: null, receipt_preview: null }))}
+                      className="absolute -top-2 -left-2 bg-red-600 hover:bg-red-700 text-white rounded-full p-1 shadow-md transition-colors cursor-pointer"
+                      title="إلغاء الصورة المحددة"
+                    >
+                      <X className="w-3 h-3" />
+                    </button>
+                    <span className="text-[10px] text-emerald-600 dark:text-emerald-400 font-bold block mt-1">✓ جاهز للإرسال مع الطلب</span>
                   </div>
                 )}
               </div>
@@ -1291,14 +1416,21 @@ export default function StudentLiveSessions() {
                 </button>
                 <button
                   type="submit"
-                  disabled={renewLoading}
-                  className="px-6 py-2.5 rounded-xl font-bold bg-emerald-600 hover:bg-emerald-700 text-white text-xs shadow-md disabled:opacity-50 cursor-pointer"
+                  disabled={renewLoading || compressingReceipt}
+                  className="px-6 py-2.5 rounded-xl font-bold bg-emerald-600 hover:bg-emerald-700 text-white text-xs shadow-md disabled:opacity-50 cursor-pointer flex items-center gap-2"
                 >
-                  {renewLoading 
-                    ? 'جاري الإرسال...' 
-                    : myPackage?.status === 'not_subscribed'
-                    ? 'تأكيد وإرسال طلب الاشتراك'
-                    : 'تأكيد وإرسال طلب التجديد'}
+                  {renewLoading ? (
+                    <>
+                      <Loader className="w-3.5 h-3.5 animate-spin" />
+                      <span>جاري الإرسال ورفع الإيصال...</span>
+                    </>
+                  ) : compressingReceipt ? (
+                    <span>جاري معالجة الصورة...</span>
+                  ) : myPackage?.status === 'not_subscribed' ? (
+                    'تأكيد وإرسال طلب الاشتراك'
+                  ) : (
+                    'تأكيد وإرسال طلب التجديد'
+                  )}
                 </button>
               </div>
             </form>

@@ -1,17 +1,18 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useMemo } from 'react';
 import { useTranslation } from 'react-i18next';
 import { 
   Video, Calendar, Clock, Plus, Trash2, Edit, X, ArrowRight,
   Link as LinkIcon, BookOpen, AlertCircle, Loader, Users, CheckCircle, 
   XCircle, Clock4, Filter, CreditCard, Sparkles, UserCheck, ShieldAlert,
-  CalendarDays, RefreshCw, MinusCircle, PlusCircle, CheckCircle2, Eye, UserX
+  CalendarDays, RefreshCw, MinusCircle, PlusCircle, CheckCircle2, Eye, UserX,
+  Search, Check
 } from 'lucide-react';
 import { Link } from 'react-router-dom';
 import FadeIn from '../../components/FadeIn';
 import { supabase } from '../../lib/supabase';
 import ConfirmModal from '../../components/ConfirmModal';
 import toast from 'react-hot-toast';
-import { formatSessionTitle, formatSessionDesc, formatGradeName, formatTime12h, formatTimeRange12h } from '../../utils/helpers';
+import { formatSessionTitle, formatSessionDesc, formatGradeName, formatTime12h, formatTimeRange12h, GRADE_OPTIONS } from '../../utils/helpers';
 
 export default function AdminLiveSessions() {
   const { t, i18n } = useTranslation();
@@ -78,11 +79,116 @@ export default function AdminLiveSessions() {
   const [receiptPreviewUrl, setReceiptPreviewUrl] = useState(null);
   const [packageSubTab, setPackageSubTab] = useState('packages'); // 'packages' | 'history'
 
-  // Completed Live Sessions History State
+  // Completed Live Sessions History State & Filters
   const [completedSessions, setCompletedSessions] = useState([]);
   const [completedLoading, setCompletedLoading] = useState(false);
   const [completedSearch, setCompletedSearch] = useState('');
+  const [historyGradeFilter, setHistoryGradeFilter] = useState('all');
+  const [historyStudentFilter, setHistoryStudentFilter] = useState('all');
+  const [historyMonthFilter, setHistoryMonthFilter] = useState('all');
   const [deleteCompletedModal, setDeleteCompletedModal] = useState({ isOpen: false, id: null });
+
+  // Dynamic list of students for History filtering
+  const historyStudentsList = useMemo(() => {
+    const map = new Map();
+    completedSessions.forEach(cs => {
+      const key = cs.student_id || cs.student_name;
+      if (key && !map.has(key)) {
+        map.set(key, {
+          id: key,
+          name: cs.student_name || 'طالب',
+          grade: cs.grade_level
+        });
+      }
+    });
+    packages.forEach(p => {
+      if (p.user_id && !map.has(p.user_id)) {
+        map.set(p.user_id, {
+          id: p.user_id,
+          name: p.full_name || 'طالب',
+          grade: p.grade_level
+        });
+      }
+    });
+    return Array.from(map.values()).sort((a, b) => (a.name || '').localeCompare(b.name || '', 'ar'));
+  }, [completedSessions, packages]);
+
+  // Dynamic list of months (YYYY-MM) for History filtering
+  const historyMonthsList = useMemo(() => {
+    const set = new Set();
+    const now = new Date();
+    const currentYM = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}`;
+    set.add(currentYM);
+
+    completedSessions.forEach(cs => {
+      const d = cs.completed_at || cs.created_at;
+      if (d) {
+        try {
+          const ym = new Date(d).toISOString().slice(0, 7);
+          if (ym && ym.length === 7) set.add(ym);
+        } catch (_) {}
+      }
+    });
+
+    const AR_MONTHS = ['يناير', 'فبراير', 'مارس', 'أبريل', 'مايو', 'يونيو', 'يوليو', 'أغسطس', 'سبتمبر', 'أكتوبر', 'نوفمبر', 'ديسمبر'];
+
+    return Array.from(set).sort().reverse().map(ym => {
+      const [y, m] = ym.split('-');
+      const name = AR_MONTHS[parseInt(m, 10) - 1] || m;
+      return {
+        value: ym,
+        label: `${name} ${y}`
+      };
+    });
+  }, [completedSessions]);
+
+  // Filtered completed sessions based on search, grade, student, and month
+  const filteredCompletedSessions = useMemo(() => {
+    return completedSessions.filter(cs => {
+      // 1. Text Search
+      if (completedSearch.trim()) {
+        const q = completedSearch.toLowerCase();
+        const match = (
+          (cs.student_name || '') + ' ' +
+          (cs.session_title || '') + ' ' +
+          (cs.teacher_notes || '') + ' ' +
+          (formatGradeName(cs.grade_level) || '')
+        ).toLowerCase().includes(q);
+        if (!match) return false;
+      }
+
+      // 2. Grade Filter
+      if (historyGradeFilter !== 'all') {
+        if (cs.grade_level !== historyGradeFilter) return false;
+      }
+
+      // 3. Student Filter
+      if (historyStudentFilter !== 'all') {
+        const matches = (cs.student_id === historyStudentFilter) || (cs.student_name === historyStudentFilter);
+        if (!matches) return false;
+      }
+
+      // 4. Month Filter
+      if (historyMonthFilter !== 'all') {
+        const d = cs.completed_at || cs.created_at;
+        if (!d) return false;
+        try {
+          const ym = new Date(d).toISOString().slice(0, 7);
+          if (ym !== historyMonthFilter) return false;
+        } catch (_) {
+          return false;
+        }
+      }
+
+      return true;
+    });
+  }, [completedSessions, completedSearch, historyGradeFilter, historyStudentFilter, historyMonthFilter]);
+
+  // Selected student object for active summary
+  const selectedHistoryStudent = useMemo(() => {
+    if (historyStudentFilter === 'all') return null;
+    return historyStudentsList.find(s => s.id === historyStudentFilter);
+  }, [historyStudentFilter, historyStudentsList]);
 
   // Deduct & Bulk Attendance Modals
   const [deductModal, setDeductModal] = useState({
@@ -1890,15 +1996,119 @@ export default function AdminLiveSessions() {
               {/* TAB 2: COMPLETED SESSIONS HISTORY */}
               {packageSubTab === 'history' && (
                 <div>
-                  {/* Search Filter */}
-                  <div className="mb-6">
-                    <input
-                      type="text"
-                      placeholder="بحث في الحصص المكتملة باسم الطالب، الصف، أو عنوان الحصة..."
-                      value={completedSearch}
-                      onChange={(e) => setCompletedSearch(e.target.value)}
-                      className="w-full px-4 py-3 rounded-xl bg-gray-50 dark:bg-slate-900 border border-gray-200 dark:border-slate-700 text-sm font-bold text-gray-900 dark:text-white outline-none"
-                    />
+                  {/* Multi-Filter Bar: Search + Grade + Student + Month */}
+                  <div className="bg-gray-50 dark:bg-slate-900/60 p-4 md:p-5 rounded-2xl border border-gray-100 dark:border-slate-700/80 mb-6 space-y-4">
+                    <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3">
+                      {/* 1. Text Search */}
+                      <div className="relative">
+                        <Search className="w-4 h-4 text-gray-400 absolute right-3.5 top-1/2 -translate-y-1/2 pointer-events-none" />
+                        <input
+                          type="text"
+                          placeholder="بحث بالاسم أو الدرس أو الملاحظات..."
+                          value={completedSearch}
+                          onChange={(e) => setCompletedSearch(e.target.value)}
+                          className="w-full pr-10 pl-4 py-2.5 rounded-xl bg-white dark:bg-slate-800 border border-gray-200 dark:border-slate-700 text-xs font-bold text-gray-900 dark:text-white outline-none focus:ring-2 focus:ring-emerald-500/30"
+                        />
+                      </div>
+
+                      {/* 2. Grade Filter */}
+                      <div>
+                        <select
+                          value={historyGradeFilter}
+                          onChange={(e) => setHistoryGradeFilter(e.target.value)}
+                          className="w-full px-3.5 py-2.5 rounded-xl bg-white dark:bg-slate-800 border border-gray-200 dark:border-slate-700 text-xs font-bold text-gray-900 dark:text-white outline-none cursor-pointer focus:ring-2 focus:ring-emerald-500/30"
+                        >
+                          <option value="all">📚 جميع المراحل والصفوف</option>
+                          <option value="prep_1">الصف الأول الإعدادي</option>
+                          <option value="prep_2">الصف الثاني الإعدادي</option>
+                          <option value="prep_3">الصف الثالث الإعدادي</option>
+                          <option value="sec_1">الصف الأول الثانوي</option>
+                          <option value="sec_2">الصف الثاني الثانوي</option>
+                          <option value="sec_3">الصف الثالث الثانوي</option>
+                        </select>
+                      </div>
+
+                      {/* 3. Student Filter */}
+                      <div>
+                        <select
+                          value={historyStudentFilter}
+                          onChange={(e) => setHistoryStudentFilter(e.target.value)}
+                          className="w-full px-3.5 py-2.5 rounded-xl bg-white dark:bg-slate-800 border border-gray-200 dark:border-slate-700 text-xs font-bold text-gray-900 dark:text-white outline-none cursor-pointer focus:ring-2 focus:ring-emerald-500/30"
+                        >
+                          <option value="all">👤 جميع الطلاب (تحديد طالب)</option>
+                          {historyStudentsList
+                            .filter(s => historyGradeFilter === 'all' || !s.grade || s.grade === historyGradeFilter)
+                            .map(s => (
+                              <option key={s.id} value={s.id}>
+                                {s.name} ({formatGradeName(s.grade)})
+                              </option>
+                            ))}
+                        </select>
+                      </div>
+
+                      {/* 4. Month & Year Filter */}
+                      <div>
+                        <select
+                          value={historyMonthFilter}
+                          onChange={(e) => setHistoryMonthFilter(e.target.value)}
+                          className="w-full px-3.5 py-2.5 rounded-xl bg-white dark:bg-slate-800 border border-gray-200 dark:border-slate-700 text-xs font-bold text-gray-900 dark:text-white outline-none cursor-pointer focus:ring-2 focus:ring-emerald-500/30"
+                        >
+                          <option value="all">📅 جميع الشهور والأعوام</option>
+                          {historyMonthsList.map(m => (
+                            <option key={m.value} value={m.value}>
+                              🗓️ {m.label}
+                            </option>
+                          ))}
+                        </select>
+                      </div>
+                    </div>
+
+                    {/* Active Filters Summary / Status Banner */}
+                    <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-3 pt-3 border-t border-gray-200/60 dark:border-slate-800 text-xs">
+                      <div className="flex items-center gap-2 flex-wrap">
+                        {selectedHistoryStudent ? (
+                          <div className="flex items-center gap-2 bg-emerald-50 dark:bg-emerald-950/30 border border-emerald-200 dark:border-emerald-800/50 px-3 py-1.5 rounded-xl text-emerald-800 dark:text-emerald-300 font-bold">
+                            <span className="w-2 h-2 rounded-full bg-emerald-500 animate-pulse"></span>
+                            <span>الطالب: <strong>{selectedHistoryStudent.name}</strong></span>
+                            <span>•</span>
+                            <span>{formatGradeName(selectedHistoryStudent.grade)}</span>
+                            <span>•</span>
+                            <span className="text-emerald-900 dark:text-emerald-200 font-black">
+                              أخذ {filteredCompletedSessions.length} {filteredCompletedSessions.length === 1 ? 'حصة' : filteredCompletedSessions.length === 2 ? 'حصتين' : 'حصص'}
+                              {historyMonthFilter !== 'all' ? ` في شهر ${historyMonthsList.find(m => m.value === historyMonthFilter)?.label || historyMonthFilter}` : ' إجمالاً'}
+                            </span>
+                          </div>
+                        ) : (
+                          <div className="flex items-center gap-2 text-gray-600 dark:text-gray-300 font-bold">
+                            <span>عرض النتائج: <strong>{filteredCompletedSessions.length} حصة مكتملة</strong></span>
+                            {historyMonthFilter !== 'all' && (
+                              <span className="px-2 py-0.5 rounded-lg bg-blue-100 dark:bg-blue-900/40 text-blue-700 dark:text-blue-300 text-[11px]">
+                                شهر: {historyMonthsList.find(m => m.value === historyMonthFilter)?.label || historyMonthFilter}
+                              </span>
+                            )}
+                            {historyGradeFilter !== 'all' && (
+                              <span className="px-2 py-0.5 rounded-lg bg-purple-100 dark:bg-purple-900/40 text-purple-700 dark:text-purple-300 text-[11px]">
+                                {formatGradeName(historyGradeFilter)}
+                              </span>
+                            )}
+                          </div>
+                        )}
+                      </div>
+
+                      {(historyGradeFilter !== 'all' || historyStudentFilter !== 'all' || historyMonthFilter !== 'all' || completedSearch.trim()) && (
+                        <button
+                          onClick={() => {
+                            setHistoryGradeFilter('all');
+                            setHistoryStudentFilter('all');
+                            setHistoryMonthFilter('all');
+                            setCompletedSearch('');
+                          }}
+                          className="px-3 py-1.5 rounded-xl bg-gray-200 hover:bg-gray-300 dark:bg-slate-800 dark:hover:bg-slate-700 text-gray-700 dark:text-gray-300 font-bold text-xs transition-colors cursor-pointer"
+                        >
+                          إعادة ضبط الفلاتر
+                        </button>
+                      )}
+                    </div>
                   </div>
 
                   {completedLoading ? (
@@ -1910,6 +2120,23 @@ export default function AdminLiveSessions() {
                       <BookOpen className="w-12 h-12 text-gray-300 dark:text-slate-600 mx-auto mb-3" />
                       <p className="text-gray-600 dark:text-gray-400 font-bold">لا توجد حصص مكتملة مسجلة حتى الآن.</p>
                       <p className="text-xs text-gray-400 mt-1">عند تسجيل حضور أي طالب وخصم حصة، ستظهر تلقائياً هنا وفي حساب الطالب مع التاريخ والملاحظات.</p>
+                    </div>
+                  ) : filteredCompletedSessions.length === 0 ? (
+                    <div className="text-center py-16 bg-gray-50 dark:bg-slate-900/40 rounded-2xl border border-dashed border-gray-200 dark:border-slate-700">
+                      <Calendar className="w-12 h-12 text-gray-400 dark:text-slate-600 mx-auto mb-3" />
+                      <p className="text-gray-700 dark:text-gray-300 font-black text-base">لا توجد حصص مكتملة تطابق معايير الفلترة المحددة</p>
+                      <p className="text-xs text-gray-400 mt-1">جرب تغيير الشهر أو اختيار طالب آخر أو إعادة ضبط الفلاتر.</p>
+                      <button
+                        onClick={() => {
+                          setHistoryGradeFilter('all');
+                          setHistoryStudentFilter('all');
+                          setHistoryMonthFilter('all');
+                          setCompletedSearch('');
+                        }}
+                        className="mt-4 px-4 py-2 bg-emerald-600 hover:bg-emerald-700 text-white rounded-xl text-xs font-bold transition-colors cursor-pointer shadow-sm"
+                      >
+                        إعادة ضبط الفلاتر وعرض الكل
+                      </button>
                     </div>
                   ) : (
                     <div className="overflow-x-auto">
@@ -1925,18 +2152,7 @@ export default function AdminLiveSessions() {
                           </tr>
                         </thead>
                         <tbody className="divide-y divide-gray-100 dark:divide-slate-700">
-                          {completedSessions
-                            .filter(cs => {
-                              if (!completedSearch.trim()) return true;
-                              const q = completedSearch.toLowerCase();
-                              return (
-                                (cs.student_name || '').toLowerCase().includes(q) ||
-                                (cs.session_title || '').toLowerCase().includes(q) ||
-                                (cs.teacher_notes || '').toLowerCase().includes(q) ||
-                                (formatGradeName(cs.grade_level) || '').toLowerCase().includes(q)
-                              );
-                            })
-                            .map(item => {
+                          {filteredCompletedSessions.map(item => {
                               const dateObj = new Date(item.completed_at || item.created_at);
                               const formattedDate = !isNaN(dateObj.getTime())
                                 ? dateObj.toLocaleDateString('ar-EG', { weekday: 'long', year: 'numeric', month: 'short', day: 'numeric' })

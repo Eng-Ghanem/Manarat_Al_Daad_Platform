@@ -60,6 +60,13 @@ export default function StudentLiveSessions() {
   });
   const [completedLoading, setCompletedLoading] = useState(false);
   const [completedMonthFilter, setCompletedMonthFilter] = useState('all');
+  const [completedViewMode, setCompletedViewMode] = useState(() => {
+    try {
+      return localStorage.getItem('manarat_student_completed_view') || 'cards';
+    } catch (_) {
+      return 'cards';
+    }
+  }); // 'cards' | 'table'
 
   // Filters for individual sessions
   const [filterMonth, setFilterMonth] = useState('all');
@@ -1105,7 +1112,41 @@ export default function StudentLiveSessions() {
                     </div>
                   </div>
 
-                  <div className="flex items-center gap-2">
+                  <div className="flex items-center gap-2 flex-wrap">
+                    {/* View Switcher: Cards vs Table */}
+                    <div className="flex items-center bg-gray-200/80 dark:bg-slate-800 p-1 rounded-xl border border-gray-300/60 dark:border-slate-700">
+                      <button
+                        type="button"
+                        onClick={() => {
+                          setCompletedViewMode('cards');
+                          localStorage.setItem('manarat_student_completed_view', 'cards');
+                        }}
+                        className={`px-3 py-1.5 rounded-lg text-xs font-bold transition-all cursor-pointer ${
+                          completedViewMode === 'cards'
+                            ? 'bg-white dark:bg-slate-700 text-purple-700 dark:text-purple-300 shadow-xs font-black'
+                            : 'text-gray-600 dark:text-gray-400 hover:text-gray-900 dark:hover:text-white'
+                        }`}
+                        title="عرض كبطاقات تفصيلية"
+                      >
+                        🗂️ بطاقات تفصيلية
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => {
+                          setCompletedViewMode('table');
+                          localStorage.setItem('manarat_student_completed_view', 'table');
+                        }}
+                        className={`px-3 py-1.5 rounded-lg text-xs font-bold transition-all cursor-pointer ${
+                          completedViewMode === 'table'
+                            ? 'bg-white dark:bg-slate-700 text-purple-700 dark:text-purple-300 shadow-xs font-black'
+                            : 'text-gray-600 dark:text-gray-400 hover:text-gray-900 dark:hover:text-white'
+                        }`}
+                        title="عرض كجدول مضغوط"
+                      >
+                        📊 جدول مضغوط
+                      </button>
+                    </div>
+
                     <select
                       value={completedMonthFilter}
                       onChange={(e) => setCompletedMonthFilter(e.target.value)}
@@ -1160,20 +1201,25 @@ export default function StudentLiveSessions() {
                     عرض جميع الحصص المكتملة
                   </button>
                 </div>
-              ) : (
+              ) : completedViewMode === 'cards' ? (
+                /* ==================== CARD VIEW ==================== */
                 <div className="space-y-3">
                   {filteredCompletedSessions.map(cs => {
                     const dateObj = new Date(cs.completed_at);
-                    const formattedDate = dateObj.toLocaleDateString('ar-EG', {
-                      weekday: 'long',
-                      year: 'numeric',
-                      month: 'long',
-                      day: 'numeric'
-                    });
-                    const formattedTime = dateObj.toLocaleTimeString('ar-EG', {
-                      hour: '2-digit',
-                      minute: '2-digit'
-                    });
+                    const formattedDate = !isNaN(dateObj.getTime())
+                      ? dateObj.toLocaleDateString('ar-EG', {
+                          weekday: 'long',
+                          year: 'numeric',
+                          month: 'long',
+                          day: 'numeric'
+                        })
+                      : '-';
+                    const formattedTime = !isNaN(dateObj.getTime())
+                      ? dateObj.toLocaleTimeString('ar-EG', {
+                          hour: '2-digit',
+                          minute: '2-digit'
+                        })
+                      : '';
 
                     return (
                       <div 
@@ -1221,6 +1267,83 @@ export default function StudentLiveSessions() {
                       </div>
                     );
                   })}
+                </div>
+              ) : (
+                /* ==================== CONDENSED TABLE VIEW ==================== */
+                <div className="overflow-x-auto rounded-2xl border border-gray-100 dark:border-slate-700 bg-white dark:bg-slate-900/40 shadow-xs">
+                  <table className="w-full text-right text-sm">
+                    <thead>
+                      <tr className="border-b border-gray-200 dark:border-slate-700 text-xs font-black text-gray-500 dark:text-gray-400 uppercase bg-gray-50/50 dark:bg-slate-800/50">
+                        <th className="py-3.5 px-4">تاريخ الحصة وتوقيتها</th>
+                        <th className="py-3.5 px-4">الصف الدراسي</th>
+                        <th className="py-3.5 px-4">عنوان الحصة / الدرس المشروح</th>
+                        <th className="py-3.5 px-4">ملاحظات المعلم</th>
+                        <th className="py-3.5 px-4 text-center">حالة الحصة والخصم</th>
+                      </tr>
+                    </thead>
+                    <tbody className="divide-y divide-gray-100 dark:divide-slate-700">
+                      {filteredCompletedSessions.map(cs => {
+                        const dateObj = new Date(cs.completed_at);
+                        const formattedDate = !isNaN(dateObj.getTime())
+                          ? dateObj.toLocaleDateString('ar-EG', {
+                              weekday: 'long',
+                              year: 'numeric',
+                              month: 'short',
+                              day: 'numeric'
+                            })
+                          : '-';
+                        const formattedTime = !isNaN(dateObj.getTime())
+                          ? dateObj.toLocaleTimeString('ar-EG', {
+                              hour: '2-digit',
+                              minute: '2-digit'
+                            })
+                          : '';
+
+                        return (
+                          <tr key={cs.id} className="hover:bg-purple-50/30 dark:hover:bg-slate-800/50 transition-colors">
+                            <td className="py-4 px-4 whitespace-nowrap">
+                              <div className="font-bold text-gray-900 dark:text-white flex items-center gap-1.5">
+                                <Calendar className="w-3.5 h-3.5 text-purple-500 shrink-0" />
+                                <span>{formattedDate}</span>
+                              </div>
+                              <div className="text-xs text-gray-400 flex items-center gap-1 mt-0.5 font-medium">
+                                <Clock className="w-3 h-3 text-blue-500 shrink-0" />
+                                <span>{formattedTime}</span>
+                              </div>
+                            </td>
+                            <td className="py-4 px-4 whitespace-nowrap">
+                              <span className="px-2.5 py-1 rounded-full text-xs font-bold bg-slate-100 dark:bg-slate-700 text-slate-700 dark:text-slate-300">
+                                {formatGradeName(cs.grade_level)}
+                              </span>
+                            </td>
+                            <td className="py-4 px-4 font-bold text-purple-700 dark:text-purple-300">
+                              {cleanSessionTitle(cs.session_title) || 'حصة أونلاين مباشرة'}
+                            </td>
+                            <td className="py-4 px-4 text-xs text-gray-600 dark:text-gray-300 max-w-xs">
+                              {cs.teacher_notes ? (
+                                <div className="bg-gray-50 dark:bg-slate-800/60 p-2 rounded-xl border border-gray-100 dark:border-slate-700/60 font-medium">
+                                  📝 {cleanTeacherNotes(cs.teacher_notes)}
+                                </div>
+                              ) : (
+                                <span className="text-gray-400 italic">لا توجد ملاحظات إضافية</span>
+                              )}
+                            </td>
+                            <td className="py-4 px-4 text-center whitespace-nowrap">
+                              <div className="flex flex-col items-center gap-1">
+                                <span className="px-2.5 py-0.5 rounded-full text-[11px] font-bold bg-green-100 text-green-700 dark:bg-green-950/50 dark:text-green-300 inline-flex items-center gap-1">
+                                  <CheckCircle2 className="w-3 h-3" />
+                                  مكتملة ومحسوبة
+                                </span>
+                                <span className="px-2.5 py-0.5 rounded-lg bg-purple-50 dark:bg-purple-950/40 text-purple-700 dark:text-purple-300 text-[11px] font-black border border-purple-200 dark:border-purple-800/50">
+                                  -1 حصة من الباقة
+                                </span>
+                              </div>
+                            </td>
+                          </tr>
+                        );
+                      })}
+                    </tbody>
+                  </table>
                 </div>
               )}
 

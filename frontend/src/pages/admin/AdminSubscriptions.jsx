@@ -11,7 +11,7 @@ import { Link } from 'react-router-dom';
 import FadeIn from '../../components/FadeIn';
 import ConfirmModal from '../../components/ConfirmModal';
 import { supabase } from '../../lib/supabase';
-import { getDirectImageUrl, calculateSubscriptionStatus, formatGradeName } from '../../utils/helpers';
+import { getDirectImageUrl, calculateSubscriptionStatus, formatGradeName, getScheduledSessionInfo } from '../../utils/helpers';
 import toast from 'react-hot-toast';
 
 const apiUrl = import.meta.env.VITE_API_URL || 'http://localhost:5000';
@@ -21,6 +21,7 @@ export default function AdminSubscriptions() {
   const isRTL = i18n.language === 'ar';
   
   const [requests, setRequests] = useState([]);
+  const [weeklySchedules, setWeeklySchedules] = useState([]);
   const [loading, setLoading] = useState(true);
   const [filter, setFilter] = useState('pending'); // 'pending' | 'active' | 'expired' | 'rejected' | 'all'
   const [typeFilter, setTypeFilter] = useState('all'); // 'all' | 'live' | 'courses'
@@ -42,8 +43,14 @@ export default function AdminSubscriptions() {
     submitting: false
   });
 
-  // Delete Subscription Modal
-  const [deleteConfig, setDeleteConfig] = useState({ isOpen: false, requestId: null, itemType: 'course', studentName: '' });
+  // Delete / Reject Subscription Modal
+  const [deleteConfig, setDeleteConfig] = useState({ 
+    isOpen: false, 
+    requestId: null, 
+    itemType: 'course', 
+    studentName: '', 
+    currentStatus: 'pending' 
+  });
 
   useEffect(() => {
     fetchRequests();
@@ -80,8 +87,8 @@ export default function AdminSubscriptions() {
         }
       } catch (e) {}
 
-      // 2. Fetch both course subscriptions AND live subscriptions in parallel
-      const [coursesRes, liveRes] = await Promise.all([
+      // 2. Fetch course subscriptions, live subscriptions, AND weekly schedules in parallel
+      const [coursesRes, liveRes, schedulesRes] = await Promise.all([
         supabase
           .from('subscriptions')
           .select(`
@@ -96,8 +103,15 @@ export default function AdminSubscriptions() {
         supabase
           .from('live_subscriptions')
           .select('*')
-          .order('created_at', { ascending: false })
+          .order('created_at', { ascending: false }),
+        supabase
+          .from('weekly_schedules')
+          .select('*')
       ]);
+
+      if (schedulesRes?.data) {
+        setWeeklySchedules(schedulesRes.data);
+      }
 
       const courseRows = coursesRes.data || [];
       const liveRows = liveRes.data || [];
@@ -225,14 +239,47 @@ export default function AdminSubscriptions() {
       isOpen: true,
       requestId: req.id,
       itemType: req.itemType,
-      studentName: req.studentName
+      studentName: req.studentName,
+      currentStatus: req.status
     });
   };
 
   const confirmDelete = async () => {
-    const { requestId: id, itemType } = deleteConfig;
-    setDeleteConfig({ isOpen: false, requestId: null, itemType: 'course', studentName: '' });
+    const { requestId: id, itemType, currentStatus, studentName } = deleteConfig;
+    setDeleteConfig({ isOpen: false, requestId: null, itemType: 'course', studentName: '', currentStatus: 'pending' });
 
+    // If the request was NOT already rejected, clicking Delete means REJECTING it (رفض الطلب)
+    // so that it moves into the "المرفوضة" tab as the user requested!
+    if (currentStatus !== 'rejected') {
+      const previousRequests = [...requests];
+      setRequests(requests.map(r => r.id === id ? { ...r, status: 'rejected', rawStatus: 'rejected' } : r));
+
+      try {
+        if (itemType === 'live_package') {
+          const { error } = await supabase
+            .from('live_subscriptions')
+            .update({ status: 'rejected' })
+            .eq('id', id);
+          if (error) throw error;
+        } else {
+          const { error } = await supabase
+            .from('subscriptions')
+            .update({ status: 'rejected' })
+            .eq('id', id);
+          if (error) throw error;
+        }
+
+        toast.success(`تم رفض طلب الطالب (${studentName}) ونقله إلى قائمة المرفوضة بنجاح`);
+        fetchRequests();
+      } catch (err) {
+        console.error('Error rejecting request:', err);
+        toast.error('حدث خطأ أثناء رفض الطلب');
+        setRequests(previousRequests);
+      }
+      return;
+    }
+
+    // If it was ALREADY in 'rejected' tab, then confirmDelete performs PERMANENT DELETE (حذف نهائي من قاعدة البيانات)
     const previousRequests = [...requests];
     setRequests(requests.filter(req => req.id !== id));
 
@@ -248,21 +295,14 @@ export default function AdminSubscriptions() {
           .from('subscriptions')
           .delete()
           .eq('id', id);
-
-        if (dbError) {
-          const { data: { session } } = await supabase.auth.getSession();
-          const res = await fetch(`${apiUrl}/api/admin/subscriptions/${id}`, {
-            method: 'DELETE',
-            headers: { 'Authorization': `Bearer ${session?.access_token}` }
-          });
-          if (!res.ok) throw new Error('Failed to delete');
-        }
+        if (dbError) throw dbError;
       }
 
-      toast.success(t('admin_subs_msg_deleted') || 'تم حذف السجل بنجاح');
+      toast.success('تم حذف الطلب نهائياً من السجلات');
+      fetchRequests();
     } catch (err) {
-      console.error('Error deleting subscription:', err);
-      toast.error(t('admin_subs_msg_error') || 'حدث خطأ أثناء الحذف');
+      console.error('Error permanently deleting subscription:', err);
+      toast.error('حدث خطأ أثناء الحذف النهائي');
       setRequests(previousRequests);
     }
   };
@@ -364,14 +404,23 @@ export default function AdminSubscriptions() {
     }
   };
 
-  // Direct instant attendance deduction (-1 session) without blocking modal
+  // Direct instant attendance deduction (-1 session) anchored to weekly schedule time & day
   const handleDirectDeduct = async (item) => {
     if (!item) return;
 
     const newRemaining = Math.max(0, item.remainingSessions - 1);
     const newStatus = newRemaining === 0 ? 'expired' : 'active';
-    const sTitle = `حصة أونلاين - ${item.gradeName || ''}`;
-    const tNotes = 'تم حضور الحصة واكتمالها بنجاح';
+    
+    // Automatically retrieve the exact scheduled session title, day and time range
+    const schedInfo = getScheduledSessionInfo(
+      item.studentGrade,
+      item.user_id,
+      weeklySchedules
+    );
+
+    const sTitle = schedInfo.title;
+    const tNotes = schedInfo.notes;
+    const completedAt = schedInfo.completedAt;
 
     // Optimistic UI update
     setRequests(prev => prev.map(r => r.id === item.id ? {
@@ -383,55 +432,38 @@ export default function AdminSubscriptions() {
     } : r));
 
     try {
-      const { data: { session } } = await supabase.auth.getSession();
-      const token = session?.access_token;
+      // 1. Direct Supabase update for live_subscriptions
+      const { error: updateErr } = await supabase
+        .from('live_subscriptions')
+        .update({
+          remaining_sessions: newRemaining,
+          status: newStatus
+        })
+        .eq('id', item.id);
 
-      let successApi = false;
-      if (token) {
-        try {
-          const res = await fetch(`${apiUrl}/api/admin/live-subscriptions/attendance`, {
-            method: 'POST',
-            headers: {
-              'Content-Type': 'application/json',
-              'Authorization': `Bearer ${token}`
-            },
-            body: JSON.stringify({
-              user_id: item.user_id,
-              grade_level: item.studentGrade,
-              remaining_sessions: newRemaining,
-              session_title: sTitle,
-              teacher_notes: tNotes
-            })
-          });
-          if (res.ok) successApi = true;
-        } catch (_) {}
+      if (updateErr) {
+        console.error('live_subscriptions update error:', updateErr);
+        throw updateErr;
       }
 
-      if (!successApi) {
-        await supabase
-          .from('live_subscriptions')
-          .update({
-            remaining_sessions: newRemaining,
-            status: newStatus
-          })
-          .eq('id', item.id);
+      // 2. Direct Supabase insert into completed_live_sessions with scheduled day and time
+      const { error: insertErr } = await supabase
+        .from('completed_live_sessions')
+        .insert([{
+          student_id: item.user_id,
+          student_name: item.studentName,
+          grade_level: item.studentGrade,
+          session_title: sTitle,
+          session_type: 'package',
+          completed_at: completedAt,
+          teacher_notes: tNotes
+        }]);
 
-        try {
-          await supabase.from('completed_live_sessions').insert([{
-            student_id: item.user_id,
-            student_name: item.studentName,
-            grade_level: item.studentGrade,
-            session_title: sTitle,
-            session_type: 'package',
-            completed_at: new Date().toISOString(),
-            teacher_notes: tNotes
-          }]);
-        } catch (tableErr) {
-          console.warn('completed_live_sessions insert notice:', tableErr);
-        }
+      if (insertErr) {
+        console.warn('completed_live_sessions insert notice:', insertErr);
       }
 
-      toast.success(`✅ تم خصم حصة وتسجيل الحضور للطالب ${item.studentName}! (المتبقي: ${newRemaining} حصص)`);
+      toast.success(`✅ تم خصم الحصة بنجاح! (${sTitle}) - المتبقي: ${newRemaining} حصص`);
       fetchRequests();
     } catch (err) {
       console.error('Error deducting session:', err);
@@ -483,38 +515,17 @@ export default function AdminSubscriptions() {
     } : r));
 
     try {
-      const { data: { session } } = await supabase.auth.getSession();
-      const token = session?.access_token;
+      const { error } = await supabase
+        .from('live_subscriptions')
+        .update({
+          remaining_sessions: 8,
+          total_sessions: 8,
+          status: 'active',
+          activated_at: new Date().toISOString()
+        })
+        .eq('id', req.id);
 
-      let apiDone = false;
-      if (token) {
-        try {
-          const res = await fetch(`${apiUrl}/api/admin/live-subscriptions/renew`, {
-            method: 'POST',
-            headers: {
-              'Content-Type': 'application/json',
-              'Authorization': `Bearer ${token}`
-            },
-            body: JSON.stringify({
-              user_id: req.user_id,
-              grade_level: req.studentGrade
-            })
-          });
-          if (res.ok) apiDone = true;
-        } catch (_) {}
-      }
-
-      if (!apiDone) {
-        await supabase
-          .from('live_subscriptions')
-          .update({
-            remaining_sessions: 8,
-            total_sessions: 8,
-            status: 'active',
-            activated_at: new Date().toISOString()
-          })
-          .eq('id', req.id);
-      }
+      if (error) throw error;
 
       toast.success(`🎉 تم تجديد باقة الـ 8 حصص للطالب ${req.studentName} بنجاح!`);
       fetchRequests();
@@ -1213,6 +1224,17 @@ export default function AdminSubscriptions() {
                                     <span>تجديد الباقة (8)</span>
                                   </button>
                                 )}
+
+                                {req.status === 'rejected' && (
+                                  <button
+                                    onClick={() => handleStatusChange(req, 'active')}
+                                    className="px-3.5 py-2 bg-emerald-600/30 hover:bg-emerald-600/50 text-emerald-300 border border-emerald-500/40 rounded-xl font-bold text-xs transition-all shadow-sm flex items-center gap-1.5 cursor-pointer hover:scale-105 active:scale-95"
+                                    title="إعادة تفعيل باقة الحصص للطالب"
+                                  >
+                                    <CheckCircle2 className="w-4 h-4" />
+                                    <span>إعادة تفعيل</span>
+                                  </button>
+                                )}
                               </>
                             )}
 
@@ -1248,11 +1270,15 @@ export default function AdminSubscriptions() {
                               </>
                             )}
 
-                            {/* Delete Button */}
+                            {/* Delete / Reject Button */}
                             <button
                               onClick={() => handleDeleteRequest(req)}
-                              className="p-2 text-slate-400 hover:text-rose-400 hover:bg-rose-950/40 border border-slate-800 hover:border-rose-900/40 rounded-xl transition-all cursor-pointer shadow-sm hover:scale-105"
-                              title="حذف الطلب"
+                              className={`p-2 rounded-xl transition-all cursor-pointer shadow-sm hover:scale-105 border ${
+                                req.status === 'rejected'
+                                  ? 'text-rose-400 bg-rose-950/50 border-rose-800 hover:bg-rose-900/60'
+                                  : 'text-slate-400 hover:text-rose-400 hover:bg-rose-950/40 border-slate-800 hover:border-rose-900/40'
+                              }`}
+                              title={req.status === 'rejected' ? 'حذف نهائي للطلب من قاعدة البيانات' : 'رفض الطلب ونقله إلى قائمة المرفوضة'}
                             >
                               <Trash2 className="w-4 h-4" />
                             </button>
@@ -1531,14 +1557,18 @@ export default function AdminSubscriptions() {
         </div>
       )}
 
-      {/* 4. Delete Confirmation Modal */}
+      {/* 4. Delete / Reject Confirmation Modal */}
       <ConfirmModal 
         isOpen={deleteConfig.isOpen}
-        onClose={() => setDeleteConfig({ isOpen: false, requestId: null, itemType: 'course', studentName: '' })}
+        onClose={() => setDeleteConfig({ isOpen: false, requestId: null, itemType: 'course', studentName: '', currentStatus: 'pending' })}
         onConfirm={confirmDelete}
-        title="حذف سجل الطلب"
-        message={`هل أنت متأكد من حذف طلب الطالب (${deleteConfig.studentName}) نهائياً؟`}
-        confirmText="نعم، حذف الطلب"
+        title={deleteConfig.currentStatus === 'rejected' ? 'حذف نهائي للطلب' : 'رفض الطلب'}
+        message={
+          deleteConfig.currentStatus === 'rejected'
+            ? `هل أنت متأكد من حذف طلب الطالب (${deleteConfig.studentName}) نهائياً من قاعدة البيانات؟ لن يمكن استرجاع هذا السجل.`
+            : `هل أنت متأكد من رفض طلب الطالب (${deleteConfig.studentName})؟ سيتم نقل الطلب مباشرة إلى تبويب "المرفوضة" ويمكنك إعادة تفعيله في أي وقت.`
+        }
+        confirmText={deleteConfig.currentStatus === 'rejected' ? 'نعم، حذف نهائي' : 'نعم، رفض الطلب'}
         cancelText="إلغاء"
         isDanger={true}
       />

@@ -321,4 +321,62 @@ export const compressImage = async (file, maxWidth = 1200, maxHeight = 1200, qua
   });
 };
 
+/**
+ * Calculates official scheduled session info (title, completed_at, notes)
+ * based on weekly schedules configured by the teacher.
+ * Even if deduction is performed hours after the class,
+ * it anchors to the scheduled day and start/end time.
+ */
+export const getScheduledSessionInfo = (gradeLevel, studentId, schedules = [], customTitle = '', customNotes = '') => {
+  const AR_DAYS = ['الأحد', 'الإثنين', 'الثلاثاء', 'الأربعاء', 'الخميس', 'الجمعة', 'السبت'];
+  const now = new Date();
+  const todayDayName = AR_DAYS[now.getDay()];
+
+  // 1. Find matching schedule: prioritize specific student schedule, then grade schedule
+  const relevantSchedules = (schedules || []).filter(s => {
+    if (s.target_type === 'student' && s.target_student_id) {
+      return s.target_student_id === studentId;
+    }
+    return s.grade_level === gradeLevel;
+  });
+
+  // 2. Prefer schedule matching today's day of the week
+  let matchedSchedule = relevantSchedules.find(s => Array.isArray(s.days) && s.days.includes(todayDayName));
+  if (!matchedSchedule && relevantSchedules.length > 0) {
+    matchedSchedule = relevantSchedules[0];
+  }
+
+  const dayName = (matchedSchedule && Array.isArray(matchedSchedule.days) && matchedSchedule.days.includes(todayDayName))
+    ? todayDayName
+    : (matchedSchedule?.days?.[0] || todayDayName);
+
+  const startTime = matchedSchedule?.start_time || '13:00';
+  const endTime = matchedSchedule?.end_time || '14:00';
+  const timeFormatted = formatTimeRange12h(startTime, endTime);
+
+  // Anchor completed_at date to today with the scheduled start time hours & minutes
+  const [sHours, sMinutes] = startTime.split(':').map(Number);
+  const scheduledDate = new Date();
+  if (!isNaN(sHours)) scheduledDate.setHours(sHours, isNaN(sMinutes) ? 0 : sMinutes, 0, 0);
+
+  const gradeName = formatGradeName(gradeLevel);
+  const title = customTitle && customTitle.trim()
+    ? customTitle.trim()
+    : `حصة ${dayName} (${timeFormatted}) - ${gradeName}`;
+
+  const notes = customNotes && customNotes.trim()
+    ? `${customNotes.trim()} (${timeFormatted})`
+    : `تم حضور الحصة واكتمالها بنجاح وفق الجدول المقرر (${timeFormatted})`;
+
+  return {
+    dayName,
+    startTime,
+    endTime,
+    timeFormatted,
+    completedAt: scheduledDate.toISOString(),
+    title,
+    notes
+  };
+};
+
 

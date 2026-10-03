@@ -12,7 +12,7 @@ import FadeIn from '../../components/FadeIn';
 import { supabase } from '../../lib/supabase';
 import ConfirmModal from '../../components/ConfirmModal';
 import toast from 'react-hot-toast';
-import { formatSessionTitle, formatSessionDesc, formatGradeName, formatTime12h, formatTimeRange12h, GRADE_OPTIONS } from '../../utils/helpers';
+import { formatSessionTitle, formatSessionDesc, formatGradeName, formatTime12h, formatTimeRange12h, GRADE_OPTIONS, getScheduledSessionInfo } from '../../utils/helpers';
 
 export default function AdminLiveSessions() {
   const { t, i18n } = useTranslation();
@@ -466,34 +466,18 @@ export default function AdminLiveSessions() {
     }
   };
 
-  // 4. Fetch Completed Live Sessions
+  // 4. Fetch Completed Live Sessions directly from Supabase
   const fetchCompletedSessions = async () => {
     setCompletedLoading(true);
     try {
-      const { data: { session } } = await supabase.auth.getSession();
-      const token = session?.access_token;
-      const apiBase = import.meta.env.VITE_API_URL || (typeof window !== 'undefined' && window.location.hostname !== 'localhost' ? '' : 'http://localhost:5000');
-
-      if (token) {
-        const res = await fetch(`${apiBase}/api/admin/live-subscriptions/completed`, {
-          headers: { 'Authorization': `Bearer ${token}` }
-        });
-        if (res.ok) {
-          const json = await res.json();
-          if (json.success && json.data) {
-            setCompletedSessions(json.data);
-            return;
-          }
-        }
-      }
-
-      // Direct Supabase fallback
       const { data, error } = await supabase
         .from('completed_live_sessions')
         .select('*')
         .order('completed_at', { ascending: false });
 
-      if (!error && data) {
+      if (error) {
+        console.error('Error fetching completed sessions from Supabase:', error);
+      } else if (data) {
         setCompletedSessions(data);
       }
     } catch (err) {
@@ -725,11 +709,12 @@ export default function AdminLiveSessions() {
 
   // ==================== 8-Session Packages Handlers ====================
   const handleOpenDeductModal = (pkg) => {
+    const schedInfo = getScheduledSessionInfo(pkg.grade_level, pkg.user_id, weeklySchedules);
     setDeductModal({
       isOpen: true,
       pkg,
-      sessionTitle: `حصة أونلاين - ${formatGradeName(pkg.grade_level)}`,
-      teacherNotes: '',
+      sessionTitle: schedInfo.title,
+      teacherNotes: schedInfo.notes,
       submitting: false
     });
   };
@@ -739,8 +724,18 @@ export default function AdminLiveSessions() {
     const pkg = deductModal.pkg;
     const newRemaining = Math.max(0, pkg.remaining_sessions - 1);
     const newStatus = newRemaining === 0 ? 'expired' : 'active';
-    const sTitle = deductModal.sessionTitle.trim() || `حصة أونلاين - ${formatGradeName(pkg.grade_level)}`;
-    const tNotes = deductModal.teacherNotes.trim() || 'تم حضور الحصة واكتمالها بنجاح';
+    
+    // Automatically determine scheduled title, notes, and day/start time
+    const schedInfo = getScheduledSessionInfo(
+      pkg.grade_level,
+      pkg.user_id,
+      weeklySchedules,
+      deductModal.sessionTitle,
+      deductModal.teacherNotes
+    );
+    const sTitle = schedInfo.title;
+    const tNotes = schedInfo.notes;
+    const completedAt = schedInfo.completedAt;
 
     setDeductModal(prev => ({ ...prev, submitting: true }));
 
@@ -752,35 +747,7 @@ export default function AdminLiveSessions() {
     } : p));
 
     try {
-      const { data: { session } } = await supabase.auth.getSession();
-      const token = session?.access_token;
-      const apiBase = import.meta.env.VITE_API_URL || (typeof window !== 'undefined' && window.location.hostname !== 'localhost' ? '' : 'http://localhost:5000');
-
-      if (token) {
-        const res = await fetch(`${apiBase}/api/admin/live-subscriptions/attendance`, {
-          method: 'POST',
-          headers: {
-            'Content-Type': 'application/json',
-            'Authorization': `Bearer ${token}`
-          },
-          body: JSON.stringify({
-            user_id: pkg.user_id,
-            grade_level: pkg.grade_level,
-            remaining_sessions: newRemaining,
-            session_title: sTitle,
-            teacher_notes: tNotes
-          })
-        });
-        if (res.ok) {
-          toast.success(`تم تسجيل الحضور وخصم حصة بنجاح (المتبقي: ${newRemaining})`);
-          setDeductModal({ isOpen: false, pkg: null, sessionTitle: '', teacherNotes: '', submitting: false });
-          fetchPackages();
-          fetchCompletedSessions();
-          return;
-        }
-      }
-
-      // Supabase direct fallback
+      // 1. Direct Supabase update or upsert for live_subscriptions
       if (pkg.sub_id) {
         await supabase
           .from('live_subscriptions')
@@ -816,6 +783,7 @@ export default function AdminLiveSessions() {
         }
       }
 
+      // 2. Direct Supabase insert for completed_live_sessions with scheduled day and time
       try {
         await supabase.from('completed_live_sessions').insert([{
           student_id: pkg.user_id,
@@ -823,14 +791,14 @@ export default function AdminLiveSessions() {
           grade_level: pkg.grade_level,
           session_title: sTitle,
           session_type: 'package',
-          completed_at: new Date().toISOString(),
+          completed_at: completedAt,
           teacher_notes: tNotes
         }]);
       } catch (tableErr) {
         console.warn('completed_live_sessions notice:', tableErr);
       }
 
-      toast.success(`تم تسجيل الحضور وخصم حصة بنجاح (المتبقي: ${newRemaining})`);
+      toast.success(`✅ تم تسجيل الحضور وخصم حصة بنجاح! (${sTitle}) - المتبقي: ${newRemaining}`);
       setDeductModal({ isOpen: false, pkg: null, sessionTitle: '', teacherNotes: '', submitting: false });
       fetchPackages();
       fetchCompletedSessions();
@@ -852,35 +820,6 @@ export default function AdminLiveSessions() {
     } : p));
 
     try {
-      const { data: { session } } = await supabase.auth.getSession();
-      const token = session?.access_token;
-      const apiBase = import.meta.env.VITE_API_URL || (typeof window !== 'undefined' && window.location.hostname !== 'localhost' ? '' : 'http://localhost:5000');
-
-      if (token) {
-        const res = await fetch(`${apiBase}/api/admin/live-subscriptions/attendance`, {
-          method: 'POST',
-          headers: {
-            'Content-Type': 'application/json',
-            'Authorization': `Bearer ${token}`
-          },
-          body: JSON.stringify({
-            user_id: pkg.user_id,
-            grade_level: pkg.grade_level,
-            remaining_sessions: newRemaining
-          })
-        });
-        if (res.ok) {
-          toast.success(
-            delta < 0 
-              ? `تم تسجيل الحضور وخصم حصة (المتبقي: ${newRemaining})` 
-              : `تم تحديث الرصيد (المتبقي: ${newRemaining})`
-          );
-          fetchPackages();
-          fetchCompletedSessions();
-          return;
-        }
-      }
-
       if (pkg.sub_id) {
         await supabase
           .from('live_subscriptions')
@@ -917,15 +856,21 @@ export default function AdminLiveSessions() {
       }
 
       if (delta < 0) {
+        const schedInfo = getScheduledSessionInfo(
+          pkg.grade_level,
+          pkg.user_id,
+          weeklySchedules
+        );
+
         try {
           await supabase.from('completed_live_sessions').insert([{
             student_id: pkg.user_id,
             student_name: pkg.full_name,
             grade_level: pkg.grade_level,
-            session_title: `حصة أونلاين - ${formatGradeName(pkg.grade_level)}`,
+            session_title: schedInfo.title,
             session_type: 'package',
-            completed_at: new Date().toISOString(),
-            teacher_notes: 'تم حضور الحصة واكتمالها بنجاح'
+            completed_at: schedInfo.completedAt,
+            teacher_notes: schedInfo.notes
           }]);
         } catch (tableErr) {
           console.warn('completed_live_sessions notice:', tableErr);
@@ -934,13 +879,14 @@ export default function AdminLiveSessions() {
 
       toast.success(
         delta < 0 
-          ? `تم تسجيل الحضور وخصم حصة (المتبقي: ${newRemaining})` 
-          : `تم تحديث الرصيد (المتبقي: ${newRemaining})`
+          ? `✅ تم خصم حصة وتسجيل الحضور (المتبقي: ${newRemaining})` 
+          : `تم تحديث الرصيد بنجاح (المتبقي: ${newRemaining})`
       );
       fetchPackages();
       fetchCompletedSessions();
     } catch (err) {
       console.warn('Update package sessions error:', err);
+      toast.error('حدث خطأ أثناء تحديث الرصيد');
     }
   };
 
@@ -953,33 +899,6 @@ export default function AdminLiveSessions() {
     } : p));
 
     try {
-      const { data: { session } } = await supabase.auth.getSession();
-      const token = session?.access_token;
-      const apiBase = import.meta.env.VITE_API_URL || (typeof window !== 'undefined' && window.location.hostname !== 'localhost' ? '' : 'http://localhost:5000');
-
-      if (token) {
-        const res = await fetch(`${apiBase}/api/admin/live-subscriptions/renew`, {
-          method: 'POST',
-          headers: {
-            'Content-Type': 'application/json',
-            'Authorization': `Bearer ${token}`
-          },
-          body: JSON.stringify({
-            user_id: pkg.user_id,
-            grade_level: pkg.grade_level
-          })
-        });
-        if (res.ok) {
-          toast.success(
-            pkg.status === 'pending'
-              ? `🎉 تم قبول التحويل وتفعيل باقة 8 حصص للطالب ${pkg.full_name} بنجاح!`
-              : `🎉 تم تجديد باقة 8 حصص للطالب ${pkg.full_name} بنجاح!`
-          );
-          fetchPackages();
-          return;
-        }
-      }
-
       if (pkg.sub_id) {
         await supabase
           .from('live_subscriptions')
@@ -1030,6 +949,7 @@ export default function AdminLiveSessions() {
       fetchPackages();
     } catch (err) {
       console.warn('Renew package error:', err);
+      toast.error('حدث خطأ أثناء تجديد الباقة');
     }
   };
 
@@ -1043,19 +963,29 @@ export default function AdminLiveSessions() {
       toast.error('لا يوجد طلاب لديهم باقة نشطة ورصيد متبقٍ في هذا الصف');
       return;
     }
+
+    const schedInfo = getScheduledSessionInfo(bulkAttendanceGrade, null, weeklySchedules);
     setBulkDeductModal({
       isOpen: true,
       gradeLevel: bulkAttendanceGrade,
-      sessionTitle: `حصة جماعية - ${formatGradeName(bulkAttendanceGrade)}`,
-      teacherNotes: '',
+      sessionTitle: schedInfo.title,
+      teacherNotes: schedInfo.notes,
       submitting: false
     });
   };
 
   const handleConfirmBulkDeduct = async () => {
     const grade = bulkDeductModal.gradeLevel;
-    const sTitle = bulkDeductModal.sessionTitle.trim() || `حصة جماعية - ${formatGradeName(grade)}`;
-    const tNotes = bulkDeductModal.teacherNotes.trim() || 'تم تسجيل الحضور الجماعي بنجاح';
+    const schedInfo = getScheduledSessionInfo(
+      grade,
+      null,
+      weeklySchedules,
+      bulkDeductModal.sessionTitle,
+      bulkDeductModal.teacherNotes
+    );
+    const sTitle = schedInfo.title;
+    const tNotes = schedInfo.notes;
+    const completedAt = schedInfo.completedAt;
 
     const eligible = packages.filter(p => p.grade_level === grade && p.status === 'active' && p.remaining_sessions > 0);
     if (eligible.length === 0) {
@@ -1074,32 +1004,6 @@ export default function AdminLiveSessions() {
     }));
 
     try {
-      const { data: { session } } = await supabase.auth.getSession();
-      const token = session?.access_token;
-      const apiBase = import.meta.env.VITE_API_URL || (typeof window !== 'undefined' && window.location.hostname !== 'localhost' ? '' : 'http://localhost:5000');
-
-      if (token) {
-        const res = await fetch(`${apiBase}/api/admin/live-subscriptions/bulk-attendance`, {
-          method: 'POST',
-          headers: {
-            'Content-Type': 'application/json',
-            'Authorization': `Bearer ${token}`
-          },
-          body: JSON.stringify({ 
-            grade_level: grade,
-            session_title: sTitle,
-            teacher_notes: tNotes
-          })
-        });
-        if (res.ok) {
-          toast.success(`✅ تم تسجيل حضور ${eligible.length} طالب وخصم حصة واحدة لكل منهم`);
-          setBulkDeductModal({ isOpen: false, gradeLevel: '', sessionTitle: '', teacherNotes: '', submitting: false });
-          fetchPackages();
-          fetchCompletedSessions();
-          return;
-        }
-      }
-
       for (const p of eligible) {
         const nextRem = p.remaining_sessions - 1;
         const nextStat = nextRem === 0 ? 'expired' : 'active';
@@ -1139,14 +1043,15 @@ export default function AdminLiveSessions() {
             grade_level: p.grade_level,
             session_title: sTitle,
             session_type: 'package',
-            completed_at: new Date().toISOString(),
+            completed_at: completedAt,
             teacher_notes: tNotes
           }]);
         } catch (tableErr) {
           console.warn('completed_live_sessions notice:', tableErr);
         }
       }
-      toast.success(`✅ تم تسجيل حضور ${eligible.length} طالب وخصم حصة واحدة لكل منهم`);
+
+      toast.success(`✅ تم تسجيل حضور ${eligible.length} طالب وخصم حصة واحدة لكل منهم (${sTitle})`);
       setBulkDeductModal({ isOpen: false, gradeLevel: '', sessionTitle: '', teacherNotes: '', submitting: false });
       fetchPackages();
       fetchCompletedSessions();
@@ -1161,17 +1066,10 @@ export default function AdminLiveSessions() {
     const id = deleteCompletedModal.id;
     setDeleteCompletedModal({ isOpen: false, id: null });
     try {
-      const { data: { session } } = await supabase.auth.getSession();
-      const token = session?.access_token;
-      const apiBase = import.meta.env.VITE_API_URL || (typeof window !== 'undefined' && window.location.hostname !== 'localhost' ? '' : 'http://localhost:5000');
-
-      if (token) {
-        await fetch(`${apiBase}/api/admin/live-subscriptions/completed/${id}`, {
-          method: 'DELETE',
-          headers: { 'Authorization': `Bearer ${token}` }
-        });
-      } else {
-        await supabase.from('completed_live_sessions').delete().eq('id', id);
+      const { error } = await supabase.from('completed_live_sessions').delete().eq('id', id);
+      if (error) {
+        console.error('Error deleting completed session:', error);
+        throw error;
       }
       setCompletedSessions(prev => prev.filter(c => c.id !== id));
       toast.success('تم حذف سجل الحصة المكتملة بنجاح');

@@ -24,6 +24,7 @@ export default function AdminSubscriptions() {
   const [loading, setLoading] = useState(true);
   const [filter, setFilter] = useState('pending'); // 'pending' | 'active' | 'expired' | 'rejected' | 'all'
   const [typeFilter, setTypeFilter] = useState('all'); // 'all' | 'live' | 'courses'
+  const [gradeFilter, setGradeFilter] = useState('all'); // 'all' | grade level key
   const [searchQuery, setSearchQuery] = useState('');
   const [selectedReceipt, setSelectedReceipt] = useState(null);
   const [zoomLevel, setZoomLevel] = useState(1);
@@ -580,19 +581,23 @@ export default function AdminSubscriptions() {
       // 2. Status filter
       if (filter !== 'all' && req.status !== filter) return false;
 
-      // 3. Search query
+      // 3. Grade Level filter
+      if (gradeFilter !== 'all' && req.studentGrade !== gradeFilter) return false;
+
+      // 4. Search query
       if (searchQuery.trim()) {
         const q = searchQuery.toLowerCase().trim();
         const matchName = req.studentName?.toLowerCase().includes(q);
         const matchCourse = req.courseTitle?.toLowerCase().includes(q);
         const matchWallet = req.walletNumber?.toLowerCase().includes(q);
         const matchGrade = req.gradeName?.toLowerCase().includes(q);
-        if (!matchName && !matchCourse && !matchWallet && !matchGrade) return false;
+        const matchPhone = req.studentPhone?.toLowerCase().includes(q);
+        if (!matchName && !matchCourse && !matchWallet && !matchGrade && !matchPhone) return false;
       }
 
       return true;
     });
-  }, [requests, typeFilter, filter, searchQuery]);
+  }, [requests, typeFilter, filter, gradeFilter, searchQuery]);
 
   // Overall Global Counts
   const totalPendingGlobal = requests.filter(r => r.status === 'pending').length;
@@ -795,146 +800,173 @@ export default function AdminSubscriptions() {
         <FadeIn delay={100}>
           <div className="bg-slate-900/95 rounded-3xl border border-slate-800 shadow-2xl overflow-hidden backdrop-blur-xl">
 
-            {/* Single Unified World-Class Control Toolbar */}
-            <div className="p-4 sm:p-5 bg-slate-900/90 border-b border-slate-800 flex flex-col xl:flex-row xl:items-center justify-between gap-4">
-              
-              {/* Primary Status Switcher (Right in RTL) */}
-              <div className="flex flex-wrap items-center gap-1.5 p-1 bg-slate-950/90 rounded-2xl border border-slate-800">
-                <button
-                  onClick={() => setFilter('pending')}
-                  className={`flex items-center gap-2 px-4 py-2 rounded-xl text-xs sm:text-sm font-bold transition-all cursor-pointer ${
-                    filter === 'pending'
-                      ? 'bg-amber-500 text-slate-950 font-black shadow-md shadow-amber-500/20'
-                      : 'text-amber-400 hover:bg-amber-500/10'
-                  }`}
-                >
-                  <Clock className="w-4 h-4" />
-                  <span>قيد المراجعة</span>
-                  <span className={`px-2 py-0.5 rounded-full text-[11px] font-black ${
-                    filter === 'pending' ? 'bg-slate-950 text-amber-400' : 'bg-amber-500/20 text-amber-300'
-                  }`}>
-                    {pendingCount}
-                  </span>
-                </button>
+            {/* Simplified Elegant Controls Bar */}
+            <div className="p-4 sm:p-5 bg-slate-900/90 border-b border-slate-800 flex flex-col gap-4">
 
-                <button
-                  onClick={() => setFilter('active')}
-                  className={`flex items-center gap-2 px-4 py-2 rounded-xl text-xs sm:text-sm font-bold transition-all cursor-pointer ${
-                    filter === 'active'
-                      ? 'bg-emerald-500 text-slate-950 font-black shadow-md shadow-emerald-500/20'
-                      : 'text-emerald-400 hover:bg-emerald-500/10'
-                  }`}
-                >
-                  <CheckCircle2 className="w-4 h-4" />
-                  <span>المفعلة السارية</span>
-                  <span className={`px-2 py-0.5 rounded-full text-[11px] font-black ${
-                    filter === 'active' ? 'bg-slate-950 text-emerald-400' : 'bg-emerald-500/20 text-emerald-300'
-                  }`}>
-                    {activeCount}
-                  </span>
-                </button>
-
-                <button
-                  onClick={() => setFilter('expired')}
-                  className={`flex items-center gap-2 px-4 py-2 rounded-xl text-xs sm:text-sm font-bold transition-all cursor-pointer ${
-                    filter === 'expired'
-                      ? 'bg-rose-500 text-white font-black shadow-md shadow-rose-500/20'
-                      : 'text-rose-400 hover:bg-rose-500/10'
-                  }`}
-                >
-                  <AlertTriangle className="w-4 h-4" />
-                  <span>المنتهية</span>
-                  <span className={`px-2 py-0.5 rounded-full text-[11px] font-black ${
-                    filter === 'expired' ? 'bg-slate-950 text-rose-300' : 'bg-rose-500/20 text-rose-300'
-                  }`}>
-                    {expiredCount}
-                  </span>
-                </button>
-
-                <button
-                  onClick={() => setFilter('rejected')}
-                  className={`flex items-center gap-2 px-4 py-2 rounded-xl text-xs sm:text-sm font-bold transition-all cursor-pointer ${
-                    filter === 'rejected'
-                      ? 'bg-slate-700 text-white font-black'
-                      : 'text-slate-400 hover:bg-slate-800'
-                  }`}
-                >
-                  <X className="w-4 h-4" />
-                  <span>المرفوضة</span>
-                  <span className="px-2 py-0.5 rounded-full text-[11px] bg-slate-800 text-slate-400">
-                    {rejectedCount}
-                  </span>
-                </button>
-
-                <button
-                  onClick={() => setFilter('all')}
-                  className={`px-3.5 py-2 rounded-xl text-xs sm:text-sm font-bold transition-all cursor-pointer ${
-                    filter === 'all'
-                      ? 'bg-blue-600 text-white font-black'
-                      : 'text-slate-400 hover:text-white'
-                  }`}
-                >
-                  عرض الكل ({typeScopedRequests.length})
-                </button>
-              </div>
-
-              {/* Service Type Filter & Search Combo (Left in RTL) */}
-              <div className="flex flex-wrap items-center gap-3">
+              {/* Row 1: Status Tabs (Right) & Search Bar (Left) */}
+              <div className="flex flex-col md:flex-row md:items-center justify-between gap-3">
                 
-                {/* Service Type Segmented Switcher */}
-                <div className="flex items-center p-1 bg-slate-950 rounded-2xl border border-slate-800 text-xs font-bold">
+                {/* Status Tabs */}
+                <div className="flex flex-wrap items-center gap-1.5 p-1 bg-slate-950/90 rounded-2xl border border-slate-800">
                   <button
-                    onClick={() => setTypeFilter('all')}
-                    className={`px-3 py-1.5 rounded-xl transition-all cursor-pointer ${
-                      typeFilter === 'all'
-                        ? 'bg-slate-800 text-white font-black shadow-xs'
-                        : 'text-slate-400 hover:text-slate-200'
+                    onClick={() => setFilter('pending')}
+                    className={`flex items-center gap-2 px-3.5 py-1.5 rounded-xl text-xs sm:text-sm font-bold transition-all cursor-pointer ${
+                      filter === 'pending'
+                        ? 'bg-amber-500 text-slate-950 font-black shadow-md shadow-amber-500/20'
+                        : 'text-amber-400 hover:bg-amber-500/10'
                     }`}
                   >
-                    كل الخدمات
+                    <Clock className="w-3.5 h-3.5" />
+                    <span>قيد المراجعة</span>
+                    <span className={`px-2 py-0.5 rounded-full text-[11px] font-black ${
+                      filter === 'pending' ? 'bg-slate-950 text-amber-400' : 'bg-amber-500/20 text-amber-300'
+                    }`}>
+                      {pendingCount}
+                    </span>
                   </button>
+
                   <button
-                    onClick={() => setTypeFilter('live')}
-                    className={`flex items-center gap-1.5 px-3 py-1.5 rounded-xl transition-all cursor-pointer ${
-                      typeFilter === 'live'
-                        ? 'bg-purple-600 text-white font-black shadow-xs'
-                        : 'text-purple-400 hover:text-purple-300'
+                    onClick={() => setFilter('active')}
+                    className={`flex items-center gap-2 px-3.5 py-1.5 rounded-xl text-xs sm:text-sm font-bold transition-all cursor-pointer ${
+                      filter === 'active'
+                        ? 'bg-emerald-600 text-white font-black shadow-md shadow-emerald-600/20'
+                        : 'text-emerald-400 hover:bg-emerald-500/10'
                     }`}
                   >
-                    <Video className="w-3.5 h-3.5" />
-                    <span>باقات الحصص (8)</span>
+                    <CheckCircle2 className="w-3.5 h-3.5" />
+                    <span>المفعلة السارية</span>
+                    <span className={`px-2 py-0.5 rounded-full text-[11px] font-black ${
+                      filter === 'active' ? 'bg-slate-950 text-emerald-400' : 'bg-emerald-500/20 text-emerald-300'
+                    }`}>
+                      {activeCount}
+                    </span>
                   </button>
+
                   <button
-                    onClick={() => setTypeFilter('courses')}
-                    className={`flex items-center gap-1.5 px-3 py-1.5 rounded-xl transition-all cursor-pointer ${
-                      typeFilter === 'courses'
-                        ? 'bg-blue-600 text-white font-black shadow-xs'
-                        : 'text-blue-400 hover:text-blue-300'
+                    onClick={() => setFilter('expired')}
+                    className={`flex items-center gap-2 px-3.5 py-1.5 rounded-xl text-xs sm:text-sm font-bold transition-all cursor-pointer ${
+                      filter === 'expired'
+                        ? 'bg-rose-500 text-white font-black shadow-md shadow-rose-500/20'
+                        : 'text-rose-400 hover:bg-rose-500/10'
                     }`}
                   >
-                    <BookOpen className="w-3.5 h-3.5" />
-                    <span>الكورسات المسجلة</span>
+                    <AlertTriangle className="w-3.5 h-3.5" />
+                    <span>المنتهية</span>
+                    <span className={`px-2 py-0.5 rounded-full text-[11px] font-black ${
+                      filter === 'expired' ? 'bg-slate-950 text-rose-300' : 'bg-rose-500/20 text-rose-300'
+                    }`}>
+                      {expiredCount}
+                    </span>
+                  </button>
+
+                  <button
+                    onClick={() => setFilter('rejected')}
+                    className={`flex items-center gap-2 px-3.5 py-1.5 rounded-xl text-xs sm:text-sm font-bold transition-all cursor-pointer ${
+                      filter === 'rejected'
+                        ? 'bg-slate-700 text-white font-black'
+                        : 'text-slate-400 hover:bg-slate-800'
+                    }`}
+                  >
+                    <X className="w-3.5 h-3.5" />
+                    <span>المرفوضة</span>
+                    <span className="px-2 py-0.5 rounded-full text-[11px] bg-slate-800 text-slate-400">
+                      {rejectedCount}
+                    </span>
+                  </button>
+
+                  <button
+                    onClick={() => setFilter('all')}
+                    className={`px-3 py-1.5 rounded-xl text-xs sm:text-sm font-bold transition-all cursor-pointer ${
+                      filter === 'all'
+                        ? 'bg-blue-600 text-white font-black'
+                        : 'text-slate-400 hover:text-white'
+                    }`}
+                  >
+                    عرض الكل ({typeScopedRequests.length})
                   </button>
                 </div>
 
-                {/* Instant Search Bar */}
-                <div className="relative min-w-[220px] sm:min-w-[260px] flex-1 sm:flex-initial">
+                {/* Search Input */}
+                <div className="relative min-w-[240px] sm:w-72">
                   <Search className="w-4 h-4 absolute top-1/2 -translate-y-1/2 rtl:right-3.5 ltr:left-3.5 text-slate-400" />
                   <input
                     type="text"
                     value={searchQuery}
                     onChange={(e) => setSearchQuery(e.target.value)}
                     placeholder="ابحث بالاسم، المرحلة، المحفظة..."
-                    className="w-full py-2 rtl:pr-9 rtl:pl-4 ltr:pl-9 ltr:pr-4 rounded-xl text-xs sm:text-sm bg-slate-950 border border-slate-800 text-slate-100 placeholder-slate-500 focus:border-blue-500 outline-none transition-all shadow-inner"
+                    className="w-full py-2 rtl:pr-9 rtl:pl-8 ltr:pl-9 ltr:pr-8 rounded-xl text-xs sm:text-sm bg-slate-950 border border-slate-800 text-slate-100 placeholder-slate-500 focus:border-blue-500 outline-none transition-all shadow-inner"
                   />
                   {searchQuery && (
                     <button 
                       onClick={() => setSearchQuery('')}
-                      className="absolute top-1/2 -translate-y-1/2 rtl:left-3 ltr:right-3 text-slate-500 hover:text-slate-300 cursor-pointer"
+                      className="absolute top-1/2 -translate-y-1/2 rtl:left-2.5 ltr:right-2.5 text-slate-500 hover:text-slate-300 cursor-pointer"
                     >
-                      <X className="w-4 h-4" />
+                      <X className="w-3.5 h-3.5" />
                     </button>
                   )}
+                </div>
+
+              </div>
+
+              {/* Row 2: Secondary Quick Filters (Service Type + Grade Dropdown + Counter) */}
+              <div className="flex flex-wrap items-center justify-between gap-3 pt-2 border-t border-slate-800/60 text-xs">
+                
+                <div className="flex flex-wrap items-center gap-2.5">
+                  {/* Service Segmented Switcher */}
+                  <div className="flex items-center p-0.5 bg-slate-950 rounded-xl border border-slate-800">
+                    <button
+                      onClick={() => setTypeFilter('all')}
+                      className={`px-3 py-1 rounded-lg transition-all cursor-pointer font-bold ${
+                        typeFilter === 'all' ? 'bg-slate-800 text-white font-black' : 'text-slate-400 hover:text-slate-200'
+                      }`}
+                    >
+                      كل الخدمات
+                    </button>
+                    <button
+                      onClick={() => setTypeFilter('live')}
+                      className={`flex items-center gap-1.5 px-3 py-1 rounded-lg transition-all cursor-pointer font-bold ${
+                        typeFilter === 'live' ? 'bg-purple-600 text-white font-black' : 'text-purple-400 hover:text-purple-300'
+                      }`}
+                    >
+                      <Video className="w-3 h-3" />
+                      <span>باقات الحصص (8)</span>
+                    </button>
+                    <button
+                      onClick={() => setTypeFilter('courses')}
+                      className={`flex items-center gap-1.5 px-3 py-1 rounded-lg transition-all cursor-pointer font-bold ${
+                        typeFilter === 'courses' ? 'bg-blue-600 text-white font-black' : 'text-blue-400 hover:text-blue-300'
+                      }`}
+                    >
+                      <BookOpen className="w-3 h-3" />
+                      <span>الكورسات</span>
+                    </button>
+                  </div>
+
+                  {/* Grade Level Dropdown Filter */}
+                  <select
+                    value={gradeFilter}
+                    onChange={(e) => setGradeFilter(e.target.value)}
+                    className="px-3 py-1.5 bg-slate-950 border border-slate-800 rounded-xl text-slate-300 font-bold outline-none cursor-pointer hover:border-slate-700 transition-colors"
+                  >
+                    <option value="all">جميع المراحل والصفوف</option>
+                    <option value="primary_1">الصف الأول الابتدائي</option>
+                    <option value="primary_2">الصف الثاني الابتدائي</option>
+                    <option value="primary_3">الصف الثالث الابتدائي</option>
+                    <option value="primary_4">الصف الرابع الابتدائي</option>
+                    <option value="primary_5">الصف الخامس الابتدائي</option>
+                    <option value="primary_6">الصف السادس الابتدائي</option>
+                    <option value="prep_1">الصف الأول الإعدادي</option>
+                    <option value="prep_2">الصف الثاني الإعدادي</option>
+                    <option value="prep_3">الصف الثالث الإعدادي</option>
+                    <option value="sec_1">الصف الأول الثانوي</option>
+                    <option value="sec_2">الصف الثاني الثانوي</option>
+                    <option value="sec_3">الصف الثالث الثانوي</option>
+                  </select>
+                </div>
+
+                {/* Showing X of Y count */}
+                <div className="text-slate-400 text-xs font-bold">
+                  يعرض <span className="text-white font-black">{filteredRequests.length}</span> من أصل <span className="text-white font-black">{typeScopedRequests.length}</span> طلب
                 </div>
 
               </div>
@@ -946,15 +978,14 @@ export default function AdminSubscriptions() {
               <table className="w-full rtl:text-right ltr:text-left border-collapse">
                 <thead>
                   <tr className="bg-slate-950/80 text-slate-400 text-xs uppercase tracking-wider border-b border-slate-800">
-                    <th className="py-4 px-6 font-black font-arabic">الطالب والمرحلة</th>
-                    <th className="py-4 px-6 font-black font-arabic">نوع الاشتراك والخدمة</th>
-                    <th className="py-4 px-6 font-black font-arabic">الرصيد / الصلاحية</th>
-                    <th className="py-4 px-6 font-black font-arabic">حالة الطلب</th>
-                    <th className="py-4 px-6 font-black font-arabic">طريقة الدفع</th>
-                    <th className="py-4 px-6 font-black font-arabic">رقم المحفظة / المرسل</th>
-                    <th className="py-4 px-6 font-black font-arabic">تاريخ الطلب</th>
-                    <th className="py-4 px-6 font-black font-arabic text-center">الإيصال</th>
-                    <th className="py-4 px-6 font-black font-arabic text-center">إجراءات التحكم والخصم</th>
+                    <th className="py-3.5 px-4 font-black font-arabic">الطالب والمرحلة</th>
+                    <th className="py-3.5 px-4 font-black font-arabic">نوع الاشتراك</th>
+                    <th className="py-3.5 px-4 font-black font-arabic">الرصيد / الصلاحية</th>
+                    <th className="py-3.5 px-4 font-black font-arabic">حالة الطلب</th>
+                    <th className="py-3.5 px-4 font-black font-arabic">الدفع والمحفظة</th>
+                    <th className="py-3.5 px-4 font-black font-arabic">تاريخ الطلب</th>
+                    <th className="py-3.5 px-3 font-black font-arabic text-center">الإيصال</th>
+                    <th className="py-3.5 px-4 font-black font-arabic text-center">إجراءات التحكم</th>
                   </tr>
                 </thead>
                 <tbody className="divide-y divide-slate-800/60 text-sm">
@@ -970,26 +1001,26 @@ export default function AdminSubscriptions() {
                             : 'hover:bg-slate-800/40'
                         }`}
                       >
-                        {/* 1. Student Identity with REAL name & stage */}
-                        <td className="py-4 px-6 whitespace-nowrap">
+                        {/* 1. Student Identity with REAL name & stage & phone */}
+                        <td className="py-3.5 px-4 whitespace-nowrap">
                           <div className="flex items-center gap-3">
-                            <div className={`w-10 h-10 rounded-2xl flex items-center justify-center font-black text-sm shrink-0 shadow-md ${
+                            <div className={`w-10 h-10 rounded-2xl flex items-center justify-center font-black text-sm shrink-0 shadow-sm ${
                               isLive 
-                                ? 'bg-gradient-to-br from-purple-500 to-indigo-600 text-white' 
-                                : 'bg-gradient-to-br from-blue-500 to-indigo-600 text-white'
+                                ? 'bg-gradient-to-br from-purple-500 to-indigo-600 text-white shadow-purple-900/30' 
+                                : 'bg-gradient-to-br from-blue-500 to-indigo-600 text-white shadow-blue-900/30'
                             }`}>
                               {req.studentName?.charAt(0) || 'ط'}
                             </div>
-                            <div>
-                              <div className="font-black text-white text-sm">
+                            <div className="flex flex-col">
+                              <span className="font-black text-white text-sm">
                                 {req.studentName}
-                              </div>
-                              <div className="flex items-center gap-2 mt-0.5">
-                                <span className="text-xs text-purple-300 font-bold bg-purple-950/80 px-2 py-0.5 rounded-md border border-purple-800/60">
+                              </span>
+                              <div className="flex items-center gap-2 mt-0.5 text-xs">
+                                <span className="text-purple-300 font-bold bg-purple-950/60 px-2 py-0.5 rounded-md border border-purple-800/40 text-[11px]">
                                   {req.gradeName || 'الصف الأول الإعدادي'}
                                 </span>
-                                {req.studentPhone && (
-                                  <span className="text-[11px] text-slate-400 font-mono">
+                                {req.studentPhone && req.studentPhone !== '-' && (
+                                  <span className="text-slate-400 font-mono text-[11px]" dir="ltr">
                                     {req.studentPhone}
                                   </span>
                                 )}
@@ -998,157 +1029,144 @@ export default function AdminSubscriptions() {
                           </div>
                         </td>
 
-                        {/* 2. Service Item */}
-                        <td className="py-4 px-6 whitespace-nowrap">
-                          <div className="flex flex-col gap-1">
-                            {isLive ? (
-                              <div className="flex items-center gap-1.5">
-                                <span className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-lg text-xs font-black bg-purple-500/20 text-purple-300 border border-purple-500/30">
-                                  <Video className="w-3.5 h-3.5 text-purple-400" />
-                                  باقة 8 حصص زووم
-                                </span>
-                              </div>
-                            ) : (
-                              <div className="flex items-center gap-1.5">
-                                <span className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-lg text-xs font-black bg-blue-500/20 text-blue-300 border border-blue-500/30">
-                                  <BookOpen className="w-3.5 h-3.5 text-blue-400" />
-                                  كورس مسجل
-                                </span>
-                              </div>
-                            )}
-                            <span className="text-xs sm:text-sm font-bold text-slate-200">
-                              {req.courseTitle}
+                        {/* 2. Service Item (Clean Single Title - NO DUPLICATION) */}
+                        <td className="py-3.5 px-4 whitespace-nowrap">
+                          {isLive ? (
+                            <span className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-xl text-xs font-black bg-purple-500/15 text-purple-300 border border-purple-500/30">
+                              <Video className="w-3.5 h-3.5 text-purple-400" />
+                              باقة الـ 8 حصص (زووم)
                             </span>
-                          </div>
+                          ) : (
+                            <div className="flex items-center gap-2">
+                              <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-md text-[11px] font-bold bg-blue-500/15 text-blue-300 border border-blue-500/30">
+                                <BookOpen className="w-3 h-3 text-blue-400" />
+                                كورس
+                              </span>
+                              <span className="text-xs font-bold text-slate-200">
+                                {req.courseTitle}
+                              </span>
+                            </div>
+                          )}
                         </td>
 
-                        {/* 3. Balance / Validity Beads */}
-                        <td className="py-4 px-6 whitespace-nowrap">
+                        {/* 3. Balance / Validity */}
+                        <td className="py-3.5 px-4 whitespace-nowrap">
                           {isLive ? (
-                            <div className="flex flex-col gap-2 min-w-[140px]">
-                              <div className="flex items-center justify-between text-xs font-black">
-                                <span className="text-purple-300">
+                            <div className="flex flex-col gap-1.5 min-w-[125px]">
+                              <div className="flex items-center justify-between text-xs font-bold">
+                                <span className="text-slate-200 font-black">
                                   {req.remainingSessions} من {req.totalSessions || 8} حصص
                                 </span>
-                                <span className={req.remainingSessions > 3 ? 'text-emerald-400 font-bold' : req.remainingSessions > 0 ? 'text-amber-400 font-bold' : 'text-rose-400 font-bold'}>
+                                <span className={req.remainingSessions > 3 ? 'text-emerald-400 text-[11px]' : req.remainingSessions > 0 ? 'text-amber-400 text-[11px]' : 'text-rose-400 text-[11px]'}>
                                   {req.remainingSessions === 0 ? 'منتهية' : `متبقي ${req.remainingSessions}`}
                                 </span>
                               </div>
-                              {/* 8-Beads Interactive Visualizer */}
                               <div className="flex items-center gap-1">
-                                {[1, 2, 3, 4, 5, 6, 7, 8].map((i) => {
-                                  const isAvailable = i <= req.remainingSessions;
-                                  return (
-                                    <div
-                                      key={i}
-                                      className={`h-2 flex-1 rounded-full transition-all duration-300 ${
-                                        isAvailable
-                                          ? req.remainingSessions > 4 
-                                            ? 'bg-emerald-500 shadow-xs shadow-emerald-500/50' 
-                                            : 'bg-amber-500 shadow-xs shadow-amber-500/50'
-                                          : 'bg-slate-800'
-                                      }`}
-                                      title={`حصة ${i}`}
-                                    />
-                                  );
-                                })}
+                                {[1, 2, 3, 4, 5, 6, 7, 8].map((i) => (
+                                  <div
+                                    key={i}
+                                    className={`h-1.5 flex-1 rounded-full transition-all ${
+                                      i <= req.remainingSessions
+                                        ? 'bg-emerald-500 shadow-xs shadow-emerald-500/50'
+                                        : 'bg-slate-800'
+                                    }`}
+                                  />
+                                ))}
                               </div>
                             </div>
                           ) : (
-                            <span className="text-xs font-bold px-3 py-1 rounded-xl bg-slate-800 text-slate-300 border border-slate-700">
-                              {req.courseDuration ? `${req.courseDuration} يوم` : 'مدى الحياة'}
+                            <span className="text-xs font-bold text-slate-300 px-2.5 py-1 rounded-lg bg-slate-800 border border-slate-700">
+                              {req.courseDuration ? `${req.courseDuration} يوم` : 'دائم'}
                             </span>
                           )}
                         </td>
 
                         {/* 4. Status Badge */}
-                        <td className="py-4 px-6 whitespace-nowrap">
+                        <td className="py-3.5 px-4 whitespace-nowrap">
                           {req.status === 'active' ? (
-                            <span className="text-xs font-black px-3 py-1 rounded-full border bg-emerald-500/10 text-emerald-400 border-emerald-500/30 flex items-center gap-1.5 w-fit">
-                              <CheckCircle2 className="w-3.5 h-3.5 text-emerald-400" />
-                              {isLive ? `مفعل (${req.remainingSessions} حصص)` : (req.statusObj?.statusText || 'مفعل')}
+                            <span className="text-xs font-black px-2.5 py-1 rounded-full bg-emerald-500/10 text-emerald-400 border border-emerald-500/30 inline-flex items-center gap-1.5">
+                              <CheckCircle2 className="w-3.5 h-3.5" />
+                              مفعل ({req.remainingSessions} حصص)
                             </span>
                           ) : req.status === 'expired' ? (
-                            <span className="text-xs font-black px-3 py-1 rounded-full border bg-rose-500/10 text-rose-400 border-rose-500/30 flex items-center gap-1.5 w-fit">
-                              <AlertTriangle className="w-3.5 h-3.5 text-rose-400" />
-                              {isLive ? 'منتهية (0 حصص)' : 'منتهي الصلاحية'}
+                            <span className="text-xs font-black px-2.5 py-1 rounded-full bg-rose-500/10 text-rose-400 border border-rose-500/30 inline-flex items-center gap-1.5">
+                              <AlertTriangle className="w-3.5 h-3.5" />
+                              منتهية الصلاحية
                             </span>
                           ) : req.status === 'pending' ? (
-                            <span className="text-xs font-black px-3 py-1 rounded-full border bg-amber-500/15 text-amber-300 border-amber-500/40 flex items-center gap-1.5 w-fit shadow-xs shadow-amber-500/20 animate-pulse">
+                            <span className="text-xs font-black px-2.5 py-1 rounded-full bg-amber-500/15 text-amber-300 border border-amber-500/40 inline-flex items-center gap-1.5 shadow-xs shadow-amber-500/20 animate-pulse">
                               <Clock className="w-3.5 h-3.5 text-amber-400" />
                               قيد المراجعة ⏱️
                             </span>
                           ) : (
-                            <span className="text-xs font-bold px-3 py-1 rounded-full border bg-slate-800 text-slate-400 border-slate-700 flex items-center gap-1.5 w-fit">
+                            <span className="text-xs font-bold px-2.5 py-1 rounded-full bg-slate-800 text-slate-400 inline-flex items-center gap-1">
                               <X className="w-3.5 h-3.5" />
-                              مرفوض ❌
+                              مرفوض
                             </span>
                           )}
                         </td>
 
-                        {/* 5. Payment Method */}
-                        <td className="py-4 px-6 whitespace-nowrap">
-                          <span className="bg-slate-950 border border-slate-800 px-3 py-1 rounded-xl text-xs font-bold text-slate-300 inline-block shadow-inner">
-                            {req.paymentMethod === 'vodafone' ? 'فودافون كاش' : req.paymentMethod === 'instapay' ? 'InstaPay' : 'محفظة إلكترونية'}
-                          </span>
-                        </td>
-
-                        {/* 6. Wallet Number */}
-                        <td className="py-4 px-6 whitespace-nowrap">
-                          <span className="text-slate-300 font-mono text-xs font-bold bg-slate-950 px-2.5 py-1 rounded-lg border border-slate-800" dir="ltr">
-                            {req.walletNumber}
-                          </span>
-                        </td>
-
-                        {/* 7. Date */}
-                        <td className="py-4 px-6 whitespace-nowrap">
+                        {/* 5. Payment & Wallet (Combined into one clean cell) */}
+                        <td className="py-3.5 px-4 whitespace-nowrap">
                           <div className="flex flex-col text-xs gap-0.5">
-                            <span className="text-slate-200 font-bold">
+                            <span className="font-bold text-slate-200">
+                              {req.paymentMethod === 'vodafone' ? 'فودافون كاش' : req.paymentMethod === 'instapay' ? 'InstaPay' : (req.paymentMethod || 'محفظة')}
+                            </span>
+                            {req.walletNumber && req.walletNumber !== '-' && (
+                              <span className="text-slate-400 font-mono text-[11px]" dir="ltr">
+                                {req.walletNumber}
+                              </span>
+                            )}
+                          </div>
+                        </td>
+
+                        {/* 6. Date */}
+                        <td className="py-3.5 px-4 whitespace-nowrap">
+                          <div className="flex flex-col text-xs text-slate-400">
+                            <span className="font-bold text-slate-300">
                               {new Date(req.date).toLocaleDateString('ar-EG')}
                             </span>
-                            <span className="text-slate-500 text-[10px]">
+                            <span className="text-[10px] text-slate-500">
                               {new Date(req.date).toLocaleTimeString('ar-EG', { hour: '2-digit', minute: '2-digit' })}
                             </span>
                           </div>
                         </td>
 
-                        {/* 8. Receipt */}
-                        <td className="py-4 px-6 text-center whitespace-nowrap">
+                        {/* 7. Receipt */}
+                        <td className="py-3.5 px-3 text-center whitespace-nowrap">
                           {req.receiptUrl ? (
                             <button
                               onClick={() => setSelectedReceipt(getDirectImageUrl(req.receiptUrl))}
-                              className="mx-auto flex items-center justify-center w-9 h-9 bg-purple-500/10 hover:bg-purple-500/20 text-purple-400 border border-purple-500/30 rounded-xl transition-all shadow-sm hover:scale-105 cursor-pointer"
+                              className="inline-flex items-center justify-center w-8 h-8 bg-purple-500/15 hover:bg-purple-500/25 text-purple-300 border border-purple-500/30 rounded-xl transition-all shadow-xs cursor-pointer hover:scale-105"
                               title="معاينة إيصال التحويل"
                             >
                               <Eye className="w-4 h-4" />
                             </button>
                           ) : (
-                            <span className="text-slate-500 text-xs block">بدون إيصال</span>
+                            <span className="text-slate-500 text-xs">بدون إيصال</span>
                           )}
                         </td>
 
-                        {/* 9. Actions Column */}
-                        <td className="py-4 px-6 whitespace-nowrap">
-                          <div className="flex items-center justify-center gap-2 flex-wrap">
+                        {/* 8. Actions (Instant 1-Click Controls) */}
+                        <td className="py-3.5 px-4 whitespace-nowrap text-center">
+                          <div className="flex items-center justify-center gap-1.5">
 
-                            {/* -------------------- LIVE PACKAGE CONTROLS -------------------- */}
+                            {/* Live Package Controls */}
                             {isLive && (
                               <>
-                                {/* Pending Live Request: Instant Accept & Start 8 sessions */}
                                 {req.status === 'pending' && (
                                   <>
                                     <button
                                       onClick={() => handleStatusChange(req, 'active')}
-                                      className="px-3.5 py-1.5 bg-gradient-to-r from-emerald-600 to-teal-600 hover:from-emerald-500 hover:to-teal-500 text-white rounded-xl font-black text-xs transition-all shadow-md shadow-emerald-900/30 flex items-center gap-1.5 cursor-pointer hover:scale-105 active:scale-95"
-                                      title="قبول التحويل وبدء باقة الـ 8 حصص للطالب"
+                                      className="px-3 py-1.5 bg-emerald-600 hover:bg-emerald-500 text-white rounded-xl font-black text-xs transition-all shadow-xs flex items-center gap-1 cursor-pointer active:scale-95"
+                                      title="قبول وتفعيل باقة الـ 8 حصص"
                                     >
-                                      <CheckCircle2 className="w-4 h-4" />
-                                      <span>تفعيل الباقة (8 حصص)</span>
+                                      <CheckCircle2 className="w-3.5 h-3.5" />
+                                      <span>تفعيل</span>
                                     </button>
-
                                     <button
                                       onClick={() => handleStatusChange(req, 'rejected')}
-                                      className="px-2.5 py-1.5 bg-rose-950/40 text-rose-400 hover:bg-rose-900/40 border border-rose-800/40 rounded-xl font-bold text-xs transition-colors cursor-pointer"
+                                      className="px-2.5 py-1.5 bg-rose-950/40 text-rose-400 hover:bg-rose-900/50 border border-rose-800/40 rounded-xl font-bold text-xs transition-colors cursor-pointer"
                                       title="رفض الطلب"
                                     >
                                       رفض
@@ -1156,30 +1174,29 @@ export default function AdminSubscriptions() {
                                   </>
                                 )}
 
-                                {/* Active Live Package: Deduct 1 session, +1 compensation, Renew 8 */}
                                 {req.status === 'active' && (
                                   <>
                                     <button
                                       onClick={() => handleDirectDeduct(req)}
                                       disabled={req.remainingSessions <= 0}
-                                      className="px-3 py-1.5 bg-gradient-to-r from-purple-600 to-indigo-600 hover:from-purple-500 hover:to-indigo-500 text-white rounded-xl font-black text-xs transition-all shadow-md shadow-purple-900/30 flex items-center gap-1 cursor-pointer hover:scale-105 disabled:opacity-50 disabled:cursor-not-allowed"
-                                      title="تسجيل حضور وخصم حصة واحدة فورياً"
+                                      className="px-2.5 py-1.5 bg-gradient-to-r from-purple-600 to-indigo-600 hover:from-purple-500 hover:to-indigo-500 text-white rounded-xl font-black text-xs transition-all shadow-xs flex items-center gap-1 cursor-pointer hover:scale-105 active:scale-95 disabled:opacity-40 disabled:cursor-not-allowed"
+                                      title="خصم حصة واحدة فورياً (-1)"
                                     >
                                       <MinusCircle className="w-3.5 h-3.5" />
-                                      <span>خصم حصة (-1)</span>
+                                      <span>خصم (-1)</span>
                                     </button>
 
                                     <button
                                       onClick={() => handleAddCompensationSession(req)}
-                                      className="px-2.5 py-1.5 bg-blue-900/30 text-blue-300 hover:bg-blue-800/40 border border-blue-700/40 rounded-xl font-bold text-xs transition-colors cursor-pointer"
+                                      className="px-2 py-1.5 bg-blue-900/40 text-blue-300 hover:bg-blue-800/50 border border-blue-700/40 rounded-xl font-bold text-xs transition-colors cursor-pointer"
                                       title="إضافة حصة تعويضية (+1)"
                                     >
-                                      +1 تعويض
+                                      +1
                                     </button>
 
                                     <button
                                       onClick={() => handleRenewLivePackage(req)}
-                                      className="p-1.5 bg-amber-900/30 text-amber-300 hover:bg-amber-800/40 border border-amber-700/40 rounded-xl font-bold text-xs transition-colors cursor-pointer"
+                                      className="p-1.5 bg-amber-900/40 text-amber-300 hover:bg-amber-800/50 border border-amber-700/40 rounded-xl font-bold text-xs transition-colors cursor-pointer"
                                       title="تجديد الباقة إلى 8 حصص جديدة"
                                     >
                                       <RefreshCw className="w-3.5 h-3.5" />
@@ -1187,30 +1204,29 @@ export default function AdminSubscriptions() {
                                   </>
                                 )}
 
-                                {/* Expired Live Package: Quick Renew */}
                                 {req.status === 'expired' && (
                                   <button
                                     onClick={() => handleRenewLivePackage(req)}
-                                    className="px-3.5 py-1.5 bg-gradient-to-r from-amber-500 to-orange-500 hover:from-amber-400 hover:to-orange-400 text-slate-950 rounded-xl font-black text-xs transition-all shadow-md shadow-amber-900/30 flex items-center gap-1.5 cursor-pointer hover:scale-105"
+                                    className="px-3 py-1.5 bg-gradient-to-r from-amber-500 to-orange-500 hover:from-amber-400 hover:to-orange-400 text-slate-950 rounded-xl font-black text-xs transition-all shadow-xs flex items-center gap-1 cursor-pointer hover:scale-105"
                                     title="تجديد باقة الـ 8 حصص وتفعيلها"
                                   >
                                     <RefreshCw className="w-3.5 h-3.5" />
-                                    <span>تجديد (8 حصص)</span>
+                                    <span>تجديد (8)</span>
                                   </button>
                                 )}
                               </>
                             )}
 
-                            {/* -------------------- COURSE CONTROLS -------------------- */}
+                            {/* Course Controls */}
                             {!isLive && (
                               <>
                                 {(req.status === 'expired' || req.status === 'active') && (
                                   <button
                                     onClick={() => openExtendModal(req)}
-                                    className="px-3 py-1.5 bg-blue-900/30 text-blue-300 hover:bg-blue-800/40 border border-blue-700/40 rounded-xl font-bold text-xs transition-colors flex items-center gap-1 shadow-xs cursor-pointer"
+                                    className="px-2.5 py-1 bg-blue-900/30 text-blue-300 hover:bg-blue-800/40 border border-blue-700/40 rounded-xl font-bold text-xs transition-colors flex items-center gap-1 shadow-xs cursor-pointer"
                                     title="تمديد مدة الكورس"
                                   >
-                                    <RefreshCw className="w-3.5 h-3.5" />
+                                    <RefreshCw className="w-3 h-3" />
                                     <span>تمديد</span>
                                   </button>
                                 )}
@@ -1218,25 +1234,25 @@ export default function AdminSubscriptions() {
                                 <select
                                   value={req.status}
                                   onChange={(e) => handleStatusChange(req, e.target.value)}
-                                  className={`px-3 py-1.5 rounded-xl font-bold text-xs transition-all outline-none cursor-pointer text-center appearance-none shadow-xs ${
+                                  className={`px-2.5 py-1 rounded-xl font-bold text-xs outline-none cursor-pointer text-center appearance-none shadow-xs ${
                                     req.status === 'active' ? 'bg-emerald-600 text-white' :
                                     req.status === 'expired' ? 'bg-orange-600 text-white' :
                                     req.status === 'rejected' ? 'bg-rose-600 text-white' :
                                     'bg-blue-600 text-white'
                                   }`}
                                 >
-                                  <option value="pending" className="bg-slate-900 text-blue-400 font-bold">قيد المراجعة ⏱️</option>
-                                  <option value="active" className="bg-slate-900 text-emerald-400 font-bold">مفعل ✅</option>
-                                  <option value="expired" className="bg-slate-900 text-orange-400 font-bold">منتهي ⏱️</option>
-                                  <option value="rejected" className="bg-slate-900 text-rose-400 font-bold">مرفوض ❌</option>
+                                  <option value="pending" className="bg-slate-900 text-blue-300">قيد المراجعة</option>
+                                  <option value="active" className="bg-slate-900 text-emerald-300">مفعل</option>
+                                  <option value="expired" className="bg-slate-900 text-orange-300">منتهي</option>
+                                  <option value="rejected" className="bg-slate-900 text-rose-300">مرفوض</option>
                                 </select>
                               </>
                             )}
 
-                            {/* Delete Button (Unified) */}
+                            {/* Delete Button */}
                             <button
                               onClick={() => handleDeleteRequest(req)}
-                              className="p-2 bg-slate-950 text-slate-500 hover:text-rose-400 hover:bg-rose-950/30 border border-slate-800 hover:border-rose-900/40 rounded-xl transition-colors cursor-pointer"
+                              className="p-1.5 text-slate-500 hover:text-rose-400 hover:bg-rose-950/30 border border-transparent hover:border-rose-900/40 rounded-lg transition-colors cursor-pointer"
                               title="حذف الطلب"
                             >
                               <Trash2 className="w-3.5 h-3.5" />

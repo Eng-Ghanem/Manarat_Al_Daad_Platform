@@ -17,7 +17,7 @@ export default function TakeQuiz() {
   const isRTL = i18n.language === 'ar';
   const { id } = useParams();
   const navigate = useNavigate();
-  const { user } = useAuth();
+  const { user, profile } = useAuth();
   
   const [quiz, setQuiz] = useState(null);
   const [questions, setQuestions] = useState([]);
@@ -230,6 +230,31 @@ export default function TakeQuiz() {
       }
 
       toast.success(isRTL ? 'تم تسليم الامتحان بنجاح!' : 'Quiz submitted successfully!');
+
+      // Notify teachers immediately with chime sound & red dot
+      try {
+        const { data: admins } = await supabase
+          .from('profiles')
+          .select('id')
+          .eq('role', 'admin');
+
+        if (admins && admins.length > 0) {
+          const studentName = profile?.full_name || 'طالب';
+          const quizTitle = quiz?.title || 'امتحان';
+          const notifs = admins.map(a => ({
+            user_id: a.id,
+            title: '📝 تسليم امتحان جديد!',
+            message: `قام الطالب (${studentName}) بحل وتسليم: "${quizTitle}". اضغط لرصد الدرجات.`,
+            type: 'quiz_submission',
+            link: `/admin-dashboard/quizzes/${id}/submissions`,
+            is_read: false
+          }));
+          await supabase.from('notifications').insert(notifs);
+        }
+      } catch (notifErr) {
+        console.warn('Teacher submission notification notice:', notifErr);
+      }
+
       navigate(`/quizzes/${id}/result`);
 
     } catch (error) {

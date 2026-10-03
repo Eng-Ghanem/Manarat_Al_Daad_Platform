@@ -416,6 +416,23 @@ export default function StudentLiveSessions() {
       }]);
       setHasRequestedTrial(true);
       toast.success('🎉 تم حجز موعد الحصة التجريبية بنجاح! يمكنك الدخول مباشرة عبر رابط الزووم في الموعد المحدد.');
+
+      // Notify teachers about trial session booking
+      try {
+        const { data: admins } = await supabase.from('profiles').select('id').eq('role', 'admin');
+        if (admins && admins.length > 0) {
+          const sName = profile?.full_name || 'طالب جديد';
+          const gName = profile?.grade_level || trialSession.grade_level || 'عام';
+          await supabase.from('notifications').insert(admins.map(a => ({
+            user_id: a.id,
+            title: '🎯 طلب حجز حصة تجريبية!',
+            message: `قام الطالب (${sName}) بحجز مقعد في حصة تجريبية (${gName}). اضغط للاطلاع.`,
+            type: 'live_session',
+            link: '/admin-dashboard/live-sessions?tab=trials',
+            is_read: false
+          })));
+        }
+      } catch (_) {}
     } catch (err) {
       console.warn('Booking trial error:', err);
       setHasRequestedTrial(true);
@@ -538,6 +555,23 @@ export default function StudentLiveSessions() {
           ? '🎉 تم إرسال طلب اشتراكك في باقة الـ 8 حصص بنجاح! سيتم فتح رابط الحصص فور تأكيد المعلم للتحويل.'
           : '✅ تم إرسال طلب تجديد باقة الـ 8 حصص بنجاح! سيتم تفعيل حسابك فور مراجعة التحويل.'
       );
+
+      // Notify teachers about live package subscription or renewal
+      try {
+        const { data: admins } = await supabase.from('profiles').select('id').eq('role', 'admin');
+        if (admins && admins.length > 0) {
+          const sName = profile?.full_name || 'طالب';
+          await supabase.from('notifications').insert(admins.map(a => ({
+            user_id: a.id,
+            title: isFirstSub ? '💳 طلب اشتراك باقة جديد!' : '💳 طلب تجديد باقة 8 حصص!',
+            message: `قام الطالب (${sName}) برفع إيصال تحويل لباقة الحصص المباشرة. اضغط للاعتماد والتفعيل.`,
+            type: 'live_session',
+            link: '/admin-dashboard/subscriptions',
+            is_read: false
+          })));
+        }
+      } catch (_) {}
+
       setIsRenewModalOpen(false);
       fetchMyPackage();
     } catch (err) {

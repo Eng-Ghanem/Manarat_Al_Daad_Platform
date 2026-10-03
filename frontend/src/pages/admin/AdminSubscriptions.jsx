@@ -349,6 +349,20 @@ export default function AdminSubscriptions() {
 
           if (error) throw error;
           toast.success(`🎉 تم قبول التفعيل وبدء باقة الـ 8 حصص للطالب ${req.studentName} بنجاح!`);
+
+          // Notify student about live package activation
+          if (req.user_id) {
+            try {
+              await supabase.from('notifications').insert([{
+                user_id: req.user_id,
+                title: '🎉 تم تفعيل باقة الحصص المباشرة!',
+                message: 'مبروك! قام المعلم باعتماد وتفعيل باقة الـ 8 حصص المباشرة لحسابك. رصيدك الآن 8 حصص.',
+                type: 'live_session',
+                link: '/live-sessions',
+                is_read: false
+              }]);
+            } catch (_) {}
+          }
         } else if (newStatus === 'expired') {
           const { error } = await supabase
             .from('live_subscriptions')
@@ -405,6 +419,19 @@ export default function AdminSubscriptions() {
         }
 
         toast.success(t('admin_subs_msg_updated') || 'تم تحديث حالة الاشتراك بنجاح');
+
+        if (newStatus === 'active' && req.user_id) {
+          try {
+            await supabase.from('notifications').insert([{
+              user_id: req.user_id,
+              title: '🎉 تم تفعيل اشتراك الدورة!',
+              message: `تم اعتماد وتفعيل اشتراكك في دورة "${req.courseTitle || 'الدورة'}". نتمنى لك دراسة موفقة وممتعة.`,
+              type: 'course_subscription',
+              link: req.courseId ? `/course/${req.courseId}` : '/dashboard',
+              is_read: false
+            }]);
+          } catch (_) {}
+        }
       }
 
       fetchRequests();

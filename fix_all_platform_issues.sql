@@ -699,5 +699,57 @@ TO authenticated
 USING (user_id = (SELECT auth.uid()))
 WITH CHECK (user_id = (SELECT auth.uid()));
 
+-- ==============================================================================
+-- 16. نظام الإشعارات والتنبيهات المتقدم والشامل وصلاحيات RLS
+-- ==============================================================================
+CREATE TABLE IF NOT EXISTS public.notifications (
+    id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+    user_id UUID REFERENCES public.profiles(id) ON DELETE CASCADE,
+    title VARCHAR(255) NOT NULL,
+    message TEXT NOT NULL,
+    type VARCHAR(50) DEFAULT 'general',
+    link VARCHAR(255),
+    is_read BOOLEAN DEFAULT false,
+    created_at TIMESTAMPTZ DEFAULT now()
+);
 
+CREATE INDEX IF NOT EXISTS idx_notifications_user_read ON public.notifications(user_id, is_read);
+CREATE INDEX IF NOT EXISTS idx_notifications_created_at ON public.notifications(created_at DESC);
+
+ALTER TABLE public.notifications ENABLE ROW LEVEL SECURITY;
+
+DROP POLICY IF EXISTS "Users can view their own notifications" ON public.notifications;
+CREATE POLICY "Users can view their own notifications" ON public.notifications
+FOR SELECT USING (
+    user_id = auth.uid() OR
+    EXISTS (SELECT 1 FROM public.profiles WHERE profiles.id = auth.uid() AND profiles.role = 'admin')
+);
+
+DROP POLICY IF EXISTS "Users can update their own notifications" ON public.notifications;
+CREATE POLICY "Users can update their own notifications" ON public.notifications
+FOR UPDATE USING (user_id = auth.uid());
+
+DROP POLICY IF EXISTS "Users can delete their own notifications" ON public.notifications;
+CREATE POLICY "Users can delete their own notifications" ON public.notifications
+FOR DELETE USING (user_id = auth.uid());
+
+DROP POLICY IF EXISTS "Admins can insert notifications" ON public.notifications;
+DROP POLICY IF EXISTS "Authenticated users can insert chat mentions" ON public.notifications;
+DROP POLICY IF EXISTS "Authenticated users can insert notifications" ON public.notifications;
+
+CREATE POLICY "Authenticated users can insert notifications" ON public.notifications
+FOR INSERT TO authenticated
+WITH CHECK (
+    EXISTS (SELECT 1 FROM public.profiles WHERE profiles.id = auth.uid() AND profiles.role = 'admin')
+    OR user_id = auth.uid()
+    OR EXISTS (SELECT 1 FROM public.profiles WHERE profiles.id = notifications.user_id AND profiles.role = 'admin')
+    OR type IN ('chat_mention', 'quiz_submission', 'package_renewal', 'trial_booking', 'live_session')
+);
+
+-- ضمان تفعيل Realtime على جدول الإشعارات
+DO $$
+BEGIN
+    ALTER PUBLICATION supabase_realtime ADD TABLE public.notifications;
+EXCEPTION WHEN OTHERS THEN NULL;
+END $$;
 

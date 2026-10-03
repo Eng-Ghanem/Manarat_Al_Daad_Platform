@@ -197,6 +197,13 @@ export default function AdminSubscriptions() {
       );
 
       setRequests(combined);
+
+      // Smart initial filter: if no pending requests, switch to 'all' so admin isn't greeted with an empty table!
+      const pCount = combined.filter(r => r.status === 'pending').length;
+      setFilter(prev => {
+        if (prev === 'pending' && pCount === 0) return 'all';
+        return prev;
+      });
     } catch (err) {
       console.error('Error fetching subscriptions:', err);
     } finally {
@@ -979,12 +986,10 @@ export default function AdminSubscriptions() {
                 <thead>
                   <tr className="bg-slate-950/80 text-slate-400 text-xs uppercase tracking-wider border-b border-slate-800">
                     <th className="py-3.5 px-4 font-black font-arabic">الطالب والمرحلة</th>
-                    <th className="py-3.5 px-4 font-black font-arabic">نوع الاشتراك</th>
-                    <th className="py-3.5 px-4 font-black font-arabic">الرصيد / الصلاحية</th>
-                    <th className="py-3.5 px-4 font-black font-arabic">حالة الطلب</th>
-                    <th className="py-3.5 px-4 font-black font-arabic">الدفع والمحفظة</th>
+                    <th className="py-3.5 px-4 font-black font-arabic">نوع الاشتراك والخدمة</th>
+                    <th className="py-3.5 px-4 font-black font-arabic">الرصيد والحالة</th>
+                    <th className="py-3.5 px-4 font-black font-arabic">الدفع والإيصال</th>
                     <th className="py-3.5 px-4 font-black font-arabic">تاريخ الطلب</th>
-                    <th className="py-3.5 px-3 font-black font-arabic text-center">الإيصال</th>
                     <th className="py-3.5 px-4 font-black font-arabic text-center">إجراءات التحكم</th>
                   </tr>
                 </thead>
@@ -1049,17 +1054,30 @@ export default function AdminSubscriptions() {
                           )}
                         </td>
 
-                        {/* 3. Balance / Validity */}
+                        {/* 3. Balance / Validity & Status Combined */}
                         <td className="py-3.5 px-4 whitespace-nowrap">
                           {isLive ? (
-                            <div className="flex flex-col gap-1.5 min-w-[125px]">
+                            <div className="flex flex-col gap-1.5 min-w-[130px]">
                               <div className="flex items-center justify-between text-xs font-bold">
                                 <span className="text-slate-200 font-black">
                                   {req.remainingSessions} من {req.totalSessions || 8} حصص
                                 </span>
-                                <span className={req.remainingSessions > 3 ? 'text-emerald-400 text-[11px]' : req.remainingSessions > 0 ? 'text-amber-400 text-[11px]' : 'text-rose-400 text-[11px]'}>
-                                  {req.remainingSessions === 0 ? 'منتهية' : `متبقي ${req.remainingSessions}`}
-                                </span>
+                                {req.status === 'active' ? (
+                                  <span className="text-[10px] font-black px-2 py-0.5 rounded-full bg-emerald-500/10 text-emerald-400 border border-emerald-500/30 inline-flex items-center gap-1">
+                                    <CheckCircle2 className="w-2.5 h-2.5" />
+                                    نشطة
+                                  </span>
+                                ) : req.status === 'pending' ? (
+                                  <span className="text-[10px] font-black px-2 py-0.5 rounded-full bg-amber-500/15 text-amber-300 border border-amber-500/40 inline-flex items-center gap-1 animate-pulse">
+                                    <Clock className="w-2.5 h-2.5" />
+                                    قيد المراجعة
+                                  </span>
+                                ) : (
+                                  <span className="text-[10px] font-black px-2 py-0.5 rounded-full bg-rose-500/10 text-rose-400 border border-rose-500/30 inline-flex items-center gap-1">
+                                    <AlertTriangle className="w-2.5 h-2.5" />
+                                    منتهية
+                                  </span>
+                                )}
                               </div>
                               <div className="flex items-center gap-1">
                                 {[1, 2, 3, 4, 5, 6, 7, 8].map((i) => (
@@ -1075,52 +1093,49 @@ export default function AdminSubscriptions() {
                               </div>
                             </div>
                           ) : (
-                            <span className="text-xs font-bold text-slate-300 px-2.5 py-1 rounded-lg bg-slate-800 border border-slate-700">
-                              {req.courseDuration ? `${req.courseDuration} يوم` : 'دائم'}
-                            </span>
-                          )}
-                        </td>
-
-                        {/* 4. Status Badge */}
-                        <td className="py-3.5 px-4 whitespace-nowrap">
-                          {req.status === 'active' ? (
-                            <span className="text-xs font-black px-2.5 py-1 rounded-full bg-emerald-500/10 text-emerald-400 border border-emerald-500/30 inline-flex items-center gap-1.5">
-                              <CheckCircle2 className="w-3.5 h-3.5" />
-                              مفعل ({req.remainingSessions} حصص)
-                            </span>
-                          ) : req.status === 'expired' ? (
-                            <span className="text-xs font-black px-2.5 py-1 rounded-full bg-rose-500/10 text-rose-400 border border-rose-500/30 inline-flex items-center gap-1.5">
-                              <AlertTriangle className="w-3.5 h-3.5" />
-                              منتهية الصلاحية
-                            </span>
-                          ) : req.status === 'pending' ? (
-                            <span className="text-xs font-black px-2.5 py-1 rounded-full bg-amber-500/15 text-amber-300 border border-amber-500/40 inline-flex items-center gap-1.5 shadow-xs shadow-amber-500/20 animate-pulse">
-                              <Clock className="w-3.5 h-3.5 text-amber-400" />
-                              قيد المراجعة ⏱️
-                            </span>
-                          ) : (
-                            <span className="text-xs font-bold px-2.5 py-1 rounded-full bg-slate-800 text-slate-400 inline-flex items-center gap-1">
-                              <X className="w-3.5 h-3.5" />
-                              مرفوض
-                            </span>
-                          )}
-                        </td>
-
-                        {/* 5. Payment & Wallet (Combined into one clean cell) */}
-                        <td className="py-3.5 px-4 whitespace-nowrap">
-                          <div className="flex flex-col text-xs gap-0.5">
-                            <span className="font-bold text-slate-200">
-                              {req.paymentMethod === 'vodafone' ? 'فودافون كاش' : req.paymentMethod === 'instapay' ? 'InstaPay' : (req.paymentMethod || 'محفظة')}
-                            </span>
-                            {req.walletNumber && req.walletNumber !== '-' && (
-                              <span className="text-slate-400 font-mono text-[11px]" dir="ltr">
-                                {req.walletNumber}
+                            <div className="flex items-center gap-2">
+                              <span className="text-xs font-bold text-slate-300 px-2.5 py-1 rounded-lg bg-slate-800 border border-slate-700">
+                                {req.courseDuration ? `${req.courseDuration} يوم` : 'دائم'}
                               </span>
+                              {req.status === 'active' ? (
+                                <span className="text-[10px] font-black px-2 py-0.5 rounded-full bg-emerald-500/10 text-emerald-400 border border-emerald-500/30">ساري</span>
+                              ) : req.status === 'pending' ? (
+                                <span className="text-[10px] font-black px-2 py-0.5 rounded-full bg-amber-500/15 text-amber-300 border border-amber-500/40 animate-pulse">قيد المراجعة</span>
+                              ) : (
+                                <span className="text-[10px] font-black px-2 py-0.5 rounded-full bg-rose-500/10 text-rose-400 border border-rose-500/30">منتهي</span>
+                              )}
+                            </div>
+                          )}
+                        </td>
+
+                        {/* 4. Payment & Receipt Combined */}
+                        <td className="py-3.5 px-4 whitespace-nowrap">
+                          <div className="flex items-center gap-2.5">
+                            <div className="flex flex-col text-xs gap-0.5">
+                              <span className="font-bold text-slate-200">
+                                {req.paymentMethod === 'vodafone' ? 'فودافون كاش' : req.paymentMethod === 'instapay' ? 'InstaPay' : (req.paymentMethod || 'محفظة')}
+                              </span>
+                              {req.walletNumber && req.walletNumber !== '-' && (
+                                <span className="text-slate-400 font-mono text-[11px]" dir="ltr">
+                                  {req.walletNumber}
+                                </span>
+                              )}
+                            </div>
+                            {req.receiptUrl ? (
+                              <button
+                                onClick={() => setSelectedReceipt(getDirectImageUrl(req.receiptUrl))}
+                                className="inline-flex items-center justify-center p-1.5 bg-blue-500/20 hover:bg-blue-500/30 text-blue-300 border border-blue-500/30 rounded-xl transition-all shadow-xs cursor-pointer hover:scale-105"
+                                title="معاينة إيصال التحويل"
+                              >
+                                <Eye className="w-4 h-4" />
+                              </button>
+                            ) : (
+                              <span className="text-slate-500 text-[10px]">بدون إيصال</span>
                             )}
                           </div>
                         </td>
 
-                        {/* 6. Date */}
+                        {/* 5. Date */}
                         <td className="py-3.5 px-4 whitespace-nowrap">
                           <div className="flex flex-col text-xs text-slate-400">
                             <span className="font-bold text-slate-300">
@@ -1130,21 +1145,6 @@ export default function AdminSubscriptions() {
                               {new Date(req.date).toLocaleTimeString('ar-EG', { hour: '2-digit', minute: '2-digit' })}
                             </span>
                           </div>
-                        </td>
-
-                        {/* 7. Receipt */}
-                        <td className="py-3.5 px-3 text-center whitespace-nowrap">
-                          {req.receiptUrl ? (
-                            <button
-                              onClick={() => setSelectedReceipt(getDirectImageUrl(req.receiptUrl))}
-                              className="inline-flex items-center justify-center w-8 h-8 bg-purple-500/15 hover:bg-purple-500/25 text-purple-300 border border-purple-500/30 rounded-xl transition-all shadow-xs cursor-pointer hover:scale-105"
-                              title="معاينة إيصال التحويل"
-                            >
-                              <Eye className="w-4 h-4" />
-                            </button>
-                          ) : (
-                            <span className="text-slate-500 text-xs">بدون إيصال</span>
-                          )}
                         </td>
 
                         {/* 8. Actions (Instant 1-Click Controls) */}

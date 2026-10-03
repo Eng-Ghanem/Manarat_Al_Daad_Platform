@@ -19,6 +19,7 @@ export default function AdminLiveSessions() {
   
   // Main Top-level View Switcher
   const [mainView, setMainView] = useState('sessions'); // 'sessions' | 'packages' | 'trials'
+  const [sessionsSubTab, setSessionsSubTab] = useState('live_list'); // 'live_list' | 'schedules'
 
   // Sessions state
   const [sessions, setSessions] = useState([]);
@@ -1104,15 +1105,29 @@ export default function AdminLiveSessions() {
   const handleApproveTrialStudent = async (req) => {
     try {
       await supabase.from('trial_requests').update({ status: 'enrolled' }).eq('id', req.id);
-      // Automatically initialize an active 8-session subscription for them
-      await supabase.from('live_subscriptions').upsert({
+      // Automatically initialize an active 8-session subscription for them safely
+      const { data: existingSub } = await supabase
+        .from('live_subscriptions')
+        .select('id')
+        .eq('user_id', req.user_id)
+        .maybeSingle();
+
+      const subPayload = {
         user_id: req.user_id,
-        grade_level: req.grade_level,
+        grade_level: req.grade_level || 'prep_1',
         total_sessions: 8,
         remaining_sessions: 8,
         status: 'active',
-        notes: 'تمت الترقية بعد اجتياز الحصة التجريبية'
-      });
+        notes: 'تمت الترقية بعد اجتياز الحصة التجريبية',
+        activated_at: new Date().toISOString()
+      };
+
+      if (existingSub?.id) {
+        await supabase.from('live_subscriptions').update(subPayload).eq('id', existingSub.id);
+      } else {
+        await supabase.from('live_subscriptions').insert([subPayload]);
+      }
+
       setTrialRequests(prev => prev.map(r => r.id === req.id ? { ...r, status: 'enrolled' } : r));
       toast.success('🎉 تم قبول الطالب وترقيته للاشتراك في باقة الـ 8 حصص بنجاح!');
       fetchPackages();
@@ -1327,6 +1342,16 @@ export default function AdminLiveSessions() {
             {t('admin_back_to_dashboard')}
           </Link>
 
+          <Link to="/admin-dashboard/subscriptions" className="absolute top-0 left-0 hidden sm:flex items-center gap-2 px-4 py-2 bg-emerald-500/20 hover:bg-emerald-500/30 text-emerald-200 border border-emerald-500/30 rounded-full transition-colors backdrop-blur-md font-bold text-xs">
+            <CreditCard className="w-4 h-4 text-emerald-400" />
+            <span>إدارة الاشتراكات والمدفوعات</span>
+            {packages.filter(p => p.status === 'pending').length > 0 && (
+              <span className="px-2 py-0.5 rounded-full text-[10px] font-black bg-amber-500 text-slate-950 animate-pulse">
+                {packages.filter(p => p.status === 'pending').length} طلب جديد
+              </span>
+            )}
+          </Link>
+
           <FadeIn>
             <div className="flex flex-col items-center text-center">
               <div className="w-20 h-20 rounded-3xl bg-white/10 backdrop-blur-md flex items-center justify-center border border-white/20 shadow-[0_0_20px_rgba(255,255,255,0.1)] mb-6">
@@ -1393,165 +1418,500 @@ export default function AdminLiveSessions() {
         </div>
 
         {/* ========================================================================= */}
-        {/* VIEW 1: SESSIONS & WEEKLY RECURRING SCHEDULE                             */}
-        {/* ========================================================================= */}
         {/* ========================================================================= */}
         {/* VIEW 1: SESSIONS & WEEKLY RECURRING SCHEDULE                             */}
         {/* ========================================================================= */}
         {mainView === 'sessions' && (
           <FadeIn>
-            {/* Weekly Recurring Schedules Main Dashboard */}
             <div className="bg-white dark:bg-slate-800 rounded-3xl p-6 md:p-8 shadow-sm border border-gray-100 dark:border-slate-700 mb-8">
               
-              {/* Header */}
-              <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4 mb-6 pb-6 border-b border-gray-100 dark:border-slate-700">
-                <div>
-                  <h2 className="text-2xl font-black text-gray-900 dark:text-white flex items-center gap-2">
-                    <CalendarDays className="w-7 h-7 text-indigo-500" />
-                    الجدول والمواعيد الأسبوعية الثابتة (عامة وخاصة)
-                  </h2>
-                  <p className="text-gray-500 dark:text-gray-400 text-sm mt-1">
-                    حدد المواعيد المتكررة لكل صف دراسي أو كحصص خاصة فردية لطالب محدد، مع رابط زووم ثابت يظهر تلقائياً للطلاب.
-                  </p>
-                </div>
+              {/* Sub-tab Navigation */}
+              <div className="flex flex-wrap items-center gap-2 mb-6 border-b border-gray-100 dark:border-slate-700 pb-4">
                 <button
-                  onClick={() => handleOpenScheduleModal()}
-                  className="bg-indigo-600 hover:bg-indigo-700 text-white px-5 py-3 rounded-2xl font-bold flex items-center gap-2 transition-all shadow-md shadow-indigo-500/20 cursor-pointer shrink-0"
+                  onClick={() => setSessionsSubTab('live_list')}
+                  className={`px-5 py-2.5 rounded-2xl text-xs font-black transition-all flex items-center gap-2 cursor-pointer ${
+                    sessionsSubTab === 'live_list'
+                      ? 'bg-blue-600 text-white shadow-md shadow-blue-600/20'
+                      : 'text-gray-600 dark:text-gray-400 hover:bg-gray-100 dark:hover:bg-slate-700/60'
+                  }`}
                 >
-                  <Plus className="w-5 h-5" />
-                  ضبط موعد أسبوعي جديد
+                  <Video className="w-4 h-4" />
+                  <span>حصص البث المباشر (مجدولة، مكتملة، مؤجلة، ملغاة)</span>
+                  <span className={`px-2 py-0.5 rounded-full text-[10px] font-black ${
+                    sessionsSubTab === 'live_list' ? 'bg-white/20 text-white' : 'bg-blue-100 text-blue-800 dark:bg-blue-950 dark:text-blue-300'
+                  }`}>
+                    {sessions.length}
+                  </span>
+                </button>
+
+                <button
+                  onClick={() => setSessionsSubTab('schedules')}
+                  className={`px-5 py-2.5 rounded-2xl text-xs font-black transition-all flex items-center gap-2 cursor-pointer ${
+                    sessionsSubTab === 'schedules'
+                      ? 'bg-indigo-600 text-white shadow-md shadow-indigo-600/20'
+                      : 'text-gray-600 dark:text-gray-400 hover:bg-gray-100 dark:hover:bg-slate-700/60'
+                  }`}
+                >
+                  <CalendarDays className="w-4 h-4" />
+                  <span>الجدول الأسبوعي الثابت المتكرر</span>
+                  <span className={`px-2 py-0.5 rounded-full text-[10px] font-black ${
+                    sessionsSubTab === 'schedules' ? 'bg-white/20 text-white' : 'bg-indigo-100 text-indigo-800 dark:bg-indigo-950 dark:text-indigo-300'
+                  }`}>
+                    {weeklySchedules.length}
+                  </span>
                 </button>
               </div>
 
-              {/* Stage & Type Filters */}
-              <div className="flex flex-wrap items-center justify-between gap-3 mb-6">
-                <div className="flex overflow-x-auto bg-gray-100 dark:bg-slate-900/50 p-1 rounded-2xl border border-gray-200 dark:border-slate-700 hide-scrollbar">
-                  <button onClick={() => setActiveTab('all')} className={`px-4 py-2 rounded-xl font-bold text-xs transition-all ${activeTab === 'all' ? 'bg-white dark:bg-slate-800 text-indigo-600 shadow-sm' : 'text-gray-500'}`}>
-                    جميع المراحل
-                  </button>
-                  <button onClick={() => setActiveTab('primary')} className={`px-4 py-2 rounded-xl font-bold text-xs transition-all ${activeTab === 'primary' ? 'bg-white dark:bg-slate-800 text-indigo-600 shadow-sm' : 'text-gray-500'}`}>
-                    الابتدائية
-                  </button>
-                  <button onClick={() => setActiveTab('prep')} className={`px-4 py-2 rounded-xl font-bold text-xs transition-all ${activeTab === 'prep' ? 'bg-white dark:bg-slate-800 text-indigo-600 shadow-sm' : 'text-gray-500'}`}>
-                    الإعدادية
-                  </button>
-                  <button onClick={() => setActiveTab('sec')} className={`px-4 py-2 rounded-xl font-bold text-xs transition-all ${activeTab === 'sec' ? 'bg-white dark:bg-slate-800 text-indigo-600 shadow-sm' : 'text-gray-500'}`}>
-                    الثانوية
-                  </button>
-                </div>
+              {/* ----------------- SUB-TAB 1: LIVE SESSIONS LIST & STATUSES ----------------- */}
+              {sessionsSubTab === 'live_list' && (
+                <div>
+                  {/* Header */}
+                  <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4 mb-6 pb-6 border-b border-gray-100 dark:border-slate-700">
+                    <div>
+                      <h2 className="text-2xl font-black text-gray-900 dark:text-white flex items-center gap-2">
+                        <Video className="w-7 h-7 text-blue-500" />
+                        حصص البث المباشر ومتابعة حالات الانعقاد
+                      </h2>
+                      <p className="text-gray-500 dark:text-gray-400 text-sm mt-1">
+                        متابعة الحصص المباشرة للطلاب، وتحديث حالتها بنقرة واحدة (مجدولة، مكتملة، مؤجلة، ملغاة) لتظهر فوراً عند المدرس والطالب.
+                      </p>
+                    </div>
+                    <button
+                      onClick={() => handleOpenModal()}
+                      className="bg-blue-600 hover:bg-blue-700 text-white px-5 py-3 rounded-2xl font-bold flex items-center gap-2 transition-all shadow-md shadow-blue-500/20 cursor-pointer shrink-0"
+                    >
+                      <Plus className="w-5 h-5" />
+                      جدولة حصة مباشرة جديدة
+                    </button>
+                  </div>
 
-                <div className="flex items-center gap-2">
-                  <span className="text-xs font-bold text-gray-500 dark:text-gray-400">إجمالي المواعيد:</span>
-                  <span className="px-3 py-1 rounded-full text-xs font-black bg-indigo-50 dark:bg-indigo-900/30 text-indigo-600 dark:text-indigo-400 border border-indigo-200 dark:border-indigo-800">
-                    {weeklySchedules.length} مواعيد
-                  </span>
-                </div>
-              </div>
+                  {/* Status & Stage Filter Pills */}
+                  <div className="flex flex-col md:flex-row md:items-center justify-between gap-3 mb-6">
+                    {/* Status Filters */}
+                    <div className="flex flex-wrap items-center gap-1.5 p-1 bg-gray-100 dark:bg-slate-900/60 rounded-2xl border border-gray-200 dark:border-slate-700">
+                      <button
+                        onClick={() => setFilterStatus('all')}
+                        className={`px-3 py-1.5 rounded-xl font-bold text-xs transition-all cursor-pointer ${
+                          filterStatus === 'all'
+                            ? 'bg-white dark:bg-slate-800 text-blue-600 dark:text-blue-400 shadow-sm font-black'
+                            : 'text-gray-600 dark:text-gray-400 hover:text-gray-900'
+                        }`}
+                      >
+                        جميع الحصص ({sessions.length})
+                      </button>
 
-              {weeklySchedules.length === 0 ? (
-                <div className="text-center py-12 bg-gray-50 dark:bg-slate-900/50 rounded-2xl border border-dashed border-gray-200 dark:border-slate-700">
-                  <CalendarDays className="w-12 h-12 text-gray-300 dark:text-slate-600 mx-auto mb-3" />
-                  <p className="text-gray-600 dark:text-gray-400 font-bold">لم يتم ضبط مواعيد أسبوعية متكررة بعد.</p>
-                  <p className="text-xs text-gray-400 mt-1">اضغط على زر "ضبط موعد أسبوعي جديد" لتحديد أيام وساعات الشرح لصفوفك أو حصة خاصة لطالب.</p>
-                </div>
-              ) : (
-                <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-5">
-                  {weeklySchedules
-                    .filter(sch => {
-                      if (activeTab === 'all') return true;
-                      const gl = sch.grade_level || '';
-                      if (activeTab === 'primary') return gl.startsWith('primary');
-                      if (activeTab === 'prep') return gl.startsWith('prep');
-                      if (activeTab === 'sec') return gl.startsWith('sec');
-                      return true;
-                    })
-                    .map(sch => {
-                      const isPrivate = sch.target_type === 'student';
-                      return (
-                        <div 
-                          key={sch.id}
-                          className={`p-6 rounded-3xl border-2 text-white shadow-xl transition-all flex flex-col justify-between ${
-                            isPrivate
-                              ? 'border-purple-500/50 bg-gradient-to-br from-slate-900 via-purple-950/60 to-slate-900 shadow-purple-950/30 hover:border-purple-400'
-                              : 'border-indigo-500/30 bg-slate-900/95 shadow-indigo-950/20 hover:border-indigo-500/60'
-                          }`}
-                        >
-                          <div>
-                            <div className="flex justify-between items-start mb-4">
-                              {isPrivate ? (
-                                <span className="px-3 py-1 rounded-full text-xs font-black bg-purple-500/20 text-purple-300 border border-purple-500/30 flex items-center gap-1.5">
-                                  <Sparkles className="w-3.5 h-3.5 text-purple-400" />
-                                  <span>حصة خاصة: {sch.target_student_name || 'طالب محدد'}</span>
-                                </span>
-                              ) : (
-                                <span className="px-3.5 py-1.5 rounded-full text-xs font-black bg-indigo-500/20 text-indigo-300 border border-indigo-500/30">
-                                  {formatGradeName(sch.grade_level)}
-                                </span>
-                              )}
+                      <button
+                        onClick={() => setFilterStatus('scheduled')}
+                        className={`flex items-center gap-1 px-3 py-1.5 rounded-xl font-bold text-xs transition-all cursor-pointer ${
+                          filterStatus === 'scheduled'
+                            ? 'bg-blue-600 text-white shadow-sm font-black'
+                            : 'text-blue-600 dark:text-blue-400 hover:bg-blue-50 dark:hover:bg-blue-950/40'
+                        }`}
+                      >
+                        <Calendar className="w-3 h-3" />
+                        <span>مجدولة</span>
+                        <span className="text-[10px] px-1.5 py-0.2 rounded-full bg-blue-500/20">
+                          {sessions.filter(s => (s.status || 'scheduled') === 'scheduled').length}
+                        </span>
+                      </button>
 
-                              <div className="flex items-center gap-1.5">
-                                <button
-                                  onClick={() => handleOpenScheduleModal(sch)}
-                                  className="p-2 rounded-xl bg-slate-800 hover:bg-indigo-600 text-slate-300 hover:text-white border border-slate-700 transition-colors cursor-pointer"
-                                  title="تعديل الموعد"
-                                >
-                                  <Edit className="w-4 h-4" />
-                                </button>
-                                <button
-                                  onClick={() => setDeleteScheduleModal({ isOpen: true, id: sch.id })}
-                                  className="p-2 rounded-xl bg-slate-800 hover:bg-red-600 text-slate-300 hover:text-white border border-slate-700 transition-colors cursor-pointer"
-                                  title="حذف الموعد"
-                                >
-                                  <Trash2 className="w-4 h-4" />
-                                </button>
-                              </div>
-                            </div>
+                      <button
+                        onClick={() => setFilterStatus('completed')}
+                        className={`flex items-center gap-1 px-3 py-1.5 rounded-xl font-bold text-xs transition-all cursor-pointer ${
+                          filterStatus === 'completed'
+                            ? 'bg-emerald-600 text-white shadow-sm font-black'
+                            : 'text-emerald-600 dark:text-emerald-400 hover:bg-emerald-50 dark:hover:bg-emerald-950/40'
+                        }`}
+                      >
+                        <CheckCircle className="w-3 h-3" />
+                        <span>مكتملة</span>
+                        <span className="text-[10px] px-1.5 py-0.2 rounded-full bg-emerald-500/20">
+                          {sessions.filter(s => s.status === 'completed').length}
+                        </span>
+                      </button>
 
-                            <h3 className="text-xl font-black text-white mb-4">
-                              {sch.title}
-                            </h3>
+                      <button
+                        onClick={() => setFilterStatus('postponed')}
+                        className={`flex items-center gap-1 px-3 py-1.5 rounded-xl font-bold text-xs transition-all cursor-pointer ${
+                          filterStatus === 'postponed'
+                            ? 'bg-amber-600 text-white shadow-sm font-black'
+                            : 'text-amber-600 dark:text-amber-400 hover:bg-amber-50 dark:hover:bg-amber-950/40'
+                        }`}
+                      >
+                        <Clock4 className="w-3 h-3" />
+                        <span>مؤجلة</span>
+                        <span className="text-[10px] px-1.5 py-0.2 rounded-full bg-amber-500/20">
+                          {sessions.filter(s => s.status === 'postponed').length}
+                        </span>
+                      </button>
 
-                            <div className="space-y-2.5 mb-5 text-sm">
-                              <div className="flex items-center gap-2 bg-slate-800/80 p-2.5 rounded-xl border border-slate-700/60">
-                                <Calendar className="w-4 h-4 text-indigo-400 shrink-0" />
-                                <span className="font-bold text-slate-400 text-xs">الأيام:</span>
-                                <span className="text-indigo-300 font-black text-xs">
-                                  {Array.isArray(sch.days) ? sch.days.join(' و ') : sch.days}
-                                </span>
-                              </div>
-                              <div className="flex items-center gap-2 bg-slate-800/80 p-2.5 rounded-xl border border-slate-700/60">
-                                <Clock className="w-4 h-4 text-indigo-400 shrink-0" />
-                                <span className="font-bold text-slate-400 text-xs">التوقيت (نظام 12 ساعة):</span>
-                                <span className="text-white font-black text-xs">
-                                  {formatTimeRange12h(sch.start_time, sch.end_time, isRTL)}
-                                </span>
-                              </div>
-                              {sch.notes && (
-                                <p className="text-xs text-slate-300 bg-indigo-950/40 border border-indigo-800/40 p-2.5 rounded-xl">
-                                  {sch.notes}
-                                </p>
-                              )}
-                            </div>
-                          </div>
+                      <button
+                        onClick={() => setFilterStatus('canceled')}
+                        className={`flex items-center gap-1 px-3 py-1.5 rounded-xl font-bold text-xs transition-all cursor-pointer ${
+                          filterStatus === 'canceled'
+                            ? 'bg-rose-600 text-white shadow-sm font-black'
+                            : 'text-rose-600 dark:text-rose-400 hover:bg-rose-50 dark:hover:bg-rose-950/40'
+                        }`}
+                      >
+                        <XCircle className="w-3 h-3" />
+                        <span>ملغاة</span>
+                        <span className="text-[10px] px-1.5 py-0.2 rounded-full bg-rose-500/20">
+                          {sessions.filter(s => s.status === 'canceled').length}
+                        </span>
+                      </button>
+                    </div>
 
-                          <a
-                            href={getCleanZoomUrl(sch.zoom_link)}
-                            target="_blank"
-                            rel="noreferrer"
-                            className={`w-full py-3 rounded-2xl text-white font-black text-xs flex items-center justify-center gap-2 transition-all shadow-md cursor-pointer ${
-                              isPrivate 
-                                ? 'bg-purple-600 hover:bg-purple-500 shadow-purple-600/30'
-                                : 'bg-indigo-600 hover:bg-indigo-500 shadow-indigo-600/30'
-                            }`}
-                          >
-                            <Video className="w-4 h-4" />
-                            رابط زووم الثابت
-                          </a>
-                        </div>
-                      );
-                    })}
+                    {/* Stage Filter */}
+                    <div className="flex items-center gap-2">
+                      <select
+                        value={filterGrade}
+                        onChange={(e) => setFilterGrade(e.target.value)}
+                        className="px-3 py-2 rounded-xl bg-gray-50 dark:bg-slate-900 border border-gray-200 dark:border-slate-700 text-xs font-bold text-gray-700 dark:text-gray-300 outline-none"
+                      >
+                        <option value="all">جميع الصفوف الدراسية</option>
+                        <option value="prep_1">{formatGradeName('prep_1')}</option>
+                        <option value="prep_2">{formatGradeName('prep_2')}</option>
+                        <option value="prep_3">{formatGradeName('prep_3')}</option>
+                        <option value="sec_1">{formatGradeName('sec_1')}</option>
+                        <option value="sec_2">{formatGradeName('sec_2')}</option>
+                        <option value="sec_3">{formatGradeName('sec_3')}</option>
+                        <option value="primary_4">{formatGradeName('primary_4')}</option>
+                        <option value="primary_5">{formatGradeName('primary_5')}</option>
+                        <option value="primary_6">{formatGradeName('primary_6')}</option>
+                      </select>
+                    </div>
+                  </div>
+
+                  {/* Sessions Table */}
+                  {loading ? (
+                    <div className="flex justify-center py-20">
+                      <div className="animate-spin rounded-full h-12 w-12 border-4 border-blue-500 border-t-transparent"></div>
+                    </div>
+                  ) : filteredSessions.length === 0 ? (
+                    <div className="text-center py-16 bg-gray-50 dark:bg-slate-900/40 rounded-2xl border border-dashed border-gray-200 dark:border-slate-700">
+                      <Video className="w-12 h-12 text-gray-300 dark:text-slate-600 mx-auto mb-3" />
+                      <p className="text-gray-600 dark:text-gray-400 font-bold">لا توجد حصص في هذا التصنيف حالياً.</p>
+                      <p className="text-xs text-gray-400 mt-1">اضغط على زر "جدولة حصة مباشرة جديدة" لإنشاء حصة ومشاركتها مع الطلاب فوراً.</p>
+                      <button
+                        onClick={() => handleOpenModal()}
+                        className="mt-4 px-4 py-2 rounded-xl bg-blue-600 hover:bg-blue-700 text-white font-bold text-xs transition-colors cursor-pointer inline-flex items-center gap-1.5"
+                      >
+                        <Plus className="w-4 h-4" />
+                        جدولة حصة الآن
+                      </button>
+                    </div>
+                  ) : (
+                    <div className="overflow-x-auto">
+                      <table className="w-full text-right text-sm">
+                        <thead>
+                          <tr className="border-b border-gray-200 dark:border-slate-700 text-xs font-black text-gray-500 dark:text-gray-400 uppercase">
+                            <th className="py-4 px-4">الحصة والموضوع</th>
+                            <th className="py-4 px-4">الصف الدراسي</th>
+                            <th className="py-4 px-4">الموعد والتوقيت</th>
+                            <th className="py-4 px-4">الحالة الحالية</th>
+                            <th className="py-4 px-4 text-center">تحديث الحالة السريع (1-كليك)</th>
+                            <th className="py-4 px-4 text-center">الإجراءات</th>
+                          </tr>
+                        </thead>
+                        <tbody className="divide-y divide-gray-100 dark:divide-slate-700">
+                          {filteredSessions.map((session) => {
+                            const dateObj = new Date(session.start_time);
+                            const formattedDate = !isNaN(dateObj.getTime())
+                              ? dateObj.toLocaleDateString('ar-EG', { weekday: 'long', year: 'numeric', month: 'short', day: 'numeric' })
+                              : '-';
+                            const formattedTime = !isNaN(dateObj.getTime())
+                              ? dateObj.toLocaleTimeString('ar-EG', { hour: '2-digit', minute: '2-digit' })
+                              : '';
+                            const currentStatus = session.status || 'scheduled';
+
+                            return (
+                              <tr key={session.id} className="hover:bg-gray-50/50 dark:hover:bg-slate-750 transition-colors">
+                                {/* 1. Title & Desc */}
+                                <td className="py-4 px-4">
+                                  <div className="font-black text-gray-900 dark:text-white text-base">
+                                    {session.title}
+                                  </div>
+                                  {session.description && (
+                                    <div className="text-xs text-gray-500 dark:text-gray-400 mt-0.5 line-clamp-1">
+                                      {session.description}
+                                    </div>
+                                  )}
+                                </td>
+
+                                {/* 2. Grade */}
+                                <td className="py-4 px-4">
+                                  <span className="px-3 py-1 rounded-full text-xs font-bold bg-indigo-50 dark:bg-indigo-950/40 text-indigo-700 dark:text-indigo-300 border border-indigo-200 dark:border-indigo-800/40">
+                                    {formatGradeName(session.grade_level)}
+                                  </span>
+                                </td>
+
+                                {/* 3. Date & Time */}
+                                <td className="py-4 px-4">
+                                  <div className="font-bold text-gray-900 dark:text-white flex items-center gap-1.5 text-xs">
+                                    <Calendar className="w-3.5 h-3.5 text-blue-500 shrink-0" />
+                                    <span>{formattedDate}</span>
+                                  </div>
+                                  <div className="text-xs text-gray-500 dark:text-gray-400 flex items-center gap-1 mt-0.5">
+                                    <Clock className="w-3 h-3" />
+                                    <span>{formattedTime}</span>
+                                  </div>
+                                </td>
+
+                                {/* 4. Current Status Badge */}
+                                <td className="py-4 px-4 whitespace-nowrap">
+                                  {renderStatusBadge(currentStatus)}
+                                </td>
+
+                                {/* 5. Direct 1-Click Status Switcher */}
+                                <td className="py-4 px-4">
+                                  <div className="flex items-center justify-center gap-1.5 flex-wrap">
+                                    <button
+                                      onClick={() => updateSessionStatus(session.id, 'completed')}
+                                      className={`px-2.5 py-1 rounded-lg text-xs font-bold transition-all cursor-pointer flex items-center gap-1 ${
+                                        currentStatus === 'completed'
+                                          ? 'bg-green-600 text-white ring-2 ring-green-500/50'
+                                          : 'bg-green-50 text-green-700 dark:bg-green-950/40 dark:text-green-300 hover:bg-green-100'
+                                      }`}
+                                      title="تعيين الحصة كمكتملة"
+                                    >
+                                      <CheckCircle className="w-3 h-3" />
+                                      <span>مكتملة</span>
+                                    </button>
+
+                                    <button
+                                      onClick={() => updateSessionStatus(session.id, 'postponed')}
+                                      className={`px-2.5 py-1 rounded-lg text-xs font-bold transition-all cursor-pointer flex items-center gap-1 ${
+                                        currentStatus === 'postponed'
+                                          ? 'bg-amber-600 text-white ring-2 ring-amber-500/50'
+                                          : 'bg-amber-50 text-amber-700 dark:bg-amber-950/40 dark:text-amber-300 hover:bg-amber-100'
+                                      }`}
+                                      title="تعيين الحصة كمؤجلة"
+                                    >
+                                      <Clock4 className="w-3 h-3" />
+                                      <span>مؤجلة</span>
+                                    </button>
+
+                                    <button
+                                      onClick={() => updateSessionStatus(session.id, 'canceled')}
+                                      className={`px-2.5 py-1 rounded-lg text-xs font-bold transition-all cursor-pointer flex items-center gap-1 ${
+                                        currentStatus === 'canceled'
+                                          ? 'bg-rose-600 text-white ring-2 ring-rose-500/50'
+                                          : 'bg-rose-50 text-rose-700 dark:bg-rose-950/40 dark:text-rose-300 hover:bg-rose-100'
+                                      }`}
+                                      title="تعيين الحصة كملغاة"
+                                    >
+                                      <XCircle className="w-3 h-3" />
+                                      <span>ملغاة</span>
+                                    </button>
+
+                                    <button
+                                      onClick={() => updateSessionStatus(session.id, 'scheduled')}
+                                      className={`px-2 py-1 rounded-lg text-xs font-bold transition-all cursor-pointer flex items-center gap-1 ${
+                                        currentStatus === 'scheduled'
+                                          ? 'bg-blue-600 text-white ring-2 ring-blue-500/50'
+                                          : 'bg-gray-100 text-gray-700 dark:bg-slate-700 dark:text-gray-300 hover:bg-gray-200'
+                                      }`}
+                                      title="إعادة الحصة كمجدولة"
+                                    >
+                                      <Calendar className="w-3 h-3" />
+                                      <span>مجدولة</span>
+                                    </button>
+                                  </div>
+                                </td>
+
+                                {/* 6. Actions */}
+                                <td className="py-4 px-4 text-center whitespace-nowrap">
+                                  <div className="flex items-center justify-center gap-1.5">
+                                    <a
+                                      href={getCleanZoomUrl(session.zoom_link)}
+                                      target="_blank"
+                                      rel="noreferrer"
+                                      className="p-2 rounded-xl bg-blue-50 hover:bg-blue-600 text-blue-600 hover:text-white dark:bg-blue-950/40 dark:text-blue-300 transition-colors cursor-pointer"
+                                      title="فتح رابط زووم"
+                                    >
+                                      <Video className="w-4 h-4" />
+                                    </a>
+                                    <button
+                                      onClick={() => handleOpenModal(session)}
+                                      className="p-2 rounded-xl bg-gray-100 hover:bg-indigo-600 text-gray-600 hover:text-white dark:bg-slate-700 dark:text-gray-300 transition-colors cursor-pointer"
+                                      title="تعديل الحصة"
+                                    >
+                                      <Edit className="w-4 h-4" />
+                                    </button>
+                                    <button
+                                      onClick={() => setDeleteModal({ isOpen: true, id: session.id })}
+                                      className="p-2 rounded-xl bg-red-50 hover:bg-red-600 text-red-600 hover:text-white dark:bg-red-950/40 dark:text-red-400 transition-colors cursor-pointer"
+                                      title="حذف الحصة"
+                                    >
+                                      <Trash2 className="w-4 h-4" />
+                                    </button>
+                                  </div>
+                                </td>
+                              </tr>
+                            );
+                          })}
+                        </tbody>
+                      </table>
+                    </div>
+                  )}
                 </div>
               )}
+
+              {/* ----------------- SUB-TAB 2: RECURRING WEEKLY SCHEDULES ----------------- */}
+              {sessionsSubTab === 'schedules' && (
+                <div>
+                  {/* Header */}
+                  <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4 mb-6 pb-6 border-b border-gray-100 dark:border-slate-700">
+                    <div>
+                      <h2 className="text-2xl font-black text-gray-900 dark:text-white flex items-center gap-2">
+                        <CalendarDays className="w-7 h-7 text-indigo-500" />
+                        الجدول والمواعيد الأسبوعية الثابتة (عامة وخاصة)
+                      </h2>
+                      <p className="text-gray-500 dark:text-gray-400 text-sm mt-1">
+                        حدد المواعيد المتكررة لكل صف دراسي أو كحصص خاصة فردية لطالب محدد، مع رابط زووم ثابت يظهر تلقائياً للطلاب.
+                      </p>
+                    </div>
+                    <button
+                      onClick={() => handleOpenScheduleModal()}
+                      className="bg-indigo-600 hover:bg-indigo-700 text-white px-5 py-3 rounded-2xl font-bold flex items-center gap-2 transition-all shadow-md shadow-indigo-500/20 cursor-pointer shrink-0"
+                    >
+                      <Plus className="w-5 h-5" />
+                      ضبط موعد أسبوعي جديد
+                    </button>
+                  </div>
+
+                  {/* Stage & Type Filters */}
+                  <div className="flex flex-wrap items-center justify-between gap-3 mb-6">
+                    <div className="flex overflow-x-auto bg-gray-100 dark:bg-slate-900/50 p-1 rounded-2xl border border-gray-200 dark:border-slate-700 hide-scrollbar">
+                      <button onClick={() => setActiveTab('all')} className={`px-4 py-2 rounded-xl font-bold text-xs transition-all ${activeTab === 'all' ? 'bg-white dark:bg-slate-800 text-indigo-600 shadow-sm font-black' : 'text-gray-500'}`}>
+                        جميع المراحل
+                      </button>
+                      <button onClick={() => setActiveTab('primary')} className={`px-4 py-2 rounded-xl font-bold text-xs transition-all ${activeTab === 'primary' ? 'bg-white dark:bg-slate-800 text-indigo-600 shadow-sm font-black' : 'text-gray-500'}`}>
+                        الابتدائية
+                      </button>
+                      <button onClick={() => setActiveTab('prep')} className={`px-4 py-2 rounded-xl font-bold text-xs transition-all ${activeTab === 'prep' ? 'bg-white dark:bg-slate-800 text-indigo-600 shadow-sm font-black' : 'text-gray-500'}`}>
+                        الإعدادية
+                      </button>
+                      <button onClick={() => setActiveTab('sec')} className={`px-4 py-2 rounded-xl font-bold text-xs transition-all ${activeTab === 'sec' ? 'bg-white dark:bg-slate-800 text-indigo-600 shadow-sm font-black' : 'text-gray-500'}`}>
+                        الثانوية
+                      </button>
+                    </div>
+
+                    <div className="flex items-center gap-2">
+                      <span className="text-xs font-bold text-gray-500 dark:text-gray-400">إجمالي المواعيد:</span>
+                      <span className="px-3 py-1 rounded-full text-xs font-black bg-indigo-50 dark:bg-indigo-900/30 text-indigo-600 dark:text-indigo-400 border border-indigo-200 dark:border-indigo-800">
+                        {weeklySchedules.length} مواعيد
+                      </span>
+                    </div>
+                  </div>
+
+                  {weeklySchedules.length === 0 ? (
+                    <div className="text-center py-12 bg-gray-50 dark:bg-slate-900/50 rounded-2xl border border-dashed border-gray-200 dark:border-slate-700">
+                      <CalendarDays className="w-12 h-12 text-gray-300 dark:text-slate-600 mx-auto mb-3" />
+                      <p className="text-gray-600 dark:text-gray-400 font-bold">لم يتم ضبط مواعيد أسبوعية متكررة بعد.</p>
+                      <p className="text-xs text-gray-400 mt-1">اضغط على زر "ضبط موعد أسبوعي جديد" لتحديد أيام وساعات الشرح لصفوفك أو حصة خاصة لطالب.</p>
+                    </div>
+                  ) : (
+                    <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-5">
+                      {weeklySchedules
+                        .filter(sch => {
+                          if (activeTab === 'all') return true;
+                          const gl = sch.grade_level || '';
+                          if (activeTab === 'primary') return gl.startsWith('primary');
+                          if (activeTab === 'prep') return gl.startsWith('prep');
+                          if (activeTab === 'sec') return gl.startsWith('sec');
+                          return true;
+                        })
+                        .map(sch => {
+                          const isPrivate = sch.target_type === 'student';
+                          return (
+                            <div 
+                              key={sch.id}
+                              className={`p-6 rounded-3xl border-2 text-white shadow-xl transition-all flex flex-col justify-between ${
+                                isPrivate
+                                  ? 'border-purple-500/50 bg-gradient-to-br from-slate-900 via-purple-950/60 to-slate-900 shadow-purple-950/30 hover:border-purple-400'
+                                  : 'border-indigo-500/30 bg-slate-900/95 shadow-indigo-950/20 hover:border-indigo-500/60'
+                              }`}
+                            >
+                              <div>
+                                <div className="flex justify-between items-start mb-4">
+                                  {isPrivate ? (
+                                    <span className="px-3 py-1 rounded-full text-xs font-black bg-purple-500/20 text-purple-300 border border-purple-500/30 flex items-center gap-1.5">
+                                      <Sparkles className="w-3.5 h-3.5 text-purple-400" />
+                                      <span>حصة خاصة: {sch.target_student_name || 'طالب محدد'}</span>
+                                    </span>
+                                  ) : (
+                                    <span className="px-3.5 py-1.5 rounded-full text-xs font-black bg-indigo-500/20 text-indigo-300 border border-indigo-500/30">
+                                      {formatGradeName(sch.grade_level)}
+                                    </span>
+                                  )}
+
+                                  <div className="flex items-center gap-1.5">
+                                    <button
+                                      onClick={() => handleOpenScheduleModal(sch)}
+                                      className="p-2 rounded-xl bg-slate-800 hover:bg-indigo-600 text-slate-300 hover:text-white border border-slate-700 transition-colors cursor-pointer"
+                                      title="تعديل الموعد"
+                                    >
+                                      <Edit className="w-4 h-4" />
+                                    </button>
+                                    <button
+                                      onClick={() => setDeleteScheduleModal({ isOpen: true, id: sch.id })}
+                                      className="p-2 rounded-xl bg-slate-800 hover:bg-red-600 text-slate-300 hover:text-white border border-slate-700 transition-colors cursor-pointer"
+                                      title="حذف الموعد"
+                                    >
+                                      <Trash2 className="w-4 h-4" />
+                                    </button>
+                                  </div>
+                                </div>
+
+                                <h3 className="text-xl font-black text-white mb-4">
+                                  {sch.title}
+                                </h3>
+
+                                <div className="space-y-2.5 mb-5 text-sm">
+                                  <div className="flex items-center gap-2 bg-slate-800/80 p-2.5 rounded-xl border border-slate-700/60">
+                                    <Calendar className="w-4 h-4 text-indigo-400 shrink-0" />
+                                    <span className="font-bold text-slate-400 text-xs">الأيام:</span>
+                                    <span className="text-indigo-300 font-black text-xs">
+                                      {Array.isArray(sch.days) ? sch.days.join(' و ') : sch.days}
+                                    </span>
+                                  </div>
+                                  <div className="flex items-center gap-2 bg-slate-800/80 p-2.5 rounded-xl border border-slate-700/60">
+                                    <Clock className="w-4 h-4 text-indigo-400 shrink-0" />
+                                    <span className="font-bold text-slate-400 text-xs">التوقيت (نظام 12 ساعة):</span>
+                                    <span className="text-white font-black text-xs">
+                                      {formatTimeRange12h(sch.start_time, sch.end_time, isRTL)}
+                                    </span>
+                                  </div>
+                                  {sch.notes && (
+                                    <p className="text-xs text-slate-300 bg-indigo-950/40 border border-indigo-800/40 p-2.5 rounded-xl">
+                                      {sch.notes}
+                                    </p>
+                                  )}
+                                </div>
+                              </div>
+
+                              <a
+                                href={getCleanZoomUrl(sch.zoom_link)}
+                                target="_blank"
+                                rel="noreferrer"
+                                className={`w-full py-3 rounded-2xl text-white font-black text-xs flex items-center justify-center gap-2 transition-all shadow-md cursor-pointer ${
+                                  isPrivate 
+                                    ? 'bg-purple-600 hover:bg-purple-500 shadow-purple-600/30'
+                                    : 'bg-indigo-600 hover:bg-indigo-500 shadow-indigo-600/30'
+                                }`}
+                              >
+                                <Video className="w-4 h-4" />
+                                رابط زووم الثابت
+                              </a>
+                            </div>
+                          );
+                        })}
+                    </div>
+                  )}
+                </div>
+              )}
+
             </div>
           </FadeIn>
         )}

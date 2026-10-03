@@ -80,12 +80,16 @@ export default function StudentLiveSessions() {
       .on('postgres_changes', { event: '*', schema: 'public', table: 'weekly_schedules' }, () => {
         fetchWeeklySchedules();
       })
+      .on('postgres_changes', { event: '*', schema: 'public', table: 'online_sessions' }, () => {
+        fetchSessions();
+      })
       .subscribe();
 
     // 2. 10-second polling to guarantee instant sync even across connection blips
     const pollInterval = setInterval(() => {
       fetchMyPackage();
       fetchCompletedSessions();
+      fetchSessions();
     }, 10000);
 
     // 3. Instant refresh on window focus / tab switch
@@ -93,6 +97,7 @@ export default function StudentLiveSessions() {
       fetchMyPackage();
       fetchCompletedSessions();
       fetchWeeklySchedules();
+      fetchSessions();
     };
     window.addEventListener('focus', handleFocus);
     const handleVisibility = () => {

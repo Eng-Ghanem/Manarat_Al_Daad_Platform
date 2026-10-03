@@ -252,7 +252,7 @@ export const chatService = {
   },
 
   // Notify mentioned users reliably through authenticated backend (with client-side fallback)
-  async notifyMentions({ mentionedUsers, senderName, senderId, messageSnippet, isRTL }) {
+  async notifyMentions({ mentionedUsers, senderName, senderId, messageSnippet, isRTL = true }) {
     if (!mentionedUsers || !Array.isArray(mentionedUsers) || mentionedUsers.length === 0) return;
     const targetIds = mentionedUsers.map(u => (typeof u === 'string' ? u : u.id)).filter(id => id && id !== senderId);
     if (targetIds.length === 0) return;

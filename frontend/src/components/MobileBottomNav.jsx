@@ -7,6 +7,7 @@ import { motion } from 'framer-motion';
 
 export default function MobileBottomNav() {
   const { t, i18n } = useTranslation();
+  const isRTL = i18n.language === 'ar';
   const { user, profile } = useAuth();
   const location = useLocation();
   const isAdmin = profile?.role === 'admin' || profile?.role === 'teacher' || profile?.email === '41147332a@gmail.com';

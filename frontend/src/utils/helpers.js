@@ -331,9 +331,12 @@ export const cleanTeacherNotes = (notes) => {
   let cleaned = notes.trim();
   // Remove duplicate parenthesized phrases
   cleaned = cleaned.replace(/(\([^\)]+\))\s*\1+/g, '$1');
-  // Strip trailing time specifications after "وفق الجدول المقرر"
+  // If notes is the long default string, simplify directly to concise note
+  if (cleaned.includes('تم حضور الحصة') || cleaned.includes('وفق الجدول المقرر')) {
+    return 'تم حضور الحصة بنجاح';
+  }
+  // Strip trailing time specifications
   cleaned = cleaned.replace(/(وفق الجدول المقرر)\s*\([^)]*\)/g, '$1');
-  // Strip trailing standalone time ranges (e.g. (من 09:00 م إلى 10:00 م))
   cleaned = cleaned.replace(/\s*\(من\s+\d{1,2}:\d{2}\s*[صم]\s*إلى\s*\d{1,2}:\d{2}\s*[صم]\)\s*$/g, '');
   return cleaned.trim();
 };
@@ -348,8 +351,10 @@ export const cleanSessionTitle = (title) => {
   let cleaned = title.trim();
   // Remove duplicate parenthesized time ranges
   cleaned = cleaned.replace(/(\([^\)]+\))\s*\1+/g, '$1');
-  // Strip redundant grade suffix at the end (e.g. " - الصف الثالث الإعدادي")
-  cleaned = cleaned.replace(/\s*[-–—]\s*(الصف\s+[^()]+|جميع الصفوف|كل الصفوف)\s*$/i, '');
+  // Strip redundant grade suffix (e.g. " - الصف الثالث الإعدادي")
+  cleaned = cleaned.replace(/\s*[-–—]\s*(الصف\b.*|المرحلة\b.*|الشهادة\b.*|جميع الصفوف.*|كل الصفوف.*)$/i, '');
+  // Simplify redundant "(من 09:00 م إلى 10:00 م)" to "(09:00 م - 10:00 م)"
+  cleaned = cleaned.replace(/\(من\s+([0-9:]+\s*[صم])\s*إلى\s*([0-9:]+\s*[صم])\)/g, '($1 - $2)');
   return cleaned.trim();
 };
 

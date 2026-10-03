@@ -354,10 +354,8 @@ export const getScheduledSessionInfo = (gradeLevel, studentId, schedules = [], c
   const endTime = matchedSchedule?.end_time || '14:00';
   const timeFormatted = formatTimeRange12h(startTime, endTime);
 
-  // Anchor completed_at date to today with the scheduled start time hours & minutes
-  const [sHours, sMinutes] = startTime.split(':').map(Number);
-  const scheduledDate = new Date();
-  if (!isNaN(sHours)) scheduledDate.setHours(sHours, isNaN(sMinutes) ? 0 : sMinutes, 0, 0);
+  // Real-time moment of submission / deduction
+  const completedAt = now.toISOString();
 
   const gradeName = formatGradeName(gradeLevel);
   const title = customTitle && customTitle.trim()
@@ -373,7 +371,7 @@ export const getScheduledSessionInfo = (gradeLevel, studentId, schedules = [], c
     startTime,
     endTime,
     timeFormatted,
-    completedAt: scheduledDate.toISOString(),
+    completedAt,
     title,
     notes
   };

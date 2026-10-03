@@ -14,6 +14,19 @@ import ConfirmModal from '../../components/ConfirmModal';
 import toast from 'react-hot-toast';
 import { formatSessionTitle, formatSessionDesc, formatGradeName, formatTime12h, formatTimeRange12h, GRADE_OPTIONS, getScheduledSessionInfo } from '../../utils/helpers';
 
+// Helper for <input type="datetime-local" /> in local timezone
+const toLocalDatetimeStr = (utcStr) => {
+  if (!utcStr) return '';
+  try {
+    const d = new Date(utcStr);
+    if (isNaN(d.getTime())) return '';
+    d.setMinutes(d.getMinutes() - d.getTimezoneOffset());
+    return d.toISOString().slice(0, 16);
+  } catch (_) {
+    return '';
+  }
+};
+
 export default function AdminLiveSessions() {
   const { t, i18n } = useTranslation();
   const isRTL = i18n.language === 'ar';
@@ -225,6 +238,7 @@ export default function AdminLiveSessions() {
     pkg: null,
     sessionTitle: '',
     teacherNotes: '',
+    completedAt: '',
     submitting: false
   });
   const [bulkDeductModal, setBulkDeductModal] = useState({
@@ -232,6 +246,17 @@ export default function AdminLiveSessions() {
     gradeLevel: '',
     sessionTitle: '',
     teacherNotes: '',
+    completedAt: '',
+    submitting: false
+  });
+  const [editCompletedModal, setEditCompletedModal] = useState({
+    isOpen: false,
+    id: null,
+    studentName: '',
+    gradeLevel: '',
+    sessionTitle: '',
+    teacherNotes: '',
+    completedAt: '',
     submitting: false
   });
 
@@ -718,6 +743,7 @@ export default function AdminLiveSessions() {
       pkg,
       sessionTitle: schedInfo.title,
       teacherNotes: schedInfo.notes,
+      completedAt: toLocalDatetimeStr(new Date()),
       submitting: false
     });
   };
@@ -738,7 +764,10 @@ export default function AdminLiveSessions() {
     );
     const sTitle = schedInfo.title;
     const tNotes = schedInfo.notes;
-    const completedAt = schedInfo.completedAt;
+    // Real-time moment of submission or user-chosen time
+    const completedAt = deductModal.completedAt 
+      ? new Date(deductModal.completedAt).toISOString() 
+      : new Date().toISOString();
 
     setDeductModal(prev => ({ ...prev, submitting: true }));
 
@@ -802,7 +831,7 @@ export default function AdminLiveSessions() {
       }
 
       toast.success(`✅ تم تسجيل الحضور وخصم حصة بنجاح! (${sTitle}) - المتبقي: ${newRemaining}`);
-      setDeductModal({ isOpen: false, pkg: null, sessionTitle: '', teacherNotes: '', submitting: false });
+      setDeductModal({ isOpen: false, pkg: null, sessionTitle: '', teacherNotes: '', completedAt: '', submitting: false });
       fetchPackages();
       fetchCompletedSessions();
     } catch (err) {
@@ -872,7 +901,7 @@ export default function AdminLiveSessions() {
             grade_level: pkg.grade_level,
             session_title: schedInfo.title,
             session_type: 'package',
-            completed_at: schedInfo.completedAt,
+            completed_at: new Date().toISOString(),
             teacher_notes: schedInfo.notes
           }]);
         } catch (tableErr) {
@@ -973,6 +1002,7 @@ export default function AdminLiveSessions() {
       gradeLevel: bulkAttendanceGrade,
       sessionTitle: schedInfo.title,
       teacherNotes: schedInfo.notes,
+      completedAt: toLocalDatetimeStr(new Date()),
       submitting: false
     });
   };
@@ -988,7 +1018,10 @@ export default function AdminLiveSessions() {
     );
     const sTitle = schedInfo.title;
     const tNotes = schedInfo.notes;
-    const completedAt = schedInfo.completedAt;
+    // Real-time moment of submission or user-chosen time
+    const completedAt = bulkDeductModal.completedAt 
+      ? new Date(bulkDeductModal.completedAt).toISOString() 
+      : new Date().toISOString();
 
     const eligible = packages.filter(p => p.grade_level === grade && p.status === 'active' && p.remaining_sessions > 0);
     if (eligible.length === 0) {
@@ -1055,7 +1088,7 @@ export default function AdminLiveSessions() {
       }
 
       toast.success(`✅ تم تسجيل حضور ${eligible.length} طالب وخصم حصة واحدة لكل منهم (${sTitle})`);
-      setBulkDeductModal({ isOpen: false, gradeLevel: '', sessionTitle: '', teacherNotes: '', submitting: false });
+      setBulkDeductModal({ isOpen: false, gradeLevel: '', sessionTitle: '', teacherNotes: '', completedAt: '', submitting: false });
       fetchPackages();
       fetchCompletedSessions();
     } catch (err) {
@@ -1082,18 +1115,75 @@ export default function AdminLiveSessions() {
     }
   };
 
-  // ==================== Trial Sessions Handlers ====================
-  const toLocalDatetimeStr = (utcStr) => {
-    if (!utcStr) return '';
+  // Handlers for Editing Existing Completed Sessions
+  const handleOpenEditCompleted = (item) => {
+    setEditCompletedModal({
+      isOpen: true,
+      id: item.id,
+      studentName: item.student_name || 'الطالب',
+      gradeLevel: item.grade_level || '',
+      sessionTitle: item.session_title || '',
+      teacherNotes: item.teacher_notes || '',
+      completedAt: toLocalDatetimeStr(item.completed_at || item.created_at || new Date()),
+      submitting: false
+    });
+  };
+
+  const handleSaveEditCompleted = async (e) => {
+    if (e) e.preventDefault();
+    if (!editCompletedModal.id) return;
+    setEditCompletedModal(prev => ({ ...prev, submitting: true }));
+
     try {
-      const d = new Date(utcStr);
-      if (isNaN(d.getTime())) return '';
-      d.setMinutes(d.getMinutes() - d.getTimezoneOffset());
-      return d.toISOString().slice(0, 16);
-    } catch (_) {
-      return '';
+      const updatedDateIso = editCompletedModal.completedAt
+        ? new Date(editCompletedModal.completedAt).toISOString()
+        : new Date().toISOString();
+
+      const { error } = await supabase
+        .from('completed_live_sessions')
+        .update({
+          session_title: editCompletedModal.sessionTitle.trim(),
+          teacher_notes: editCompletedModal.teacherNotes.trim(),
+          completed_at: updatedDateIso
+        })
+        .eq('id', editCompletedModal.id);
+
+      if (error) {
+        console.error('Error updating completed session:', error);
+        throw error;
+      }
+
+      setCompletedSessions(prev => prev.map(item => 
+        item.id === editCompletedModal.id
+          ? {
+              ...item,
+              session_title: editCompletedModal.sessionTitle.trim(),
+              teacher_notes: editCompletedModal.teacherNotes.trim(),
+              completed_at: updatedDateIso
+            }
+          : item
+      ));
+
+      toast.success('✅ تم تعديل بيانات وتوقيت الحصة بنجاح!');
+      setEditCompletedModal({
+        isOpen: false,
+        id: null,
+        studentName: '',
+        gradeLevel: '',
+        sessionTitle: '',
+        teacherNotes: '',
+        completedAt: '',
+        submitting: false
+      });
+      fetchCompletedSessions();
+    } catch (err) {
+      console.warn('Update completed session error:', err);
+      toast.error('حدث خطأ أثناء تعديل الحصة');
+      setEditCompletedModal(prev => ({ ...prev, submitting: false }));
     }
   };
+
+  // ==================== Trial Sessions Handlers ====================
 
   const handleOpenTrialModal = (session = null) => {
     if (session) {
@@ -2346,10 +2436,17 @@ export default function AdminLiveSessions() {
                           )}
                         </div>
 
-                        <div className="flex items-center gap-2.5 shrink-0 self-end sm:self-center">
+                        <div className="flex items-center gap-2 shrink-0 self-end sm:self-center">
                           <span className="px-3 py-1.5 rounded-xl bg-purple-50 dark:bg-purple-950/40 text-purple-700 dark:text-purple-300 text-xs font-black border border-purple-200 dark:border-purple-800/50">
                             -1 حصة من الباقة
                           </span>
+                          <button
+                            onClick={() => handleOpenEditCompleted(item)}
+                            className="p-2 rounded-xl text-blue-600 hover:text-white hover:bg-blue-600 bg-blue-50 dark:bg-blue-950/40 border border-blue-200 dark:border-blue-900/50 transition-all cursor-pointer shadow-xs"
+                            title="تعديل تفاصيل وتوقيت الحصة"
+                          >
+                            <Edit className="w-4 h-4" />
+                          </button>
                           <button
                             onClick={() => setDeleteCompletedModal({ isOpen: true, id: item.id })}
                             className="p-2 rounded-xl text-red-500 hover:text-white hover:bg-red-600 bg-red-50 dark:bg-red-950/40 border border-red-200 dark:border-red-900/50 transition-all cursor-pointer shadow-xs"
@@ -2373,7 +2470,7 @@ export default function AdminLiveSessions() {
                         <th className="py-4 px-4">الصف الدراسي</th>
                         <th className="py-4 px-4">عنوان الحصة / الدرس</th>
                         <th className="py-4 px-4">ملاحظات المعلم</th>
-                        <th className="py-4 px-4 text-center">حذف السجل</th>
+                        <th className="py-4 px-4 text-center">الإجراءات</th>
                       </tr>
                     </thead>
                     <tbody className="divide-y divide-gray-100 dark:divide-slate-700">
@@ -2413,13 +2510,22 @@ export default function AdminLiveSessions() {
                               {item.teacher_notes || <span className="text-gray-400 italic">لا توجد ملاحظات</span>}
                             </td>
                             <td className="py-4 px-4 text-center">
-                              <button
-                                onClick={() => setDeleteCompletedModal({ isOpen: true, id: item.id })}
-                                className="p-2 rounded-xl text-red-600 hover:bg-red-50 dark:hover:bg-red-950/40 transition-colors cursor-pointer"
-                                title="حذف هذا السجل من قائمة الحصص المكتملة"
-                              >
-                                <Trash2 className="w-4 h-4" />
-                              </button>
+                              <div className="flex items-center justify-center gap-1.5">
+                                <button
+                                  onClick={() => handleOpenEditCompleted(item)}
+                                  className="p-2 rounded-xl text-blue-600 hover:bg-blue-50 dark:hover:bg-blue-950/40 transition-colors cursor-pointer"
+                                  title="تعديل تفاصيل وتوقيت الحصة"
+                                >
+                                  <Edit className="w-4 h-4" />
+                                </button>
+                                <button
+                                  onClick={() => setDeleteCompletedModal({ isOpen: true, id: item.id })}
+                                  className="p-2 rounded-xl text-red-600 hover:bg-red-50 dark:hover:bg-red-950/40 transition-colors cursor-pointer"
+                                  title="حذف هذا السجل من قائمة الحصص المكتملة"
+                                >
+                                  <Trash2 className="w-4 h-4" />
+                                </button>
+                              </div>
                             </td>
                           </tr>
                         );
@@ -3276,6 +3382,20 @@ export default function AdminLiveSessions() {
 
             <form onSubmit={(e) => { e.preventDefault(); handleConfirmDeduct(); }} className="space-y-4">
               <div>
+                <label className="block text-xs font-bold text-gray-700 dark:text-gray-300 mb-1 flex items-center justify-between">
+                  <span>تاريخ وتوقيت الحصة (توقيت الخصم والإتمام)</span>
+                  <span className="text-[10px] text-amber-600 dark:text-amber-400 font-normal">افتراضياً: الوقت الحالي لحظة الإتمام</span>
+                </label>
+                <input
+                  type="datetime-local"
+                  required
+                  value={deductModal.completedAt}
+                  onChange={(e) => setDeductModal({ ...deductModal, completedAt: e.target.value })}
+                  className="w-full px-4 py-2.5 rounded-xl bg-gray-50 dark:bg-slate-900 border border-gray-200 dark:border-slate-700 text-sm font-bold text-gray-900 dark:text-white outline-none focus:border-amber-500"
+                />
+              </div>
+
+              <div>
                 <label className="block text-xs font-bold text-gray-700 dark:text-gray-300 mb-1">عنوان الحصة / الدرس المشروح</label>
                 <input
                   type="text"
@@ -3345,6 +3465,20 @@ export default function AdminLiveSessions() {
 
             <form onSubmit={(e) => { e.preventDefault(); handleConfirmBulkDeduct(); }} className="space-y-4">
               <div>
+                <label className="block text-xs font-bold text-gray-700 dark:text-gray-300 mb-1 flex items-center justify-between">
+                  <span>تاريخ وتوقيت الحصة الجماعية</span>
+                  <span className="text-[10px] text-emerald-600 dark:text-emerald-400 font-normal">افتراضياً: الوقت الحالي لحظة الإتمام</span>
+                </label>
+                <input
+                  type="datetime-local"
+                  required
+                  value={bulkDeductModal.completedAt}
+                  onChange={(e) => setBulkDeductModal({ ...bulkDeductModal, completedAt: e.target.value })}
+                  className="w-full px-4 py-2.5 rounded-xl bg-gray-50 dark:bg-slate-900 border border-gray-200 dark:border-slate-700 text-sm font-bold text-gray-900 dark:text-white outline-none focus:border-emerald-500"
+                />
+              </div>
+
+              <div>
                 <label className="block text-xs font-bold text-gray-700 dark:text-gray-300 mb-1">عنوان الحصة الجماعية / الدرس</label>
                 <input
                   type="text"
@@ -3370,7 +3504,7 @@ export default function AdminLiveSessions() {
               <div className="flex justify-end gap-3 pt-4 border-t border-gray-100 dark:border-slate-700">
                 <button
                   type="button"
-                  onClick={() => setBulkDeductModal({ isOpen: false, gradeLevel: '', sessionTitle: '', teacherNotes: '', submitting: false })}
+                  onClick={() => setBulkDeductModal({ isOpen: false, gradeLevel: '', sessionTitle: '', teacherNotes: '', completedAt: '', submitting: false })}
                   className="px-5 py-2.5 rounded-xl font-bold bg-gray-100 hover:bg-gray-200 dark:bg-slate-700 dark:hover:bg-slate-600 text-gray-800 dark:text-slate-100 text-xs border border-gray-300 dark:border-slate-600 transition-colors cursor-pointer"
                 >
                   إلغاء
@@ -3382,6 +3516,98 @@ export default function AdminLiveSessions() {
                 >
                   {bulkDeductModal.submitting ? <Loader className="w-4 h-4 animate-spin" /> : <UserCheck className="w-4 h-4" />}
                   <span>تأكيد تسجيل الحضور الجماعي</span>
+                </button>
+              </div>
+            </form>
+          </div>
+        </div>
+      )}
+
+      {/* Edit Completed Session Modal */}
+      {editCompletedModal.isOpen && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-sm p-4 overflow-y-auto">
+          <div className="bg-white dark:bg-slate-800 rounded-3xl max-w-lg w-full p-6 md:p-8 shadow-2xl border border-gray-100 dark:border-slate-700 my-8">
+            <div className="flex justify-between items-center mb-6 pb-4 border-b border-gray-100 dark:border-slate-700">
+              <h3 className="text-xl font-black text-gray-900 dark:text-white flex items-center gap-2">
+                <Edit className="w-6 h-6 text-blue-500" />
+                تعديل سجل الحصة المكتملة
+              </h3>
+              <button 
+                onClick={() => setEditCompletedModal({ isOpen: false, id: null, studentName: '', gradeLevel: '', sessionTitle: '', teacherNotes: '', completedAt: '', submitting: false })}
+                className="text-gray-400 hover:text-gray-600 p-1 cursor-pointer"
+              >
+                <X className="w-5 h-5" />
+              </button>
+            </div>
+
+            <div className="mb-5 p-3.5 rounded-2xl bg-blue-50/60 dark:bg-blue-950/30 border border-blue-200 dark:border-blue-800/40 text-xs flex justify-between items-center">
+              <div>
+                <span className="font-bold text-gray-600 dark:text-gray-300">الطالب: </span>
+                <span className="font-black text-gray-900 dark:text-white">{editCompletedModal.studentName}</span>
+              </div>
+              {editCompletedModal.gradeLevel && (
+                <span className="font-bold text-blue-700 dark:text-blue-400">
+                  {formatGradeName(editCompletedModal.gradeLevel)}
+                </span>
+              )}
+            </div>
+
+            <form onSubmit={handleSaveEditCompleted} className="space-y-4">
+              <div>
+                <label className="block text-xs font-bold text-gray-700 dark:text-gray-300 mb-1">
+                  تاريخ وتوقيت الحصة (توقيت الإتمام الفعلي)
+                </label>
+                <input
+                  type="datetime-local"
+                  required
+                  value={editCompletedModal.completedAt}
+                  onChange={(e) => setEditCompletedModal({ ...editCompletedModal, completedAt: e.target.value })}
+                  className="w-full px-4 py-2.5 rounded-xl bg-gray-50 dark:bg-slate-900 border border-gray-200 dark:border-slate-700 text-sm font-bold text-gray-900 dark:text-white outline-none focus:border-blue-500"
+                />
+              </div>
+
+              <div>
+                <label className="block text-xs font-bold text-gray-700 dark:text-gray-300 mb-1">
+                  عنوان الحصة / الدرس المشروح
+                </label>
+                <input
+                  type="text"
+                  required
+                  value={editCompletedModal.sessionTitle}
+                  onChange={(e) => setEditCompletedModal({ ...editCompletedModal, sessionTitle: e.target.value })}
+                  placeholder="مثال: حصة نحو - إعراب الفعل المضارع"
+                  className="w-full px-4 py-2.5 rounded-xl bg-gray-50 dark:bg-slate-900 border border-gray-200 dark:border-slate-700 text-sm font-bold text-gray-900 dark:text-white outline-none focus:border-blue-500"
+                />
+              </div>
+
+              <div>
+                <label className="block text-xs font-bold text-gray-700 dark:text-gray-300 mb-1">
+                  ملاحظات المعلم للطالب
+                </label>
+                <textarea
+                  rows={3}
+                  value={editCompletedModal.teacherNotes}
+                  onChange={(e) => setEditCompletedModal({ ...editCompletedModal, teacherNotes: e.target.value })}
+                  placeholder="ملاحظات وتوجيهات الحصة..."
+                  className="w-full px-4 py-2 rounded-xl bg-gray-50 dark:bg-slate-900 border border-gray-200 dark:border-slate-700 text-xs text-gray-900 dark:text-white outline-none focus:border-blue-500 resize-none"
+                />
+              </div>
+
+              <div className="flex justify-end gap-3 pt-4 border-t border-gray-100 dark:border-slate-700">
+                <button
+                  type="button"
+                  onClick={() => setEditCompletedModal({ isOpen: false, id: null, studentName: '', gradeLevel: '', sessionTitle: '', teacherNotes: '', completedAt: '', submitting: false })}
+                  className="px-5 py-2.5 rounded-xl font-bold bg-gray-100 hover:bg-gray-200 dark:bg-slate-700 dark:hover:bg-slate-600 text-gray-800 dark:text-slate-100 text-xs border border-gray-300 dark:border-slate-600 transition-colors cursor-pointer"
+                >
+                  إلغاء
+                </button>
+                <button
+                  type="submit"
+                  disabled={editCompletedModal.submitting}
+                  className="px-6 py-2.5 rounded-xl font-bold bg-blue-600 hover:bg-blue-700 text-white text-xs shadow-md cursor-pointer disabled:opacity-50 flex items-center gap-2"
+                >
+                  {editCompletedModal.submitting ? <Loader className="w-4 h-4 animate-spin" /> : <CheckCircle className="w-4 h-4" />}
+                  <span>حفظ التعديلات</span>
                 </button>
               </div>
             </form>

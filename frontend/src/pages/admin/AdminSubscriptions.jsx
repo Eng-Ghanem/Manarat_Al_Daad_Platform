@@ -472,6 +472,49 @@ export default function AdminSubscriptions() {
     }
   };
 
+  const handleConfirmDeduct = async () => {
+    if (!deductModal.item) return;
+    const item = deductModal.item;
+    const newRemaining = Math.max(0, item.remainingSessions - 1);
+    const newStatus = newRemaining === 0 ? 'expired' : 'active';
+    const sTitle = deductModal.sessionTitle.trim() || 'حصة أونلاين مباشرة';
+    const tNotes = deductModal.teacherNotes.trim();
+    const completedAt = new Date().toISOString();
+
+    setDeductModal(prev => ({ ...prev, submitting: true }));
+    try {
+      const { error: updateErr } = await supabase
+        .from('live_subscriptions')
+        .update({
+          remaining_sessions: newRemaining,
+          status: newStatus
+        })
+        .eq('id', item.id);
+
+      if (updateErr) throw updateErr;
+
+      await supabase
+        .from('completed_live_sessions')
+        .insert([{
+          student_id: item.user_id,
+          student_name: item.studentName,
+          grade_level: item.studentGrade,
+          session_title: sTitle,
+          session_type: 'package',
+          completed_at: completedAt,
+          teacher_notes: tNotes
+        }]);
+
+      toast.success(`✅ تم خصم الحصة بنجاح! (${sTitle}) - المتبقي: ${newRemaining} حصص`);
+      setDeductModal({ isOpen: false, item: null, sessionTitle: '', teacherNotes: '', submitting: false });
+      fetchRequests();
+    } catch (err) {
+      console.error('Error confirming deduct:', err);
+      toast.error('حدث خطأ أثناء خصم الحصة');
+      setDeductModal(prev => ({ ...prev, submitting: false }));
+    }
+  };
+
   // Add compensation (+1 session)
   const handleAddCompensationSession = async (req) => {
     const newRemaining = req.remainingSessions + 1;

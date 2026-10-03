@@ -352,9 +352,9 @@ export const cleanSessionTitle = (title) => {
   // Remove duplicate parenthesized time ranges
   cleaned = cleaned.replace(/(\([^\)]+\))\s*\1+/g, '$1');
   // Strip redundant grade suffix (e.g. " - الصف الثالث الإعدادي")
-  cleaned = cleaned.replace(/\s*[-–—]\s*(الصف\b.*|المرحلة\b.*|الشهادة\b.*|جميع الصفوف.*|كل الصفوف.*)$/i, '');
+  cleaned = cleaned.replace(/\s*[-–—]\s*(الصف.*|المرحلة.*|الشهادة.*|جميع الصفوف.*|كل الصفوف.*)$/i, '');
   // Simplify redundant "(من 09:00 م إلى 10:00 م)" to "(09:00 م - 10:00 م)"
-  cleaned = cleaned.replace(/\(من\s+([0-9:]+\s*[صم])\s*إلى\s*([0-9:]+\s*[صم])\)/g, '($1 - $2)');
+  cleaned = cleaned.replace(/\(من\s+([^)]+?)\s+إلى\s+([^)]+?)\)/g, '($1 - $2)');
   return cleaned.trim();
 };
 

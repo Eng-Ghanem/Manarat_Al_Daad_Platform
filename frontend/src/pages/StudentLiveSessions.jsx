@@ -4,7 +4,7 @@ import {
   Video, Calendar, Clock, BookOpen, Link as LinkIcon,
   CheckCircle, Loader, PlayCircle, XCircle, Clock4, Filter,
   CreditCard, Sparkles, Lock, RefreshCw, AlertTriangle, ArrowRight,
-  Bell, UploadCloud, X, CheckCircle2, ShieldCheck, Eye
+  Bell, UploadCloud, X, CheckCircle2, ShieldCheck, Eye, Info
 } from 'lucide-react';
 import FadeIn from '../components/FadeIn';
 import { supabase } from '../lib/supabase';
@@ -44,6 +44,7 @@ export default function StudentLiveSessions() {
   const [trialSessions, setTrialSessions] = useState([]);
   const [hasRequestedTrial, setHasRequestedTrial] = useState(false);
   const [trialRequestLoading, setTrialRequestLoading] = useState(false);
+  const [myTrialRequest, setMyTrialRequest] = useState(null);
 
   // Completed Sessions History State
   const [completedSessions, setCompletedSessions] = useState(() => {
@@ -145,6 +146,12 @@ export default function StudentLiveSessions() {
       .on('postgres_changes', { event: '*', schema: 'public', table: 'online_sessions' }, () => {
         fetchSessions(false);
       })
+      .on('postgres_changes', { event: '*', schema: 'public', table: 'trial_requests', filter: `user_id=eq.${user.id}` }, () => {
+        fetchTrialSessions();
+      })
+      .on('postgres_changes', { event: '*', schema: 'public', table: 'trial_sessions' }, () => {
+        fetchTrialSessions();
+      })
       .subscribe();
 
     // 2. Silent refresh on window focus / tab switch only
@@ -153,6 +160,7 @@ export default function StudentLiveSessions() {
       fetchCompletedSessions(false);
       fetchWeeklySchedules();
       fetchSessions(false);
+      fetchTrialSessions();
     };
     window.addEventListener('focus', handleFocus);
     const handleVisibility = () => {
@@ -316,10 +324,14 @@ export default function StudentLiveSessions() {
       if (user) {
         const { data: reqData } = await supabase
           .from('trial_requests')
-          .select('id')
+          .select('*')
           .eq('user_id', user.id)
+          .order('created_at', { ascending: false })
           .limit(1);
-        if (reqData && reqData.length > 0) setHasRequestedTrial(true);
+        if (reqData && reqData.length > 0) {
+          setHasRequestedTrial(true);
+          setMyTrialRequest(reqData[0]);
+        }
       }
     } catch (err) {
       console.warn('Trial fetch error:', err);
@@ -694,6 +706,31 @@ export default function StudentLiveSessions() {
         {activeTab === 'schedule' && (
           <FadeIn>
             
+            {/* Trial Approved - Payment Prompt Banner */}
+            {myTrialRequest?.status === 'enrolled' && !hasLiveAccess && myPackage?.status !== 'pending' && (
+              <div className="mb-6 p-5 rounded-2xl bg-gradient-to-r from-emerald-500/15 via-teal-500/15 to-emerald-500/15 border-2 border-emerald-500/40 flex flex-col sm:flex-row items-center justify-between gap-4 shadow-sm">
+                <div className="flex items-center gap-3.5">
+                  <div className="w-12 h-12 rounded-2xl bg-emerald-600 text-white flex items-center justify-center shrink-0 shadow-md">
+                    <Sparkles className="w-6 h-6" />
+                  </div>
+                  <div>
+                    <h4 className="font-black text-emerald-950 dark:text-emerald-200 text-base">
+                      🎉 تهانينا! أكّد المعلم أ/ سيد غريب تأهلك للاستمرار معنا بعد الحصة التجريبية
+                    </h4>
+                    <p className="text-xs font-bold text-emerald-800 dark:text-emerald-300 mt-0.5">
+                      يُرجى الآن سداد باقة الـ 8 حصص للبدء فوراً وتثبيت مواعيدك في الجدول الأسبوعي!
+                    </p>
+                  </div>
+                </div>
+                <button
+                  onClick={() => setIsRenewModalOpen(true)}
+                  className="px-5 py-3 rounded-xl bg-emerald-600 hover:bg-emerald-700 text-white font-extrabold text-xs sm:text-sm shadow-md transition-all shrink-0 cursor-pointer"
+                >
+                  💳 سداد باقة الـ 8 حصص الآن
+                </button>
+              </div>
+            )}
+
             {/* Subscription Status Banner in Schedule Tab */}
             <div className={`mb-6 p-4 sm:p-5 rounded-2xl border flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4 ${
               hasLiveAccess
@@ -1203,12 +1240,33 @@ export default function StudentLiveSessions() {
                   <Sparkles className="w-8 h-8" />
                 </div>
                 <h2 className="text-2xl font-black text-gray-900 dark:text-white">
-                  الحصة التجريبية المجانية (30 دقيقة)
+                  الحصة التجريبية المجانية
                 </h2>
                 <p className="text-gray-500 text-sm mt-1">
                   حصة مجانية بالكامل للتعرف على طريقة شرح المعلم والتفاعل معه قبل الاشتراك في باقة الـ 8 حصص!
                 </p>
               </div>
+
+              {myTrialRequest?.status === 'enrolled' && (
+                <div className="mb-6 p-4 rounded-2xl bg-emerald-50 dark:bg-emerald-950/30 border border-emerald-300 dark:border-emerald-800 text-emerald-900 dark:text-emerald-200 flex flex-col sm:flex-row items-center justify-between gap-4">
+                  <div className="flex items-center gap-2.5">
+                    <CheckCircle2 className="w-5 h-5 text-emerald-600 shrink-0" />
+                    <span className="text-xs font-bold">🎉 تمت الموافقة على استمرارك بعد الحصة التجريبية! يُرجى الاشتراك وسداد باقة الـ 8 حصص لتأكيد مكانك.</span>
+                  </div>
+                  <button
+                    onClick={() => setIsRenewModalOpen(true)}
+                    className="px-4 py-2 rounded-xl bg-emerald-600 hover:bg-emerald-700 text-white font-bold text-xs shrink-0 cursor-pointer shadow-sm"
+                  >
+                    الاشتراك الآن في الباقة
+                  </button>
+                </div>
+              )}
+              {myTrialRequest?.status === 'rejected' && (
+                <div className="mb-6 p-4 rounded-2xl bg-gray-50 dark:bg-slate-900/50 border border-gray-200 dark:border-slate-750 text-gray-700 dark:text-gray-300 flex items-center gap-2.5">
+                  <Info className="w-5 h-5 text-gray-400 shrink-0" />
+                  <span className="text-xs font-bold">شكراً لحضورك الحصة التجريبية. تم تسجيل قرار المعلم، ونتمنى لك دوام التوفيق والنجاح دائماً في رحلتك التعليمية.</span>
+                </div>
+              )}
 
               {(() => {
                 const filteredTrialSessions = trialSessions.filter(tSession => {
@@ -1253,7 +1311,7 @@ export default function StudentLiveSessions() {
                               </span>
                             </div>
                             <span className="text-xs font-bold text-amber-700 dark:text-amber-400 bg-amber-100/50 px-2 py-0.5 rounded-md">
-                              30 دقيقة
+                              {tSession.duration_minutes ? `${tSession.duration_minutes} دقيقة` : '30 دقيقة'}
                             </span>
                           </div>
 
@@ -1271,7 +1329,7 @@ export default function StudentLiveSessions() {
                             </div>
                             <div className="flex items-center gap-1.5">
                               <Clock className="w-4 h-4 text-amber-500" />
-                              <span>{new Date(tSession.start_time).toLocaleTimeString('ar-EG', { hour: '2-digit', minute: '2-digit' })} (مدة 30 دقيقة)</span>
+                              <span>{new Date(tSession.start_time).toLocaleTimeString('ar-EG', { hour: '2-digit', minute: '2-digit' })} ({tSession.duration_minutes ? `مدة ${tSession.duration_minutes} دقيقة` : 'مدة 30 دقيقة'})</span>
                             </div>
                           </div>
 

@@ -240,6 +240,8 @@ export default function AdminLiveSessions() {
   const [trialLoading, setTrialLoading] = useState(false);
   const [trialSubmitting, setTrialSubmitting] = useState(false);
   const [isTrialModalOpen, setIsTrialModalOpen] = useState(false);
+  const [isEditingTrial, setIsEditingTrial] = useState(false);
+  const [currentTrialId, setCurrentTrialId] = useState(null);
   const [deleteTrialModal, setDeleteTrialModal] = useState({ isOpen: false, id: null, title: '' });
   const [trialForm, setTrialForm] = useState({
     title: 'حصة تجريبية مجانية (30 دقيقة)',
@@ -1080,6 +1082,52 @@ export default function AdminLiveSessions() {
   };
 
   // ==================== Trial Sessions Handlers ====================
+  const toLocalDatetimeStr = (utcStr) => {
+    if (!utcStr) return '';
+    try {
+      const d = new Date(utcStr);
+      if (isNaN(d.getTime())) return '';
+      d.setMinutes(d.getMinutes() - d.getTimezoneOffset());
+      return d.toISOString().slice(0, 16);
+    } catch (_) {
+      return '';
+    }
+  };
+
+  const handleOpenTrialModal = (session = null) => {
+    if (session) {
+      setTrialForm({
+        title: session.title || 'حصة تجريبية مجانية (30 دقيقة)',
+        description: session.description || '',
+        target_type: session.target_type || 'grade',
+        grade_level: session.grade_level || 'prep_1',
+        target_student_ids: session.target_student_ids || [],
+        target_student_names: session.target_student_names || [],
+        start_time: toLocalDatetimeStr(session.start_time),
+        duration_minutes: session.duration_minutes || 30,
+        zoom_link: session.zoom_link || ''
+      });
+      setIsEditingTrial(true);
+      setCurrentTrialId(session.id);
+    } else {
+      setTrialForm({
+        title: 'حصة تجريبية مجانية (30 دقيقة)',
+        description: 'حصة تعريفية لشرح المنهج وأسلوب التدريس وطريقة استخدام المنصة',
+        target_type: 'grade',
+        grade_level: 'prep_1',
+        target_student_ids: [],
+        target_student_names: [],
+        start_time: '',
+        duration_minutes: 30,
+        zoom_link: ''
+      });
+      setIsEditingTrial(false);
+      setCurrentTrialId(null);
+    }
+    setTrialStudentSearch('');
+    setIsTrialModalOpen(true);
+  };
+
   const handleSaveTrialSession = async (e) => {
     e.preventDefault();
     if (!trialForm.start_time) {
@@ -1105,39 +1153,47 @@ export default function AdminLiveSessions() {
       target_student_ids: trialForm.target_type === 'specific_students' ? trialForm.target_student_ids : [],
       target_student_names: trialForm.target_type === 'specific_students' ? trialForm.target_student_names : [],
       start_time: new Date(trialForm.start_time).toISOString(),
-      duration_minutes: 30,
+      duration_minutes: Number(trialForm.duration_minutes) || 30,
       zoom_link: getCleanZoomUrl(trialForm.zoom_link),
       status: 'scheduled'
     };
 
     try {
-      const { data, error } = await supabase.from('trial_sessions').insert([payload]).select().single();
-      const newObj = data || { id: Date.now().toString(), ...payload };
+      if (isEditingTrial && currentTrialId) {
+        const { error } = await supabase
+          .from('trial_sessions')
+          .update(payload)
+          .eq('id', currentTrialId);
+        if (error) throw error;
+        toast.success('تم تحديث بيانات الحصة التجريبية بنجاح');
+      } else {
+        const { data, error } = await supabase.from('trial_sessions').insert([payload]).select().single();
+        if (error) throw error;
+        const newObj = data || { id: Date.now().toString(), ...payload };
 
-      if (trialForm.target_type === 'specific_students' && trialForm.target_student_ids.length > 0) {
-        const invites = trialForm.target_student_ids.map(sId => {
-          const sObj = packages.find(p => p.user_id === sId) || packages.find(p => p.id === sId);
-          return {
-            trial_session_id: newObj.id,
-            user_id: sId,
-            student_name: sObj?.full_name || 'طالب',
-            student_phone: sObj?.phone_number || '',
-            grade_level: sObj?.grade_level || '',
-            status: 'pending'
-          };
-        });
-        await supabase.from('trial_requests').insert(invites).catch(err => console.warn('Invites error:', err));
+        if (trialForm.target_type === 'specific_students' && trialForm.target_student_ids.length > 0) {
+          const invites = trialForm.target_student_ids.map(sId => {
+            const sObj = packages.find(p => p.user_id === sId) || packages.find(p => p.id === sId);
+            return {
+              trial_session_id: newObj.id,
+              user_id: sId,
+              student_name: sObj?.full_name || 'طالب',
+              student_phone: sObj?.phone_number || '',
+              grade_level: sObj?.grade_level || '',
+              status: 'pending'
+            };
+          });
+          await supabase.from('trial_requests').insert(invites).catch(err => console.warn('Invites error:', err));
+        }
+
+        toast.success('تمت جدولة الحصة التجريبية بنجاح');
       }
 
-      toast.success('تمت جدولة الحصة التجريبية بنجاح (30 دقيقة)');
       setIsTrialModalOpen(false);
       await fetchTrialData();
     } catch (err) {
       console.warn('Save trial session fallback:', err);
-      const fallbackObj = { id: Date.now().toString(), ...payload };
-      setTrialSessions(prev => [...prev.filter(t => t.id !== fallbackObj.id), fallbackObj]);
-      toast.success('تمت جدولة الحصة التجريبية بنجاح');
-      setIsTrialModalOpen(false);
+      toast.error('حدث خطأ أثناء حفظ الحصة التجريبية');
     } finally {
       setTrialSubmitting(false);
     }
@@ -1156,37 +1212,75 @@ export default function AdminLiveSessions() {
     toast.success('تم حذف الحصة التجريبية بنجاح');
   };
 
+  // 1. Approve student (سيكمل معنا): notify student to subscribe to 8-session package WITHOUT granting free sessions
   const handleApproveTrialStudent = async (req) => {
     try {
       await supabase.from('trial_requests').update({ status: 'enrolled' }).eq('id', req.id);
-      // Automatically initialize an active 8-session subscription for them safely
-      const { data: existingSub } = await supabase
-        .from('live_subscriptions')
-        .select('id')
-        .eq('user_id', req.user_id)
-        .maybeSingle();
 
-      const subPayload = {
-        user_id: req.user_id,
-        grade_level: req.grade_level || 'prep_1',
-        total_sessions: 8,
-        remaining_sessions: 8,
-        status: 'active',
-        notes: 'تمت الترقية بعد اجتياز الحصة التجريبية',
-        activated_at: new Date().toISOString()
-      };
+      // Find user_id if missing on the record
+      let targetUserId = req.user_id;
+      if (!targetUserId && req.student_phone) {
+        const match = packages.find(p => p.phone_number === req.student_phone || p.phone === req.student_phone);
+        if (match) targetUserId = match.user_id || match.id;
+      }
+      if (!targetUserId && req.student_name) {
+        const match = packages.find(p => p.full_name === req.student_name);
+        if (match) targetUserId = match.user_id || match.id;
+      }
 
-      if (existingSub?.id) {
-        await supabase.from('live_subscriptions').update(subPayload).eq('id', existingSub.id);
-      } else {
-        await supabase.from('live_subscriptions').insert([subPayload]);
+      // Send in-app notification to student
+      if (targetUserId) {
+        await supabase.from('notifications').insert([{
+          user_id: targetUserId,
+          title: 'تهانينا! تم تأكيد استمرارك في الحصص المباشرة 🎉',
+          message: 'أكّد المعلم أ/ سيد غريب تأهلك للاستمرار معنا بعد الحصة التجريبية. يُرجى الآن التوجه للاشتراك وسداد باقة الـ 8 حصص لبدء جدول حصصك الأسبوعية.',
+          type: 'trial_approved',
+          link: '/live-sessions'
+        }]);
       }
 
       setTrialRequests(prev => prev.map(r => r.id === req.id ? { ...r, status: 'enrolled' } : r));
-      toast.success('🎉 تم قبول الطالب وترقيته للاشتراك في باقة الـ 8 حصص بنجاح!');
-      fetchPackages();
+      toast.success('🎉 تم تأكيد استمرار الطالب وإرسال إشعار له في حسابه للاشتراك وسداد الباقة');
+      fetchTrialData();
     } catch (err) {
       console.warn('Approve trial error:', err);
+      toast.error('حدث خطأ أثناء تأكيد استمرار الطالب');
+    }
+  };
+
+  // 2. Reject student (لن يكمل): update status and send polite notification
+  const handleRejectTrialStudent = async (req) => {
+    try {
+      await supabase.from('trial_requests').update({ status: 'rejected' }).eq('id', req.id);
+
+      // Find user_id if missing on the record
+      let targetUserId = req.user_id;
+      if (!targetUserId && req.student_phone) {
+        const match = packages.find(p => p.phone_number === req.student_phone || p.phone === req.student_phone);
+        if (match) targetUserId = match.user_id || match.id;
+      }
+      if (!targetUserId && req.student_name) {
+        const match = packages.find(p => p.full_name === req.student_name);
+        if (match) targetUserId = match.user_id || match.id;
+      }
+
+      // Send polite in-app notification to student
+      if (targetUserId) {
+        await supabase.from('notifications').insert([{
+          user_id: targetUserId,
+          title: 'بخصوص الحصة التجريبية',
+          message: 'شكراً لحضورك الحصة التجريبية. تم تأكيد عدم الاستمرار في باقة الحصص المباشرة بناءً على التقييم. نسعد بوجودك معنا دائماً في الكورسات المسجلة ونتمنى لك دوام التوفيق والنجاح!',
+          type: 'trial_rejected',
+          link: '/live-sessions'
+        }]);
+      }
+
+      setTrialRequests(prev => prev.map(r => r.id === req.id ? { ...r, status: 'rejected' } : r));
+      toast.success('تم تسجيل عدم استمرار الطالب وإرسال إشعار له بنجاح');
+      fetchTrialData();
+    } catch (err) {
+      console.warn('Reject trial error:', err);
+      toast.error('حدث خطأ أثناء التحديث');
     }
   };
 
@@ -1197,7 +1291,7 @@ export default function AdminLiveSessions() {
     try {
       await supabase.from('trial_requests').delete().eq('id', id);
       setTrialRequests(prev => prev.filter(r => r.id !== id));
-      toast.success('تم استبعاد الطالب من الحصة التجريبية بنجاح');
+      toast.success('تم حذف سجل الطالب من الحصة التجريبية بنجاح');
     } catch (err) {
       console.warn('Remove trial request error:', err);
     }
@@ -2227,7 +2321,7 @@ export default function AdminLiveSessions() {
                   </p>
                 </div>
                 <button
-                  onClick={() => setIsTrialModalOpen(true)}
+                  onClick={() => handleOpenTrialModal(null)}
                   className="bg-amber-600 hover:bg-amber-700 text-white px-5 py-3 rounded-2xl font-bold flex items-center gap-2 transition-all shadow-md shadow-amber-500/20 cursor-pointer shrink-0"
                 >
                   <Plus className="w-5 h-5" />
@@ -2265,11 +2359,18 @@ export default function AdminLiveSessions() {
                               )}
                               <div className="flex items-center gap-1.5">
                                 <span className="text-xs font-bold text-amber-700 dark:text-amber-400 bg-amber-100/50 px-2 py-0.5 rounded-md">
-                                  30 دقيقة
+                                  {tSession.duration_minutes ? `${tSession.duration_minutes} دقيقة` : '30 دقيقة'}
                                 </span>
                                 <button
+                                  onClick={() => handleOpenTrialModal(tSession)}
+                                  className="p-1.5 rounded-lg bg-amber-50 dark:bg-amber-950/40 text-amber-700 dark:text-amber-300 hover:bg-amber-600 hover:text-white transition-colors cursor-pointer border border-amber-200 dark:border-amber-800/40"
+                                  title="تعديل بيانات الحصة التجريبية"
+                                >
+                                  <Edit className="w-3.5 h-3.5" />
+                                </button>
+                                <button
                                   onClick={() => setDeleteTrialModal({ isOpen: true, id: tSession.id, title: tSession.title })}
-                                  className="p-1.5 rounded-lg bg-red-50 text-red-600 hover:bg-red-600 hover:text-white transition-colors cursor-pointer"
+                                  className="p-1.5 rounded-lg bg-red-50 dark:bg-red-950/40 text-red-600 hover:bg-red-600 hover:text-white transition-colors cursor-pointer border border-red-200 dark:border-red-800/40"
                                   title="حذف الحصة التجريبية"
                                 >
                                   <Trash2 className="w-3.5 h-3.5" />
@@ -2343,32 +2444,54 @@ export default function AdminLiveSessions() {
                             <td className="py-3 px-4 text-gray-500" dir="ltr">{req.student_phone || '-'}</td>
                             <td className="py-3 px-4">
                               {req.status === 'enrolled' ? (
-                                <span className="px-2.5 py-1 rounded-full text-xs font-bold bg-green-100 text-green-700">
-                                  سيكمل معنا (مشترك)
+                                <span className="px-2.5 py-1 rounded-full text-xs font-bold bg-emerald-100 text-emerald-800 dark:bg-emerald-950/50 dark:text-emerald-300 inline-flex items-center gap-1">
+                                  <CheckCircle2 className="w-3.5 h-3.5" />
+                                  سيكمل معنا (بانتظار سداد الباقة)
+                                </span>
+                              ) : req.status === 'rejected' ? (
+                                <span className="px-2.5 py-1 rounded-full text-xs font-bold bg-rose-100 text-rose-800 dark:bg-rose-950/50 dark:text-rose-300 inline-flex items-center gap-1">
+                                  <XCircle className="w-3.5 h-3.5" />
+                                  لن يكمل
                                 </span>
                               ) : (
-                                <span className="px-2.5 py-1 rounded-full text-xs font-bold bg-amber-100 text-amber-700">
+                                <span className="px-2.5 py-1 rounded-full text-xs font-bold bg-amber-100 text-amber-800 dark:bg-amber-950/50 dark:text-amber-300 inline-flex items-center gap-1">
+                                  <Clock className="w-3.5 h-3.5" />
                                   قيد التقييم
                                 </span>
                               )}
                             </td>
                             <td className="py-3 px-4">
-                              <div className="flex items-center justify-center gap-2">
+                              <div className="flex items-center justify-center gap-1.5 flex-wrap">
                                 <button
                                   onClick={() => handleApproveTrialStudent(req)}
-                                  className="px-3 py-1.5 rounded-xl bg-emerald-600 hover:bg-emerald-700 text-white text-xs font-bold flex items-center gap-1 transition-colors shadow-sm cursor-pointer"
-                                  title="قبول الطالب وترقيته للاشتراك في باقة 8 حصص"
+                                  className={`px-3 py-1.5 rounded-xl text-xs font-bold flex items-center gap-1 transition-all cursor-pointer shadow-sm ${
+                                    req.status === 'enrolled'
+                                      ? 'bg-emerald-100 text-emerald-800 dark:bg-emerald-900/40 dark:text-emerald-300 border border-emerald-300'
+                                      : 'bg-emerald-600 hover:bg-emerald-700 text-white'
+                                  }`}
+                                  title="تأكيد استمرار الطالب وإرسال إشعار له بالاشتراك وسداد الباقة"
                                 >
                                   <UserCheck className="w-3.5 h-3.5" />
-                                  سيكمل معنا
+                                  {req.status === 'enrolled' ? 'سيكمل (تم التأكيد)' : 'سيكمل معنا'}
+                                </button>
+                                <button
+                                  onClick={() => handleRejectTrialStudent(req)}
+                                  className={`px-3 py-1.5 rounded-xl text-xs font-bold flex items-center gap-1 transition-all cursor-pointer shadow-sm ${
+                                    req.status === 'rejected'
+                                      ? 'bg-rose-100 text-rose-800 dark:bg-rose-900/40 dark:text-rose-300 border border-rose-300'
+                                      : 'bg-amber-500 hover:bg-amber-600 text-white'
+                                  }`}
+                                  title="تسجيل عدم الاستمرار وإرسال إشعار للطالب"
+                                >
+                                  <UserX className="w-3.5 h-3.5" />
+                                  {req.status === 'rejected' ? 'لن يكمل (تم التسجيل)' : 'لن يكمل'}
                                 </button>
                                 <button
                                   onClick={() => setRemoveStudentModal({ isOpen: true, requestId: req.id, studentName: req.student_name || 'هذا الطالب' })}
-                                  className="px-3 py-1.5 rounded-xl bg-red-100 hover:bg-red-200 text-red-700 dark:bg-red-900/30 dark:text-red-400 text-xs font-bold flex items-center gap-1 transition-colors cursor-pointer"
-                                  title="استبعاد الطالب وحذفه من الحصة"
+                                  className="p-1.5 rounded-xl bg-gray-100 hover:bg-red-50 text-gray-500 hover:text-red-600 dark:bg-slate-800 dark:hover:bg-red-950/40 dark:hover:text-red-400 transition-colors cursor-pointer border border-gray-200 dark:border-slate-700"
+                                  title="حذف الطالب نهائياً من القائمة"
                                 >
-                                  <UserX className="w-3.5 h-3.5" />
-                                  لن يكمل (إزالة)
+                                  <Trash2 className="w-3.5 h-3.5" />
                                 </button>
                               </div>
                             </td>
@@ -2618,7 +2741,7 @@ export default function AdminLiveSessions() {
             <div className="flex justify-between items-center mb-6 pb-4 border-b border-gray-100 dark:border-slate-700">
               <h3 className="text-xl font-black text-gray-900 dark:text-white flex items-center gap-2">
                 <Sparkles className="w-6 h-6 text-amber-500" />
-                جدولة حصة تجريبية مجانية (30 دقيقة)
+                {isEditingTrial ? 'تعديل بيانات الحصة التجريبية' : 'جدولة حصة تجريبية مجانية (30 دقيقة)'}
               </h3>
               <button onClick={() => setIsTrialModalOpen(false)} className="text-gray-400 hover:text-gray-600 p-1 cursor-pointer">
                 <X className="w-5 h-5" />
@@ -2779,6 +2902,26 @@ export default function AdminLiveSessions() {
               </div>
 
               <div>
+                <label className="block text-xs font-bold text-gray-700 dark:text-gray-300 mb-1">مدة الحصة التجريبية (بالدقائق)</label>
+                <div className="grid grid-cols-4 gap-2">
+                  {[20, 30, 45, 60].map(mins => (
+                    <button
+                      key={mins}
+                      type="button"
+                      onClick={() => setTrialForm({ ...trialForm, duration_minutes: mins })}
+                      className={`py-2 rounded-xl text-xs font-bold border transition-all cursor-pointer ${
+                        Number(trialForm.duration_minutes) === mins
+                          ? 'bg-amber-500 text-white border-amber-500 shadow-sm font-black'
+                          : 'bg-gray-50 dark:bg-slate-900 text-gray-700 dark:text-gray-300 border-gray-200 dark:border-slate-700 hover:bg-gray-100'
+                      }`}
+                    >
+                      {mins} دقيقة
+                    </button>
+                  ))}
+                </div>
+              </div>
+
+              <div>
                 <label className="block text-xs font-bold text-gray-700 dark:text-gray-300 mb-1">رابط زووم للحصة التجريبية</label>
                 <input
                   type="text"
@@ -2805,7 +2948,7 @@ export default function AdminLiveSessions() {
                   className="px-6 py-2.5 rounded-xl font-bold bg-amber-600 hover:bg-amber-700 text-white text-xs shadow-md cursor-pointer disabled:opacity-50 flex items-center gap-2"
                 >
                   {trialSubmitting ? <Loader className="w-4 h-4 animate-spin" /> : null}
-                  <span>حفظ وجدولة الحصة</span>
+                  <span>{isEditingTrial ? 'تحديث وحفظ الحصة' : 'حفظ وجدولة الحصة'}</span>
                 </button>
               </div>
             </form>

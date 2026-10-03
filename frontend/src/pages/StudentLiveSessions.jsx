@@ -45,7 +45,17 @@ export default function StudentLiveSessions() {
   const [trialRequestLoading, setTrialRequestLoading] = useState(false);
 
   // Completed Sessions History State
-  const [completedSessions, setCompletedSessions] = useState([]);
+  const [completedSessions, setCompletedSessions] = useState(() => {
+    try {
+      const savedUser = JSON.parse(localStorage.getItem('manarat_user') || '{}');
+      const uid = savedUser?.id;
+      if (uid) {
+        const local = localStorage.getItem(`manarat_completed_${uid}`);
+        return local ? JSON.parse(local) : [];
+      }
+    } catch (_) {}
+    return [];
+  });
   const [completedLoading, setCompletedLoading] = useState(false);
 
   // Filters for individual sessions
@@ -56,48 +66,41 @@ export default function StudentLiveSessions() {
   const [imminentSession, setImminentSession] = useState(null);
 
   useEffect(() => {
-    fetchSessions();
+    fetchSessions(true);
     fetchWeeklySchedules();
-    fetchMyPackage();
+    fetchMyPackage(true);
     fetchTrialSessions();
-    fetchCompletedSessions();
+    fetchCompletedSessions(true);
   }, [user]);
 
-  // Real-time listener for package and completed sessions updates from teacher + polling + focus sync
+  // Real-time listener for package and completed sessions updates from teacher + focus sync
   useEffect(() => {
     if (!user) return;
 
-    // 1. Supabase Realtime channel
+    // 1. Supabase Realtime channel (Instant silent push updates)
     const channel = supabase
       .channel(`student_live_sync_${user.id}`)
       .on('postgres_changes', { event: '*', schema: 'public', table: 'live_subscriptions', filter: `user_id=eq.${user.id}` }, () => {
-        fetchMyPackage();
+        fetchMyPackage(false);
       })
       .on('postgres_changes', { event: '*', schema: 'public', table: 'completed_live_sessions', filter: `student_id=eq.${user.id}` }, () => {
-        fetchCompletedSessions();
-        fetchMyPackage();
+        fetchCompletedSessions(false);
+        fetchMyPackage(false);
       })
       .on('postgres_changes', { event: '*', schema: 'public', table: 'weekly_schedules' }, () => {
         fetchWeeklySchedules();
       })
       .on('postgres_changes', { event: '*', schema: 'public', table: 'online_sessions' }, () => {
-        fetchSessions();
+        fetchSessions(false);
       })
       .subscribe();
 
-    // 2. 10-second polling to guarantee instant sync even across connection blips
-    const pollInterval = setInterval(() => {
-      fetchMyPackage();
-      fetchCompletedSessions();
-      fetchSessions();
-    }, 10000);
-
-    // 3. Instant refresh on window focus / tab switch
+    // 2. Silent refresh on window focus / tab switch only
     const handleFocus = () => {
-      fetchMyPackage();
-      fetchCompletedSessions();
+      fetchMyPackage(false);
+      fetchCompletedSessions(false);
       fetchWeeklySchedules();
-      fetchSessions();
+      fetchSessions(false);
     };
     window.addEventListener('focus', handleFocus);
     const handleVisibility = () => {
@@ -107,7 +110,6 @@ export default function StudentLiveSessions() {
 
     return () => {
       supabase.removeChannel(channel);
-      clearInterval(pollInterval);
       window.removeEventListener('focus', handleFocus);
       document.removeEventListener('visibilitychange', handleVisibility);
     };
@@ -130,7 +132,8 @@ export default function StudentLiveSessions() {
     return `https://${trimmed}`;
   };
 
-  const fetchSessions = async () => {
+  const fetchSessions = async (showLoading = false) => {
+    if (showLoading) setLoading(true);
     try {
       const { data, error } = await supabase
         .from('online_sessions')
@@ -142,7 +145,7 @@ export default function StudentLiveSessions() {
     } catch (err) {
       console.error('Error fetching live sessions:', err);
     } finally {
-      setLoading(false);
+      if (showLoading) setLoading(false);
     }
   };
 
@@ -181,9 +184,9 @@ export default function StudentLiveSessions() {
     }
   };
 
-  const fetchCompletedSessions = async () => {
+  const fetchCompletedSessions = async (showLoading = false) => {
     if (!user) return;
-    setCompletedLoading(true);
+    if (showLoading) setCompletedLoading(true);
     try {
       const { data, error } = await supabase
         .from('completed_live_sessions')
@@ -203,13 +206,13 @@ export default function StudentLiveSessions() {
       const local = localStorage.getItem(`manarat_completed_${user.id}`);
       if (local) setCompletedSessions(JSON.parse(local));
     } finally {
-      setCompletedLoading(false);
+      if (showLoading) setCompletedLoading(false);
     }
   };
 
-  const fetchMyPackage = async () => {
+  const fetchMyPackage = async (showLoading = false) => {
     if (!user) return;
-    setPackageLoading(true);
+    if (showLoading) setPackageLoading(true);
     try {
       const { data, error } = await supabase
         .from('live_subscriptions')
@@ -243,7 +246,7 @@ export default function StudentLiveSessions() {
       console.warn('Live subscription fetch fallback:', err);
       setMyPackage({ remaining_sessions: 0, total_sessions: 8, status: 'not_subscribed' });
     } finally {
-      setPackageLoading(false);
+      if (showLoading) setPackageLoading(false);
     }
   };
 
@@ -992,7 +995,7 @@ export default function StudentLiveSessions() {
               </div>
 
               {/* Sessions List */}
-              {completedLoading ? (
+              {completedLoading && completedSessions.length === 0 ? (
                 <div className="text-center py-12">
                   <Loader className="w-8 h-8 animate-spin mx-auto text-purple-600 mb-2" />
                   <p className="text-sm font-bold text-gray-500">جاري تحميل سجل الحصص المكتملة...</p>

@@ -119,7 +119,7 @@ export default function StudentLiveSessions() {
     fetchMyPackage(true);
     fetchTrialSessions();
     fetchCompletedSessions(true);
-  }, [user]);
+  }, [user, profile?.grade_level]);
 
   // Real-time listener for package and completed sessions updates from teacher + focus sync
   useEffect(() => {
@@ -131,9 +131,13 @@ export default function StudentLiveSessions() {
       .on('postgres_changes', { event: '*', schema: 'public', table: 'live_subscriptions', filter: `user_id=eq.${user.id}` }, () => {
         fetchMyPackage(false);
       })
-      .on('postgres_changes', { event: '*', schema: 'public', table: 'completed_live_sessions', filter: `student_id=eq.${user.id}` }, () => {
-        fetchCompletedSessions(false);
-        fetchMyPackage(false);
+      .on('postgres_changes', { event: '*', schema: 'public', table: 'completed_live_sessions' }, (payload) => {
+        const sid = payload?.new?.student_id;
+        const sGrade = payload?.new?.grade_level;
+        if (!sid || sid === user.id || (profile?.grade_level && sGrade === profile.grade_level)) {
+          fetchCompletedSessions(false);
+          fetchMyPackage(false);
+        }
       })
       .on('postgres_changes', { event: '*', schema: 'public', table: 'weekly_schedules' }, () => {
         fetchWeeklySchedules();
@@ -236,11 +240,14 @@ export default function StudentLiveSessions() {
     if (!user) return;
     if (showLoading) setCompletedLoading(true);
     try {
-      const { data, error } = await supabase
-        .from('completed_live_sessions')
-        .select('*')
-        .eq('student_id', user.id)
-        .order('completed_at', { ascending: false });
+      let query = supabase.from('completed_live_sessions').select('*');
+      if (profile?.grade_level) {
+        query = query.or(`student_id.eq.${user.id},and(student_id.is.null,grade_level.eq.${profile.grade_level})`);
+      } else {
+        query = query.eq('student_id', user.id);
+      }
+
+      const { data, error } = await query.order('completed_at', { ascending: false });
 
       if (!error && data) {
         setCompletedSessions(data);

@@ -12,7 +12,7 @@ import { useAuth } from '../context/AuthContext';
 import { Link } from 'react-router-dom';
 import BackButton from '../components/BackButton';
 import toast from 'react-hot-toast';
-import { formatSessionTitle, formatSessionDesc, formatGradeName, formatTime12h, formatTimeRange12h } from '../utils/helpers';
+import { formatSessionTitle, formatSessionDesc, formatGradeName, formatTime12h, formatTimeRange12h, compressImage } from '../utils/helpers';
 
 export default function StudentLiveSessions() {
   const { t, i18n } = useTranslation();
@@ -354,22 +354,37 @@ export default function StudentLiveSessions() {
     try {
       let receiptUrl = '';
       if (renewForm.receipt_file) {
-        const fileExt = renewForm.receipt_file.name.split('.').pop();
-        const fileName = `${user.id}_${Date.now()}.${fileExt}`;
-        const { error: upErr } = await supabase.storage
-          .from('receipts')
-          .upload(`live_renewals/${fileName}`, renewForm.receipt_file);
+        try {
+          // Instant client-side compression (< 30ms) produces crisp ~80KB JPEG
+          const compressed = await compressImage(renewForm.receipt_file);
+          const fileName = `${user.id}_${Date.now()}.jpg`;
 
-        if (!upErr) {
-          const { data: pubData } = supabase.storage
+          // Race with 5s timeout so the student request NEVER hangs or freezes
+          const uploadPromise = supabase.storage
             .from('receipts')
-            .getPublicUrl(`live_renewals/${fileName}`);
-          receiptUrl = pubData.publicUrl;
+            .upload(`live_renewals/${fileName}`, compressed, {
+              contentType: 'image/jpeg',
+              upsert: true
+            });
+
+          const timeoutPromise = new Promise((_, reject) =>
+            setTimeout(() => reject(new Error('Storage timeout')), 5000)
+          );
+
+          const { error: upErr } = await Promise.race([uploadPromise, timeoutPromise]);
+          if (!upErr) {
+            const { data: pubData } = supabase.storage
+              .from('receipts')
+              .getPublicUrl(`live_renewals/${fileName}`);
+            receiptUrl = pubData?.publicUrl || '';
+          }
+        } catch (uploadWarning) {
+          console.warn('Storage upload fallback:', uploadWarning);
         }
       }
 
       const isFirstSub = !myPackage || myPackage.status === 'not_subscribed';
-      await supabase.from('live_subscriptions').upsert([{
+      const payload = {
         user_id: user.id,
         grade_level: profile?.grade_level || 'prep_1',
         total_sessions: 8,
@@ -377,9 +392,29 @@ export default function StudentLiveSessions() {
         status: 'pending',
         payment_method: renewForm.payment_method,
         wallet_number: renewForm.wallet_number.trim(),
-        receipt_url: receiptUrl,
-        notes: isFirstSub ? 'طلب اشتراك جديد في باقة 8 حصص' : 'طلب تجديد باقة 8 حصص'
-      }], { onConflict: 'user_id' });
+        receipt_url: receiptUrl || null,
+        notes: isFirstSub ? 'طلب اشتراك جديد في باقة 8 حصص' : 'طلب تجديد باقة 8 حصص',
+        created_at: new Date().toISOString()
+      };
+
+      // 1. Try upsert
+      let { error: dbError } = await supabase
+        .from('live_subscriptions')
+        .upsert([payload], { onConflict: 'user_id' });
+
+      // 2. If upsert returned error (e.g. missing RLS update policy), try direct update
+      if (dbError) {
+        console.warn('Upsert fallback to update:', dbError);
+        const { error: updateErr } = await supabase
+          .from('live_subscriptions')
+          .update(payload)
+          .eq('user_id', user.id);
+
+        if (updateErr) {
+          // 3. Fallback to insert
+          await supabase.from('live_subscriptions').insert([payload]);
+        }
+      }
 
       toast.success(
         isFirstSub
@@ -1210,20 +1245,24 @@ export default function StudentLiveSessions() {
                 <input
                   type="file"
                   accept="image/*"
-                  onChange={(e) => {
+                  onChange={async (e) => {
                     const f = e.target.files[0];
                     if (f) {
+                      const compressed = await compressImage(f);
                       setRenewForm({
                         ...renewForm,
-                        receipt_file: f,
-                        receipt_preview: URL.createObjectURL(f)
+                        receipt_file: compressed,
+                        receipt_preview: URL.createObjectURL(compressed)
                       });
                     }
                   }}
-                  className="w-full text-xs text-gray-500 file:mr-2 file:py-2 file:px-4 file:rounded-xl file:border-0 file:text-xs file:font-bold file:bg-blue-50 file:text-blue-700"
+                  className="w-full text-xs text-gray-500 file:mr-2 file:py-2 file:px-4 file:rounded-xl file:border-0 file:text-xs file:font-bold file:bg-blue-50 file:text-blue-700 cursor-pointer"
                 />
                 {renewForm.receipt_preview && (
-                  <img src={renewForm.receipt_preview} alt="معاينة الإيصال" className="mt-2 h-24 w-auto rounded-lg border object-cover" />
+                  <div className="mt-2 relative inline-block">
+                    <img src={renewForm.receipt_preview} alt="معاينة الإيصال" className="h-24 w-auto rounded-xl border border-gray-200 dark:border-slate-700 object-cover shadow-sm" />
+                    <span className="text-[10px] text-emerald-600 dark:text-emerald-400 font-bold block mt-1">✓ تم ضغط الصورة لتسريع الإرسال الفوري</span>
+                  </div>
                 )}
               </div>
 

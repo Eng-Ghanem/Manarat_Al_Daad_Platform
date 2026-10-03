@@ -681,4 +681,16 @@ BEGIN
 EXCEPTION WHEN OTHERS THEN NULL;
 END $$;
 
+-- ==============================================================================
+-- 15. السماح للطلاب بتحديث اشتراكهم في باقة الـ 8 حصص (للتجديد وإعادة إرسال الطلبات)
+-- وتصريح RLS كامل لـ live_subscriptions لضمان قبول عمليات upsert و update
+-- ==============================================================================
+DROP POLICY IF EXISTS "Students can update their own live subscriptions" ON public.live_subscriptions;
+CREATE POLICY "Students can update their own live subscriptions"
+ON public.live_subscriptions FOR UPDATE
+TO authenticated
+USING (user_id = (SELECT auth.uid()))
+WITH CHECK (user_id = (SELECT auth.uid()));
+
+
 

@@ -4,7 +4,8 @@ import {
   CheckCircle, Search, Eye, Filter, Loader, AlertTriangle, 
   ShieldCheck, FileText, X, ArrowRight, ZoomIn, ZoomOut, RotateCcw, Trash2,
   Clock, PlusCircle, RefreshCw, Video, BookOpen, MinusCircle, CheckCircle2,
-  Sparkles, User, Award, ExternalLink, Calendar, MessageSquare
+  Sparkles, User, Award, ExternalLink, Calendar, MessageSquare, Phone,
+  CreditCard, ChevronRight, Layers, HelpCircle
 } from 'lucide-react';
 import { Link } from 'react-router-dom';
 import FadeIn from '../../components/FadeIn';
@@ -21,7 +22,7 @@ export default function AdminSubscriptions() {
   
   const [requests, setRequests] = useState([]);
   const [loading, setLoading] = useState(true);
-  const [filter, setFilter] = useState('pending'); // 'pending' | 'active' | 'expired' | 'rejected'
+  const [filter, setFilter] = useState('pending'); // 'pending' | 'active' | 'expired' | 'rejected' | 'all'
   const [typeFilter, setTypeFilter] = useState('all'); // 'all' | 'live' | 'courses'
   const [searchQuery, setSearchQuery] = useState('');
   const [selectedReceipt, setSelectedReceipt] = useState(null);
@@ -48,7 +49,7 @@ export default function AdminSubscriptions() {
 
     // Supabase Realtime synchronization across courses, live packages, and completed sessions
     const channel = supabase
-      .channel('admin_subscriptions_all_realtime')
+      .channel('admin_subscriptions_master_realtime')
       .on('postgres_changes', { event: '*', schema: 'public', table: 'subscriptions' }, () => {
         fetchRequests();
       })
@@ -67,7 +68,7 @@ export default function AdminSubscriptions() {
 
   const fetchRequests = async () => {
     try {
-      // 1. Trigger background sync for expired course subscriptions on server
+      // 1. Background sync for expired course subscriptions on server
       try {
         const { data: { session } } = await supabase.auth.getSession();
         if (session?.access_token) {
@@ -101,7 +102,7 @@ export default function AdminSubscriptions() {
       const courseRows = coursesRes.data || [];
       const liveRows = liveRes.data || [];
 
-      // 3. Fetch profiles manually to avoid foreign key relation errors
+      // 3. Fetch user profiles to attach student name and grade
       const userIds = [
         ...new Set([
           ...courseRows.map(req => req.user_id),
@@ -138,6 +139,7 @@ export default function AdminSubscriptions() {
           itemType: 'course',
           studentName: prof?.full_name || 'غير معروف',
           studentGrade: prof?.grade_level || '',
+          studentPhone: prof?.phone || '',
           courseTitle: req.courses?.title || 'كورس مسجل',
           courseDuration: duration,
           paymentMethod: req.payment_method,
@@ -150,7 +152,7 @@ export default function AdminSubscriptions() {
         };
       });
 
-      // 5. Format live package subscriptions (8-session package)
+      // 5. Format live package subscriptions (8-session live packages)
       const formattedLive = liveRows.map(ls => {
         const prof = profilesMap[ls.user_id];
         const grade = ls.grade_level || prof?.grade_level || 'prep_1';
@@ -168,6 +170,7 @@ export default function AdminSubscriptions() {
           itemType: 'live_package',
           studentName: prof?.full_name || 'طالب حصص مباشرة',
           studentGrade: grade,
+          studentPhone: prof?.phone || '',
           gradeName: formatGradeName(grade),
           courseTitle: 'باقة الـ 8 حصص أونلاين (زووم)',
           courseDuration: `${remaining} / ${total} حصص`,
@@ -238,7 +241,7 @@ export default function AdminSubscriptions() {
         }
       }
 
-      toast.success(t('admin_subs_msg_deleted') || 'تم حذف الطلب بنجاح');
+      toast.success(t('admin_subs_msg_deleted') || 'تم حذف السجل بنجاح');
     } catch (err) {
       console.error('Error deleting subscription:', err);
       toast.error(t('admin_subs_msg_error') || 'حدث خطأ أثناء الحذف');
@@ -266,7 +269,6 @@ export default function AdminSubscriptions() {
       if (isLive) {
         // Live Package status update
         if (newStatus === 'active') {
-          // Activating 8-session live package: set 8 sessions, active, activated_at
           const { error } = await supabase
             .from('live_subscriptions')
             .update({
@@ -346,8 +348,6 @@ export default function AdminSubscriptions() {
     }
   };
 
-  // ==================== Live Package Specific Handlers ====================
-
   // Open modal to deduct 1 session
   const handleOpenDeductModal = (req) => {
     setDeductModal({
@@ -384,7 +384,6 @@ export default function AdminSubscriptions() {
       const { data: { session } } = await supabase.auth.getSession();
       const token = session?.access_token;
 
-      // 1. Try server attendance API
       let successApi = false;
       if (token) {
         try {
@@ -406,7 +405,6 @@ export default function AdminSubscriptions() {
         } catch (_) {}
       }
 
-      // 2. Direct Supabase Fallback if server call wasn't executed
       if (!successApi) {
         await supabase
           .from('live_subscriptions')
@@ -523,8 +521,7 @@ export default function AdminSubscriptions() {
     }
   };
 
-  // ==================== Course Extension Handlers ====================
-
+  // Course extension handlers
   const openExtendModal = (req) => {
     const defaultDays = req.courseDuration || 30;
     setCustomDays(defaultDays);
@@ -608,6 +605,12 @@ export default function AdminSubscriptions() {
     });
   }, [requests, typeFilter, filter, searchQuery]);
 
+  // Overall Global Counts for Top Metric Cards
+  const totalPendingGlobal = requests.filter(r => r.status === 'pending').length;
+  const totalLiveGlobal = requests.filter(r => r.itemType === 'live_package').length;
+  const totalCoursesGlobal = requests.filter(r => r.itemType === 'course').length;
+  const totalActiveGlobal = requests.filter(r => r.status === 'active').length;
+
   // Counts based on currently selected Type Filter
   const typeScopedRequests = useMemo(() => {
     return requests.filter(req => {
@@ -622,7 +625,6 @@ export default function AdminSubscriptions() {
   const expiredCount = typeScopedRequests.filter(req => req.status === 'expired').length;
   const rejectedCount = typeScopedRequests.filter(req => req.status === 'rejected').length;
 
-  // Global pending counts for badges
   const pendingLiveCount = requests.filter(r => r.itemType === 'live_package' && r.status === 'pending').length;
   const pendingCoursesCount = requests.filter(r => r.itemType === 'course' && r.status === 'pending').length;
 
@@ -631,132 +633,265 @@ export default function AdminSubscriptions() {
       <div className="min-h-screen flex items-center justify-center bg-gray-50 dark:bg-slate-900">
         <div className="flex flex-col items-center gap-4">
           <div className="w-14 h-14 border-4 border-blue-600 border-t-transparent rounded-full animate-spin shadow-lg"></div>
-          <p className="text-gray-500 dark:text-gray-400 font-bold text-sm">جاري تحميل طلبات الاشتراكات والحصص...</p>
+          <p className="text-gray-500 dark:text-gray-400 font-bold text-sm">جاري تحميل منصة إدارة الاشتراكات والحصص...</p>
         </div>
       </div>
     );
   }
 
   return (
-    <div className="min-h-screen bg-gray-50 dark:bg-slate-900 pb-16">
+    <div className="min-h-screen bg-slate-950 text-slate-100 pb-20 selection:bg-blue-600 selection:text-white font-arabic">
       
-      {/* High-End Header */}
-      <div className="bg-gradient-to-r from-blue-900 via-indigo-900 to-slate-900 pt-20 pb-28 px-4 sm:px-6 lg:px-8 relative overflow-hidden shadow-2xl">
-        <div className="absolute top-0 right-0 w-96 h-96 bg-blue-500/20 blur-[100px] rounded-full pointer-events-none mix-blend-screen"></div>
-        <div className="absolute bottom-0 left-0 w-96 h-96 bg-purple-500/20 blur-[100px] rounded-full pointer-events-none mix-blend-screen"></div>
-        
-        <div className="max-w-7xl mx-auto relative z-10 flex flex-col items-center">
-          <div className="w-full flex justify-between items-center mb-6">
-            <Link to="/admin-dashboard" className="flex items-center gap-2 px-4 py-2 bg-white/10 hover:bg-white/20 text-white rounded-full transition-colors backdrop-blur-md font-bold text-sm border border-white/10 shadow-sm">
-              <ArrowRight className="w-4 h-4 rtl:rotate-0 ltr:rotate-180" />
-              {t('admin_back_to_dashboard')}
+      {/* ===================== HERO HEADER ===================== */}
+      <div className="relative pt-10 pb-28 px-4 sm:px-6 lg:px-8 overflow-hidden bg-gradient-to-b from-blue-950 via-slate-900 to-slate-950 border-b border-slate-800/80 shadow-2xl">
+        {/* Ambient Glowing Blobs */}
+        <div className="absolute -top-24 right-1/4 w-96 h-96 bg-blue-600/20 blur-[130px] rounded-full pointer-events-none"></div>
+        <div className="absolute top-1/2 left-10 w-80 h-80 bg-purple-600/20 blur-[120px] rounded-full pointer-events-none"></div>
+
+        <div className="max-w-7xl mx-auto relative z-10">
+          
+          {/* Top Quick Navigation Bar */}
+          <div className="flex flex-wrap items-center justify-between gap-4 mb-8">
+            <Link 
+              to="/admin-dashboard" 
+              className="flex items-center gap-2 px-4 py-2 bg-slate-900/80 hover:bg-slate-800 text-slate-200 hover:text-white rounded-full transition-all text-xs font-bold border border-slate-700/80 shadow-sm backdrop-blur-md"
+            >
+              <ArrowRight className="w-4 h-4 rtl:rotate-0 ltr:rotate-180 text-blue-400" />
+              <span>لوحة التحكم الرئيسية</span>
             </Link>
 
-            <Link to="/admin-dashboard/live-sessions" className="flex items-center gap-2 px-4 py-2 bg-purple-500/30 hover:bg-purple-500/40 text-purple-200 rounded-full transition-colors backdrop-blur-md font-bold text-sm border border-purple-400/30 shadow-sm">
-              <Video className="w-4 h-4" />
-              <span>إدارة جداول الحصص المباشرة</span>
-            </Link>
+            <div className="flex items-center gap-3">
+              <Link 
+                to="/admin-dashboard/live-sessions" 
+                className="flex items-center gap-2 px-4 py-2 bg-purple-900/30 hover:bg-purple-800/40 text-purple-200 rounded-full transition-all text-xs font-bold border border-purple-500/30 shadow-sm backdrop-blur-md"
+              >
+                <Video className="w-4 h-4 text-purple-400" />
+                <span>جدول مواعيد الحصص المباشرة</span>
+              </Link>
+              <button
+                onClick={fetchRequests}
+                className="flex items-center gap-1.5 px-3.5 py-2 bg-slate-900/80 hover:bg-slate-800 text-slate-300 rounded-full transition-all text-xs font-bold border border-slate-700/80 shadow-sm cursor-pointer"
+                title="تحديث البيانات"
+              >
+                <RefreshCw className="w-3.5 h-3.5" />
+                <span>تحديث</span>
+              </button>
+            </div>
           </div>
 
+          {/* Hero Titles */}
           <FadeIn>
-            <div className="flex flex-col items-center text-center">
-              <div className="w-20 h-20 rounded-3xl bg-gradient-to-br from-blue-500/20 to-purple-500/20 backdrop-blur-md flex items-center justify-center border border-white/20 shadow-[0_0_30px_rgba(59,130,246,0.3)] mb-5">
-                <FileText className="w-10 h-10 text-blue-300" />
+            <div className="flex flex-col items-center text-center max-w-3xl mx-auto">
+              <div className="inline-flex items-center gap-2 px-4 py-1.5 rounded-full bg-gradient-to-r from-blue-500/10 via-purple-500/10 to-emerald-500/10 border border-blue-500/20 text-blue-300 text-xs font-extrabold mb-4 shadow-inner">
+                <Sparkles className="w-3.5 h-3.5 text-amber-400 animate-spin" style={{ animationDuration: '6s' }} />
+                <span>مركز العمليات والاعتماد الأكاديمي</span>
               </div>
-              <h1 className="text-3xl sm:text-4xl font-black text-white font-arabic tracking-tight mb-3">
-                {t('admin_subs_title') || 'إدارة وتفعيل الاشتراكات وباقات الحصص'}
+              <h1 className="text-3xl sm:text-4xl lg:text-5xl font-black text-white tracking-tight leading-tight mb-3">
+                إدارة الاشتراكات وباقات الـ 8 حصص
               </h1>
-              <p className="text-blue-200/90 font-medium text-base sm:text-lg max-w-3xl leading-relaxed">
-                مركز المراجعة والاعتماد الفوري لطلبات باقات الـ 8 حصص أونلاين واشتراكات الكورسات المسجلة مع تتبع الحضور والخصم التلقائي
+              <p className="text-slate-400 text-sm sm:text-base font-medium leading-relaxed">
+                مراجعة واعتماد طلبات التحويل، بدء وتجديد باقات الحصص المباشرة، وتتبع رصيد حضور الطالب بالخصم اللحظي المباشر.
               </p>
             </div>
           </FadeIn>
+
         </div>
       </div>
 
-      <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 -mt-14 relative z-20">
-        
-        <FadeIn delay={100}>
-          <div className="bg-white dark:bg-slate-800 rounded-3xl shadow-xl border border-gray-100 dark:border-slate-700/80 overflow-hidden">
+      {/* ===================== MAIN CONTENT WRAPPER ===================== */}
+      <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 -mt-16 relative z-20">
+
+        {/* 1. TOP INTERACTIVE KPI METRIC CARDS */}
+        <FadeIn delay={50}>
+          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4 mb-6">
             
-            {/* 1. Subscription Type Switcher Bar (All / Live Packages / Courses) */}
-            <div className="p-4 sm:p-6 bg-gradient-to-b from-gray-50/80 to-white dark:from-slate-800/80 dark:to-slate-800 border-b border-gray-100 dark:border-slate-700">
-              <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
+            {/* Metric 1: Pending */}
+            <div 
+              onClick={() => { setFilter('pending'); }}
+              className={`p-5 rounded-3xl cursor-pointer transition-all duration-300 border relative overflow-hidden group shadow-lg ${
+                filter === 'pending'
+                  ? 'bg-amber-950/40 border-amber-500/80 shadow-amber-500/10 ring-2 ring-amber-500/30'
+                  : 'bg-slate-900/90 hover:bg-slate-900 border-slate-800 hover:border-amber-500/40'
+              }`}
+            >
+              <div className="flex items-center justify-between mb-3">
+                <div className="w-11 h-11 rounded-2xl bg-amber-500/10 border border-amber-500/20 flex items-center justify-center text-amber-400 group-hover:scale-110 transition-transform">
+                  <Clock className="w-5 h-5" />
+                </div>
+                {totalPendingGlobal > 0 ? (
+                  <span className="px-2.5 py-0.5 rounded-full text-xs font-black bg-rose-500 text-white animate-pulse">
+                    {totalPendingGlobal} معلق جديد
+                  </span>
+                ) : (
+                  <span className="px-2.5 py-0.5 rounded-full text-xs font-bold bg-slate-800 text-slate-400">
+                    مكتمل
+                  </span>
+                )}
+              </div>
+              <div className="text-xs font-bold text-slate-400 mb-1">طلبات بانتظار الاعتماد</div>
+              <div className="text-2xl sm:text-3xl font-black text-amber-400 tracking-tight">
+                {totalPendingGlobal} <span className="text-xs text-slate-500 font-normal">طلب</span>
+              </div>
+            </div>
+
+            {/* Metric 2: Live Packages */}
+            <div 
+              onClick={() => { setTypeFilter('live'); }}
+              className={`p-5 rounded-3xl cursor-pointer transition-all duration-300 border relative overflow-hidden group shadow-lg ${
+                typeFilter === 'live'
+                  ? 'bg-purple-950/40 border-purple-500/80 shadow-purple-500/10 ring-2 ring-purple-500/30'
+                  : 'bg-slate-900/90 hover:bg-slate-900 border-slate-800 hover:border-purple-500/40'
+              }`}
+            >
+              <div className="flex items-center justify-between mb-3">
+                <div className="w-11 h-11 rounded-2xl bg-purple-500/10 border border-purple-500/20 flex items-center justify-center text-purple-400 group-hover:scale-110 transition-transform">
+                  <Video className="w-5 h-5" />
+                </div>
+                {pendingLiveCount > 0 && (
+                  <span className="px-2.5 py-0.5 rounded-full text-xs font-black bg-purple-500 text-white animate-bounce">
+                    {pendingLiveCount} جديد
+                  </span>
+                )}
+              </div>
+              <div className="text-xs font-bold text-slate-400 mb-1">باقات الحصص (8 حصص)</div>
+              <div className="text-2xl sm:text-3xl font-black text-purple-400 tracking-tight">
+                {totalLiveGlobal} <span className="text-xs text-slate-500 font-normal">باقة</span>
+              </div>
+            </div>
+
+            {/* Metric 3: Recorded Courses */}
+            <div 
+              onClick={() => { setTypeFilter('courses'); }}
+              className={`p-5 rounded-3xl cursor-pointer transition-all duration-300 border relative overflow-hidden group shadow-lg ${
+                typeFilter === 'courses'
+                  ? 'bg-blue-950/40 border-blue-500/80 shadow-blue-500/10 ring-2 ring-blue-500/30'
+                  : 'bg-slate-900/90 hover:bg-slate-900 border-slate-800 hover:border-blue-500/40'
+              }`}
+            >
+              <div className="flex items-center justify-between mb-3">
+                <div className="w-11 h-11 rounded-2xl bg-blue-500/10 border border-blue-500/20 flex items-center justify-center text-blue-400 group-hover:scale-110 transition-transform">
+                  <BookOpen className="w-5 h-5" />
+                </div>
+                {pendingCoursesCount > 0 && (
+                  <span className="px-2.5 py-0.5 rounded-full text-xs font-black bg-blue-500 text-white">
+                    {pendingCoursesCount} جديد
+                  </span>
+                )}
+              </div>
+              <div className="text-xs font-bold text-slate-400 mb-1">اشتراكات الكورسات المسجلة</div>
+              <div className="text-2xl sm:text-3xl font-black text-blue-400 tracking-tight">
+                {totalCoursesGlobal} <span className="text-xs text-slate-500 font-normal">اشتراك</span>
+              </div>
+            </div>
+
+            {/* Metric 4: Active */}
+            <div 
+              onClick={() => { setFilter('active'); }}
+              className={`p-5 rounded-3xl cursor-pointer transition-all duration-300 border relative overflow-hidden group shadow-lg ${
+                filter === 'active'
+                  ? 'bg-emerald-950/40 border-emerald-500/80 shadow-emerald-500/10 ring-2 ring-emerald-500/30'
+                  : 'bg-slate-900/90 hover:bg-slate-900 border-slate-800 hover:border-emerald-500/40'
+              }`}
+            >
+              <div className="flex items-center justify-between mb-3">
+                <div className="w-11 h-11 rounded-2xl bg-emerald-500/10 border border-emerald-500/20 flex items-center justify-center text-emerald-400 group-hover:scale-110 transition-transform">
+                  <CheckCircle2 className="w-5 h-5" />
+                </div>
+                <span className="px-2.5 py-0.5 rounded-full text-xs font-bold bg-emerald-900/40 text-emerald-300 border border-emerald-500/20">
+                  ساري
+                </span>
+              </div>
+              <div className="text-xs font-bold text-slate-400 mb-1">إجمالي الاشتراكات المفعلة</div>
+              <div className="text-2xl sm:text-3xl font-black text-emerald-400 tracking-tight">
+                {totalActiveGlobal} <span className="text-xs text-slate-500 font-normal">طالب نشط</span>
+              </div>
+            </div>
+
+          </div>
+        </FadeIn>
+
+        {/* 2. MAIN TABLE CONTAINER */}
+        <FadeIn delay={100}>
+          <div className="bg-slate-900/95 rounded-3xl border border-slate-800 shadow-2xl overflow-hidden backdrop-blur-xl">
+
+            {/* Filter Bar */}
+            <div className="p-5 sm:p-6 bg-slate-900/80 border-b border-slate-800/80">
+              <div className="flex flex-col lg:flex-row lg:items-center justify-between gap-4">
                 
-                {/* Type Filter Pills */}
-                <div className="flex flex-wrap items-center gap-2 p-1.5 bg-gray-100 dark:bg-slate-900/80 rounded-2xl border border-gray-200/60 dark:border-slate-700/60">
+                {/* Type Switcher Pills */}
+                <div className="flex flex-wrap items-center gap-1.5 p-1 bg-slate-950/80 rounded-2xl border border-slate-800">
                   <button
                     onClick={() => setTypeFilter('all')}
-                    className={`flex items-center gap-2 px-5 py-2.5 rounded-xl font-bold text-sm transition-all duration-200 cursor-pointer ${
+                    className={`flex items-center gap-2 px-4 py-2 rounded-xl text-xs sm:text-sm font-bold transition-all cursor-pointer ${
                       typeFilter === 'all'
-                        ? 'bg-white dark:bg-slate-800 text-blue-600 dark:text-blue-400 shadow-md font-black'
-                        : 'text-gray-600 dark:text-gray-400 hover:text-gray-900 dark:hover:text-white'
+                        ? 'bg-slate-800 text-white shadow-sm font-black'
+                        : 'text-slate-400 hover:text-slate-200'
                     }`}
                   >
-                    <Sparkles className="w-4 h-4" />
-                    <span>جميع الطلبات</span>
-                    <span className="px-2 py-0.5 rounded-full text-xs bg-gray-200 dark:bg-slate-700 text-gray-700 dark:text-gray-300 font-bold">
+                    <Sparkles className="w-4 h-4 text-amber-400" />
+                    <span>جميع الخدمات</span>
+                    <span className="px-2 py-0.5 rounded-full text-[11px] bg-slate-900 text-slate-300">
                       {requests.length}
                     </span>
                   </button>
 
                   <button
                     onClick={() => setTypeFilter('live')}
-                    className={`flex items-center gap-2 px-5 py-2.5 rounded-xl font-bold text-sm transition-all duration-200 cursor-pointer ${
+                    className={`flex items-center gap-2 px-4 py-2 rounded-xl text-xs sm:text-sm font-bold transition-all cursor-pointer ${
                       typeFilter === 'live'
-                        ? 'bg-purple-600 text-white shadow-lg shadow-purple-600/30 font-black'
-                        : 'text-purple-600 dark:text-purple-400 hover:bg-purple-50 dark:hover:bg-purple-900/20'
+                        ? 'bg-gradient-to-r from-purple-600 to-indigo-600 text-white shadow-lg shadow-purple-600/30 font-black'
+                        : 'text-purple-400 hover:text-purple-300 hover:bg-purple-950/20'
                     }`}
                   >
                     <Video className="w-4 h-4" />
-                    <span>باقات الحصص الأونلاين (8 حصص)</span>
+                    <span>باقات الحصص (8 حصص)</span>
                     {pendingLiveCount > 0 ? (
-                      <span className="px-2 py-0.5 rounded-full text-xs bg-rose-500 text-white font-black animate-pulse">
-                        {pendingLiveCount} جديد
+                      <span className="px-2 py-0.5 rounded-full text-[10px] font-black bg-rose-500 text-white animate-pulse">
+                        {pendingLiveCount} طلب
                       </span>
                     ) : (
-                      <span className={`px-2 py-0.5 rounded-full text-xs font-bold ${typeFilter === 'live' ? 'bg-purple-500 text-white' : 'bg-purple-100 text-purple-700 dark:bg-purple-900/40 dark:text-purple-300'}`}>
-                        {requests.filter(r => r.itemType === 'live_package').length}
+                      <span className="px-2 py-0.5 rounded-full text-[11px] bg-purple-950/60 text-purple-300">
+                        {totalLiveGlobal}
                       </span>
                     )}
                   </button>
 
                   <button
                     onClick={() => setTypeFilter('courses')}
-                    className={`flex items-center gap-2 px-5 py-2.5 rounded-xl font-bold text-sm transition-all duration-200 cursor-pointer ${
+                    className={`flex items-center gap-2 px-4 py-2 rounded-xl text-xs sm:text-sm font-bold transition-all cursor-pointer ${
                       typeFilter === 'courses'
-                        ? 'bg-blue-600 text-white shadow-lg shadow-blue-600/30 font-black'
-                        : 'text-blue-600 dark:text-blue-400 hover:bg-blue-50 dark:hover:bg-blue-900/20'
+                        ? 'bg-gradient-to-r from-blue-600 to-cyan-600 text-white shadow-lg shadow-blue-600/30 font-black'
+                        : 'text-blue-400 hover:text-blue-300 hover:bg-blue-950/20'
                     }`}
                   >
                     <BookOpen className="w-4 h-4" />
                     <span>الكورسات المسجلة</span>
                     {pendingCoursesCount > 0 ? (
-                      <span className="px-2 py-0.5 rounded-full text-xs bg-rose-500 text-white font-black animate-pulse">
-                        {pendingCoursesCount} جديد
+                      <span className="px-2 py-0.5 rounded-full text-[10px] font-black bg-rose-500 text-white animate-pulse">
+                        {pendingCoursesCount} طلب
                       </span>
                     ) : (
-                      <span className={`px-2 py-0.5 rounded-full text-xs font-bold ${typeFilter === 'courses' ? 'bg-blue-500 text-white' : 'bg-blue-100 text-blue-700 dark:bg-blue-900/40 dark:text-blue-300'}`}>
-                        {requests.filter(r => r.itemType === 'course').length}
+                      <span className="px-2 py-0.5 rounded-full text-[11px] bg-blue-950/60 text-blue-300">
+                        {totalCoursesGlobal}
                       </span>
                     )}
                   </button>
                 </div>
 
-                {/* Instant Search Bar */}
-                <div className="relative min-w-[260px] sm:min-w-[320px]">
-                  <Search className="w-4 h-4 absolute top-1/2 -translate-y-1/2 rtl:right-3.5 ltr:left-3.5 text-gray-400" />
+                {/* Instant Search Box */}
+                <div className="relative min-w-[280px] sm:min-w-[340px]">
+                  <Search className="w-4 h-4 absolute top-1/2 -translate-y-1/2 rtl:right-3.5 ltr:left-3.5 text-slate-400" />
                   <input
                     type="text"
                     value={searchQuery}
                     onChange={(e) => setSearchQuery(e.target.value)}
                     placeholder="ابحث بالاسم، المرحلة، أو رقم المحفظة..."
-                    className="w-full py-2.5 rtl:pr-10 rtl:pl-4 ltr:pl-10 ltr:pr-4 rounded-xl text-sm bg-white dark:bg-slate-900 border border-gray-200 dark:border-slate-700 focus:border-blue-500 dark:focus:border-blue-400 outline-none transition-all"
+                    className="w-full py-2.5 rtl:pr-10 rtl:pl-4 ltr:pl-10 ltr:pr-4 rounded-xl text-xs sm:text-sm bg-slate-950 border border-slate-800 text-slate-100 placeholder-slate-500 focus:border-blue-500 outline-none transition-all shadow-inner"
                   />
                   {searchQuery && (
                     <button 
                       onClick={() => setSearchQuery('')}
-                      className="absolute top-1/2 -translate-y-1/2 rtl:left-3 ltr:right-3 text-gray-400 hover:text-gray-600 dark:hover:text-gray-200"
+                      className="absolute top-1/2 -translate-y-1/2 rtl:left-3 ltr:right-3 text-slate-500 hover:text-slate-300"
                     >
                       <X className="w-4 h-4" />
                     </button>
@@ -766,207 +901,232 @@ export default function AdminSubscriptions() {
               </div>
             </div>
 
-            {/* 2. Status Filter Tabs (Pending / Active / Expired / Rejected) */}
-            <div className="flex justify-center border-b border-gray-100 dark:border-slate-700 bg-gray-50/50 dark:bg-slate-900/40 p-3 sm:p-4">
-              <div className="flex flex-wrap items-center justify-center gap-2 bg-gray-200/60 dark:bg-slate-900 p-1.5 rounded-2xl w-full sm:w-auto">
+            {/* Status Ribbon Filter */}
+            <div className="flex flex-wrap items-center justify-between gap-3 px-5 py-3.5 bg-slate-950/60 border-b border-slate-800/80">
+              <div className="flex flex-wrap items-center gap-2">
                 
+                {/* 1. Pending */}
                 <button
                   onClick={() => setFilter('pending')}
-                  className={`flex items-center gap-2 px-5 py-2.5 rounded-xl font-bold text-sm transition-all duration-200 cursor-pointer ${
+                  className={`flex items-center gap-1.5 px-3.5 py-1.5 rounded-xl text-xs font-bold transition-all cursor-pointer ${
                     filter === 'pending'
-                      ? 'bg-amber-500 text-white shadow-md font-black scale-105'
-                      : 'text-gray-600 dark:text-gray-400 hover:text-gray-900 dark:hover:text-white'
+                      ? 'bg-amber-500 text-slate-950 font-black shadow-md shadow-amber-500/20'
+                      : 'text-amber-400 bg-amber-500/10 hover:bg-amber-500/20 border border-amber-500/20'
                   }`}
                 >
-                  <Clock className="w-4 h-4" />
-                  <span>{t('admin_subs_tab_pending') || 'قيد المراجعة'}</span>
-                  {pendingCount > 0 && (
-                    <span className={`px-2 py-0.5 rounded-full text-xs font-black ${filter === 'pending' ? 'bg-white text-amber-700' : 'bg-amber-100 text-amber-800 dark:bg-amber-900/40 dark:text-amber-300'}`}>
-                      {pendingCount}
-                    </span>
-                  )}
+                  <Clock className="w-3.5 h-3.5" />
+                  <span>قيد المراجعة</span>
+                  <span className={`px-1.5 py-0.2 rounded-full text-[10px] font-black ${filter === 'pending' ? 'bg-slate-950 text-amber-400' : 'bg-amber-500/30 text-amber-200'}`}>
+                    {pendingCount}
+                  </span>
                 </button>
 
+                {/* 2. Active */}
                 <button
                   onClick={() => setFilter('active')}
-                  className={`flex items-center gap-2 px-5 py-2.5 rounded-xl font-bold text-sm transition-all duration-200 cursor-pointer ${
+                  className={`flex items-center gap-1.5 px-3.5 py-1.5 rounded-xl text-xs font-bold transition-all cursor-pointer ${
                     filter === 'active'
-                      ? 'bg-emerald-600 text-white shadow-md font-black scale-105'
-                      : 'text-gray-600 dark:text-gray-400 hover:text-gray-900 dark:hover:text-white'
+                      ? 'bg-emerald-500 text-slate-950 font-black shadow-md shadow-emerald-500/20'
+                      : 'text-emerald-400 bg-emerald-500/10 hover:bg-emerald-500/20 border border-emerald-500/20'
                   }`}
                 >
-                  <CheckCircle2 className="w-4 h-4" />
-                  <span>{t('admin_subs_tab_all_active') || 'المفعلة حالياً'}</span>
-                  {activeCount > 0 && (
-                    <span className={`px-2 py-0.5 rounded-full text-xs font-bold ${filter === 'active' ? 'bg-white text-emerald-800' : 'bg-emerald-100 text-emerald-800 dark:bg-emerald-900/40 dark:text-emerald-300'}`}>
-                      {activeCount}
-                    </span>
-                  )}
+                  <CheckCircle2 className="w-3.5 h-3.5" />
+                  <span>المفعلة السارية</span>
+                  <span className={`px-1.5 py-0.2 rounded-full text-[10px] font-black ${filter === 'active' ? 'bg-slate-950 text-emerald-400' : 'bg-emerald-500/30 text-emerald-200'}`}>
+                    {activeCount}
+                  </span>
                 </button>
 
+                {/* 3. Expired */}
                 <button
                   onClick={() => setFilter('expired')}
-                  className={`flex items-center gap-2 px-5 py-2.5 rounded-xl font-bold text-sm transition-all duration-200 cursor-pointer ${
+                  className={`flex items-center gap-1.5 px-3.5 py-1.5 rounded-xl text-xs font-bold transition-all cursor-pointer ${
                     filter === 'expired'
-                      ? 'bg-rose-600 text-white shadow-md font-black scale-105'
-                      : 'text-gray-600 dark:text-gray-400 hover:text-gray-900 dark:hover:text-white'
+                      ? 'bg-rose-500 text-white font-black shadow-md shadow-rose-500/20'
+                      : 'text-rose-400 bg-rose-500/10 hover:bg-rose-500/20 border border-rose-500/20'
                   }`}
                 >
-                  <AlertTriangle className="w-4 h-4" />
-                  <span>{t('admin_subs_tab_all_expired') || 'المنتهية'}</span>
-                  {expiredCount > 0 && (
-                    <span className={`px-2 py-0.5 rounded-full text-xs font-bold ${filter === 'expired' ? 'bg-white text-rose-800' : 'bg-rose-100 text-rose-800 dark:bg-rose-900/40 dark:text-rose-300'}`}>
-                      {expiredCount}
-                    </span>
-                  )}
+                  <AlertTriangle className="w-3.5 h-3.5" />
+                  <span>المنتهية الصلاحية</span>
+                  <span className={`px-1.5 py-0.2 rounded-full text-[10px] font-black ${filter === 'expired' ? 'bg-slate-950 text-rose-300' : 'bg-rose-500/30 text-rose-200'}`}>
+                    {expiredCount}
+                  </span>
                 </button>
 
+                {/* 4. Rejected */}
                 <button
                   onClick={() => setFilter('rejected')}
-                  className={`flex items-center gap-2 px-5 py-2.5 rounded-xl font-bold text-sm transition-all duration-200 cursor-pointer ${
+                  className={`flex items-center gap-1.5 px-3.5 py-1.5 rounded-xl text-xs font-bold transition-all cursor-pointer ${
                     filter === 'rejected'
-                      ? 'bg-slate-700 text-white shadow-md font-black scale-105'
-                      : 'text-gray-600 dark:text-gray-400 hover:text-gray-900 dark:hover:text-white'
+                      ? 'bg-slate-700 text-white font-black'
+                      : 'text-slate-400 bg-slate-800/60 hover:bg-slate-800 border border-slate-700/60'
                   }`}
                 >
-                  <X className="w-4 h-4" />
-                  <span>{t('admin_subs_tab_all_rejected') || 'المرفوضة'}</span>
-                  {rejectedCount > 0 && (
-                    <span className="px-2 py-0.5 rounded-full text-xs bg-gray-300 dark:bg-slate-700 text-gray-800 dark:text-gray-200 font-bold">
-                      {rejectedCount}
-                    </span>
-                  )}
+                  <X className="w-3.5 h-3.5" />
+                  <span>الطلبات المرفوضة</span>
+                  <span className="px-1.5 py-0.2 rounded-full text-[10px] bg-slate-800 text-slate-400">
+                    {rejectedCount}
+                  </span>
                 </button>
 
+                {/* 5. All */}
+                <button
+                  onClick={() => setFilter('all')}
+                  className={`px-3 py-1.5 rounded-xl text-xs font-bold transition-all cursor-pointer ${
+                    filter === 'all'
+                      ? 'bg-blue-600 text-white font-black'
+                      : 'text-slate-400 hover:text-slate-200'
+                  }`}
+                >
+                  عرض الكل ({typeScopedRequests.length})
+                </button>
+              </div>
+
+              {/* Scope summary label */}
+              <div className="text-xs text-slate-500 font-bold hidden sm:block">
+                يعرض <span className="text-blue-400">{filteredRequests.length}</span> من أصل <span className="text-slate-300">{requests.length}</span> طلب
               </div>
             </div>
 
-            {/* 3. Subscriptions & Packages Unified Table */}
+            {/* Table */}
             <div className="overflow-x-auto">
               <table className="w-full rtl:text-right ltr:text-left border-collapse">
                 <thead>
-                  <tr className="bg-gray-100/80 dark:bg-slate-700/60 text-gray-700 dark:text-gray-200 text-xs sm:text-sm">
-                    <th className="py-4 px-6 font-extrabold font-arabic rtl:rounded-tr-2xl ltr:rounded-tl-2xl">الطالب والمرحلة</th>
-                    <th className="py-4 px-6 font-extrabold font-arabic">نوع الاشتراك والخدمة</th>
-                    <th className="py-4 px-6 font-extrabold font-arabic">الرصيد / الصلاحية</th>
-                    <th className="py-4 px-6 font-extrabold font-arabic">الحالة الحالية</th>
-                    <th className="py-4 px-6 font-extrabold font-arabic">طريقة الدفع</th>
-                    <th className="py-4 px-6 font-extrabold font-arabic">رقم المحفظة / المرسل</th>
-                    <th className="py-4 px-6 font-extrabold font-arabic">تاريخ الطلب</th>
-                    <th className="py-4 px-6 font-extrabold font-arabic text-center">الإيصال</th>
-                    <th className="py-4 px-6 font-extrabold font-arabic rtl:rounded-tl-2xl ltr:rounded-tr-2xl text-center">إجراءات التحكم والخصم</th>
+                  <tr className="bg-slate-950/80 text-slate-400 text-xs uppercase tracking-wider border-b border-slate-800">
+                    <th className="py-4 px-6 font-black font-arabic">الطالب والمرحلة</th>
+                    <th className="py-4 px-6 font-black font-arabic">نوع الاشتراك والخدمة</th>
+                    <th className="py-4 px-6 font-black font-arabic">الرصيد / الصلاحية</th>
+                    <th className="py-4 px-6 font-black font-arabic">حالة الطلب</th>
+                    <th className="py-4 px-6 font-black font-arabic">طريقة الدفع</th>
+                    <th className="py-4 px-6 font-black font-arabic">رقم المحفظة / المرسل</th>
+                    <th className="py-4 px-6 font-black font-arabic">تاريخ الطلب</th>
+                    <th className="py-4 px-6 font-black font-arabic text-center">الإيصال</th>
+                    <th className="py-4 px-6 font-black font-arabic text-center">إجراءات التحكم والخصم</th>
                   </tr>
                 </thead>
-                <tbody className="divide-y divide-gray-100 dark:divide-slate-700/60">
+                <tbody className="divide-y divide-slate-800/60 text-sm">
                   {filteredRequests.map((req) => {
                     const isLive = req.itemType === 'live_package';
 
                     return (
                       <tr 
                         key={`${req.itemType}-${req.id}`} 
-                        className={`transition-colors ${
+                        className={`transition-colors duration-150 ${
                           isLive 
-                            ? 'bg-purple-50/20 dark:bg-purple-950/10 hover:bg-purple-50/40 dark:hover:bg-purple-900/20' 
-                            : 'hover:bg-gray-50/80 dark:hover:bg-slate-800/80'
+                            ? 'bg-purple-950/10 hover:bg-purple-950/20' 
+                            : 'hover:bg-slate-800/40'
                         }`}
                       >
-                        {/* 1. Student Name & Grade */}
+                        {/* 1. Student Identity */}
                         <td className="py-4 px-6 whitespace-nowrap">
                           <div className="flex items-center gap-3">
-                            <div className={`w-10 h-10 rounded-2xl flex items-center justify-center font-black text-sm shrink-0 shadow-sm ${
+                            <div className={`w-10 h-10 rounded-2xl flex items-center justify-center font-black text-sm shrink-0 shadow-md ${
                               isLive 
                                 ? 'bg-gradient-to-br from-purple-500 to-indigo-600 text-white' 
                                 : 'bg-gradient-to-br from-blue-500 to-indigo-600 text-white'
                             }`}>
-                              {req.studentName.charAt(0)}
+                              {req.studentName?.charAt(0) || 'ط'}
                             </div>
                             <div>
-                              <div className="font-extrabold text-gray-900 dark:text-white text-sm sm:text-base">
+                              <div className="font-extrabold text-white text-sm">
                                 {req.studentName}
                               </div>
-                              <span className="text-xs text-gray-500 dark:text-gray-400 font-medium">
-                                {req.gradeName || formatGradeName(req.studentGrade)}
-                              </span>
+                              <div className="flex items-center gap-2 mt-0.5">
+                                <span className="text-xs text-purple-300/80 font-bold bg-purple-950/60 px-2 py-0.5 rounded-md border border-purple-800/50">
+                                  {req.gradeName || formatGradeName(req.studentGrade)}
+                                </span>
+                                {req.studentPhone && (
+                                  <span className="text-[11px] text-slate-400 font-mono">
+                                    {req.studentPhone}
+                                  </span>
+                                )}
+                              </div>
                             </div>
                           </div>
                         </td>
 
-                        {/* 2. Subscription Item Type & Title */}
+                        {/* 2. Service Item */}
                         <td className="py-4 px-6 whitespace-nowrap">
                           <div className="flex flex-col gap-1">
                             {isLive ? (
                               <div className="flex items-center gap-1.5">
-                                <span className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-lg text-xs font-black bg-purple-100 text-purple-700 dark:bg-purple-900/40 dark:text-purple-300 border border-purple-200 dark:border-purple-800">
-                                  <Video className="w-3.5 h-3.5 text-purple-600" />
+                                <span className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-lg text-xs font-black bg-purple-500/20 text-purple-300 border border-purple-500/30">
+                                  <Video className="w-3.5 h-3.5 text-purple-400" />
                                   باقة 8 حصص زووم
                                 </span>
                               </div>
                             ) : (
                               <div className="flex items-center gap-1.5">
-                                <span className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-lg text-xs font-black bg-blue-100 text-blue-700 dark:bg-blue-900/40 dark:text-blue-300 border border-blue-200 dark:border-blue-800">
-                                  <BookOpen className="w-3.5 h-3.5 text-blue-600" />
+                                <span className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-lg text-xs font-black bg-blue-500/20 text-blue-300 border border-blue-500/30">
+                                  <BookOpen className="w-3.5 h-3.5 text-blue-400" />
                                   كورس مسجل
                                 </span>
                               </div>
                             )}
-                            <span className="text-sm font-bold text-gray-800 dark:text-gray-200">
+                            <span className="text-xs sm:text-sm font-bold text-slate-200">
                               {req.courseTitle}
                             </span>
                           </div>
                         </td>
 
-                        {/* 3. Balance / Validity */}
+                        {/* 3. Balance / Validity Beads */}
                         <td className="py-4 px-6 whitespace-nowrap">
                           {isLive ? (
-                            <div className="flex flex-col gap-1.5 min-w-[130px]">
+                            <div className="flex flex-col gap-2 min-w-[140px]">
                               <div className="flex items-center justify-between text-xs font-black">
-                                <span className="text-purple-700 dark:text-purple-300">
+                                <span className="text-purple-300">
                                   {req.remainingSessions} من {req.totalSessions || 8} حصص
                                 </span>
-                                <span className={req.remainingSessions > 3 ? 'text-emerald-600 font-bold' : req.remainingSessions > 0 ? 'text-amber-600 font-bold' : 'text-rose-600 font-bold'}>
-                                  {req.remainingSessions === 0 ? 'نفذ الرصيد' : `متبقي ${req.remainingSessions}`}
+                                <span className={req.remainingSessions > 3 ? 'text-emerald-400 font-bold' : req.remainingSessions > 0 ? 'text-amber-400 font-bold' : 'text-rose-400 font-bold'}>
+                                  {req.remainingSessions === 0 ? 'منتهية' : `متبقي ${req.remainingSessions}`}
                                 </span>
                               </div>
-                              {/* Visual Progress Dots or Bar */}
-                              <div className="w-full bg-gray-200 dark:bg-slate-700 h-2 rounded-full overflow-hidden flex">
-                                <div 
-                                  className={`h-full transition-all duration-300 ${
-                                    req.remainingSessions > 4 
-                                      ? 'bg-gradient-to-r from-emerald-500 to-teal-500' 
-                                      : req.remainingSessions > 1 
-                                        ? 'bg-gradient-to-r from-amber-500 to-orange-500' 
-                                        : 'bg-rose-500'
-                                  }`}
-                                  style={{ width: `${Math.min(100, Math.max(0, (req.remainingSessions / (req.totalSessions || 8)) * 100))}%` }}
-                                ></div>
+                              {/* 8-Beads Interactive Visualizer */}
+                              <div className="flex items-center gap-1">
+                                {[1, 2, 3, 4, 5, 6, 7, 8].map((i) => {
+                                  const isAvailable = i <= req.remainingSessions;
+                                  return (
+                                    <div
+                                      key={i}
+                                      className={`h-2 flex-1 rounded-full transition-all duration-300 ${
+                                        isAvailable
+                                          ? req.remainingSessions > 4 
+                                            ? 'bg-emerald-500 shadow-xs shadow-emerald-500/50' 
+                                            : 'bg-amber-500 shadow-xs shadow-amber-500/50'
+                                          : 'bg-slate-800'
+                                      }`}
+                                      title={`حصة ${i}`}
+                                    />
+                                  );
+                                })}
                               </div>
                             </div>
                           ) : (
-                            <span className="text-xs font-bold px-3 py-1 rounded-lg bg-gray-100 dark:bg-slate-700 text-gray-700 dark:text-gray-300 border border-gray-200 dark:border-slate-600">
+                            <span className="text-xs font-bold px-3 py-1 rounded-xl bg-slate-800 text-slate-300 border border-slate-700">
                               {req.courseDuration ? `${req.courseDuration} يوم` : 'مدى الحياة'}
                             </span>
                           )}
                         </td>
 
-                        {/* 4. Current Status Badge */}
+                        {/* 4. Status Badge */}
                         <td className="py-4 px-6 whitespace-nowrap">
                           {req.status === 'active' ? (
-                            <span className="text-xs font-black px-3 py-1 rounded-full border bg-emerald-50 text-emerald-700 border-emerald-200 dark:bg-emerald-900/30 dark:text-emerald-300 dark:border-emerald-800 flex items-center gap-1.5 w-fit">
-                              <CheckCircle2 className="w-3.5 h-3.5" />
+                            <span className="text-xs font-black px-3 py-1 rounded-full border bg-emerald-500/10 text-emerald-400 border-emerald-500/30 flex items-center gap-1.5 w-fit">
+                              <CheckCircle2 className="w-3.5 h-3.5 text-emerald-400" />
                               {isLive ? `مفعل (${req.remainingSessions} حصص)` : (req.statusObj?.statusText || 'مفعل')}
                             </span>
                           ) : req.status === 'expired' ? (
-                            <span className="text-xs font-black px-3 py-1 rounded-full border bg-rose-50 text-rose-700 border-rose-200 dark:bg-rose-900/30 dark:text-rose-300 dark:border-rose-800 flex items-center gap-1.5 w-fit">
-                              <AlertTriangle className="w-3.5 h-3.5" />
+                            <span className="text-xs font-black px-3 py-1 rounded-full border bg-rose-500/10 text-rose-400 border-rose-500/30 flex items-center gap-1.5 w-fit">
+                              <AlertTriangle className="w-3.5 h-3.5 text-rose-400" />
                               {isLive ? 'منتهية (0 حصص)' : 'منتهي الصلاحية'}
                             </span>
                           ) : req.status === 'pending' ? (
-                            <span className="text-xs font-black px-3 py-1 rounded-full border bg-amber-50 text-amber-700 border-amber-200 dark:bg-amber-900/30 dark:text-amber-300 dark:border-amber-800 flex items-center gap-1.5 w-fit animate-pulse">
-                              <Clock className="w-3.5 h-3.5" />
+                            <span className="text-xs font-black px-3 py-1 rounded-full border bg-amber-500/15 text-amber-300 border-amber-500/40 flex items-center gap-1.5 w-fit shadow-xs shadow-amber-500/20 animate-pulse">
+                              <Clock className="w-3.5 h-3.5 text-amber-400" />
                               قيد المراجعة ⏱️
                             </span>
                           ) : (
-                            <span className="text-xs font-bold px-3 py-1 rounded-full border bg-gray-100 text-gray-600 border-gray-200 dark:bg-slate-800 dark:text-gray-400 dark:border-slate-700 flex items-center gap-1.5 w-fit">
+                            <span className="text-xs font-bold px-3 py-1 rounded-full border bg-slate-800 text-slate-400 border-slate-700 flex items-center gap-1.5 w-fit">
                               <X className="w-3.5 h-3.5" />
                               مرفوض ❌
                             </span>
@@ -975,56 +1135,58 @@ export default function AdminSubscriptions() {
 
                         {/* 5. Payment Method */}
                         <td className="py-4 px-6 whitespace-nowrap">
-                          <span className="bg-white dark:bg-slate-800 border border-gray-200 dark:border-slate-600 px-3 py-1 rounded-xl text-xs font-black shadow-xs inline-block">
+                          <span className="bg-slate-950 border border-slate-800 px-3 py-1 rounded-xl text-xs font-bold text-slate-300 inline-block shadow-inner">
                             {req.paymentMethod === 'vodafone' ? 'فودافون كاش' : req.paymentMethod === 'instapay' ? 'InstaPay' : 'محفظة إلكترونية'}
                           </span>
                         </td>
 
                         {/* 6. Wallet Number */}
-                        <td className="py-4 px-6 text-gray-600 dark:text-gray-300 font-mono text-xs font-bold whitespace-nowrap" dir="ltr">
-                          {req.walletNumber}
+                        <td className="py-4 px-6 whitespace-nowrap">
+                          <span className="text-slate-300 font-mono text-xs font-bold bg-slate-950 px-2.5 py-1 rounded-lg border border-slate-800" dir="ltr">
+                            {req.walletNumber}
+                          </span>
                         </td>
 
                         {/* 7. Date */}
                         <td className="py-4 px-6 whitespace-nowrap">
                           <div className="flex flex-col text-xs gap-0.5">
-                            <span className="text-gray-800 dark:text-gray-200 font-bold">
+                            <span className="text-slate-200 font-bold">
                               {new Date(req.date).toLocaleDateString('ar-EG')}
                             </span>
-                            <span className="text-gray-400 text-[10px]">
+                            <span className="text-slate-500 text-[10px]">
                               {new Date(req.date).toLocaleTimeString('ar-EG', { hour: '2-digit', minute: '2-digit' })}
                             </span>
                           </div>
                         </td>
 
-                        {/* 8. Receipt Preview */}
+                        {/* 8. Receipt */}
                         <td className="py-4 px-6 text-center whitespace-nowrap">
                           {req.receiptUrl ? (
                             <button
                               onClick={() => setSelectedReceipt(getDirectImageUrl(req.receiptUrl))}
-                              className="mx-auto flex items-center justify-center w-9 h-9 bg-indigo-50 hover:bg-indigo-100 dark:bg-indigo-900/30 dark:hover:bg-indigo-900/50 text-indigo-600 dark:text-indigo-400 rounded-xl transition-all shadow-xs hover:scale-105 cursor-pointer"
+                              className="mx-auto flex items-center justify-center w-9 h-9 bg-purple-500/10 hover:bg-purple-500/20 text-purple-400 border border-purple-500/30 rounded-xl transition-all shadow-sm hover:scale-105 cursor-pointer"
                               title="معاينة إيصال التحويل"
                             >
                               <Eye className="w-4 h-4" />
                             </button>
                           ) : (
-                            <span className="text-gray-400 text-xs block">بدون إيصال</span>
+                            <span className="text-slate-500 text-xs block">بدون إيصال</span>
                           )}
                         </td>
 
-                        {/* 9. Actions Column (Different for Live vs Course) */}
+                        {/* 9. Actions Column */}
                         <td className="py-4 px-6 whitespace-nowrap">
                           <div className="flex items-center justify-center gap-2 flex-wrap">
 
                             {/* -------------------- LIVE PACKAGE CONTROLS -------------------- */}
                             {isLive && (
                               <>
-                                {/* Pending Live Request: Prominent Accept (Start 8-session package) */}
+                                {/* Pending Live Request: Instant Accept & Start 8 sessions */}
                                 {req.status === 'pending' && (
                                   <>
                                     <button
                                       onClick={() => handleStatusChange(req, 'active')}
-                                      className="px-3.5 py-1.5 bg-gradient-to-r from-emerald-600 to-teal-600 hover:from-emerald-700 hover:to-teal-700 text-white rounded-xl font-black text-xs transition-all shadow-sm flex items-center gap-1.5 cursor-pointer hover:scale-105"
+                                      className="px-3.5 py-1.5 bg-gradient-to-r from-emerald-600 to-teal-600 hover:from-emerald-500 hover:to-teal-500 text-white rounded-xl font-black text-xs transition-all shadow-md shadow-emerald-900/30 flex items-center gap-1.5 cursor-pointer hover:scale-105 active:scale-95"
                                       title="قبول التحويل وبدء باقة الـ 8 حصص للطالب"
                                     >
                                       <CheckCircle2 className="w-4 h-4" />
@@ -1033,7 +1195,7 @@ export default function AdminSubscriptions() {
 
                                     <button
                                       onClick={() => handleStatusChange(req, 'rejected')}
-                                      className="px-2.5 py-1.5 bg-rose-50 text-rose-600 hover:bg-rose-100 dark:bg-rose-900/20 dark:hover:bg-rose-900/40 rounded-xl font-bold text-xs transition-colors cursor-pointer"
+                                      className="px-2.5 py-1.5 bg-rose-950/40 text-rose-400 hover:bg-rose-900/40 border border-rose-800/40 rounded-xl font-bold text-xs transition-colors cursor-pointer"
                                       title="رفض الطلب"
                                     >
                                       رفض
@@ -1047,7 +1209,7 @@ export default function AdminSubscriptions() {
                                     <button
                                       onClick={() => handleOpenDeductModal(req)}
                                       disabled={req.remainingSessions <= 0}
-                                      className="px-3 py-1.5 bg-gradient-to-r from-purple-600 to-indigo-600 hover:from-purple-700 hover:to-indigo-700 text-white rounded-xl font-black text-xs transition-all shadow-sm flex items-center gap-1 cursor-pointer hover:scale-105 disabled:opacity-50 disabled:cursor-not-allowed"
+                                      className="px-3 py-1.5 bg-gradient-to-r from-purple-600 to-indigo-600 hover:from-purple-500 hover:to-indigo-500 text-white rounded-xl font-black text-xs transition-all shadow-md shadow-purple-900/30 flex items-center gap-1 cursor-pointer hover:scale-105 disabled:opacity-50 disabled:cursor-not-allowed"
                                       title="تسجيل حضور وخصم حصة واحدة من رصيد الطالب"
                                     >
                                       <MinusCircle className="w-3.5 h-3.5" />
@@ -1056,15 +1218,15 @@ export default function AdminSubscriptions() {
 
                                     <button
                                       onClick={() => handleAddCompensationSession(req)}
-                                      className="p-1.5 bg-blue-50 text-blue-600 hover:bg-blue-100 dark:bg-blue-900/30 dark:text-blue-300 rounded-xl font-bold text-xs transition-colors cursor-pointer"
+                                      className="px-2.5 py-1.5 bg-blue-900/30 text-blue-300 hover:bg-blue-800/40 border border-blue-700/40 rounded-xl font-bold text-xs transition-colors cursor-pointer"
                                       title="إضافة حصة تعويضية (+1)"
                                     >
-                                      +1
+                                      +1 تعويض
                                     </button>
 
                                     <button
                                       onClick={() => handleRenewLivePackage(req)}
-                                      className="p-1.5 bg-amber-50 text-amber-700 hover:bg-amber-100 dark:bg-amber-900/30 dark:text-amber-300 rounded-xl font-bold text-xs transition-colors cursor-pointer"
+                                      className="p-1.5 bg-amber-900/30 text-amber-300 hover:bg-amber-800/40 border border-amber-700/40 rounded-xl font-bold text-xs transition-colors cursor-pointer"
                                       title="تجديد الباقة إلى 8 حصص جديدة"
                                     >
                                       <RefreshCw className="w-3.5 h-3.5" />
@@ -1076,7 +1238,7 @@ export default function AdminSubscriptions() {
                                 {req.status === 'expired' && (
                                   <button
                                     onClick={() => handleRenewLivePackage(req)}
-                                    className="px-3.5 py-1.5 bg-gradient-to-r from-amber-500 to-orange-500 hover:from-amber-600 hover:to-orange-600 text-white rounded-xl font-black text-xs transition-all shadow-sm flex items-center gap-1.5 cursor-pointer hover:scale-105"
+                                    className="px-3.5 py-1.5 bg-gradient-to-r from-amber-500 to-orange-500 hover:from-amber-400 hover:to-orange-400 text-slate-950 rounded-xl font-black text-xs transition-all shadow-md shadow-amber-900/30 flex items-center gap-1.5 cursor-pointer hover:scale-105"
                                     title="تجديد باقة الـ 8 حصص وتفعيلها"
                                   >
                                     <RefreshCw className="w-3.5 h-3.5" />
@@ -1089,11 +1251,10 @@ export default function AdminSubscriptions() {
                             {/* -------------------- COURSE CONTROLS -------------------- */}
                             {!isLive && (
                               <>
-                                {/* Extend button for expired or active */}
                                 {(req.status === 'expired' || req.status === 'active') && (
                                   <button
                                     onClick={() => openExtendModal(req)}
-                                    className="px-3 py-1.5 bg-blue-50 text-blue-600 hover:bg-blue-100 dark:bg-blue-900/30 dark:text-blue-300 rounded-xl font-bold text-xs transition-colors flex items-center gap-1 shadow-xs cursor-pointer"
+                                    className="px-3 py-1.5 bg-blue-900/30 text-blue-300 hover:bg-blue-800/40 border border-blue-700/40 rounded-xl font-bold text-xs transition-colors flex items-center gap-1 shadow-xs cursor-pointer"
                                     title="تمديد مدة الكورس"
                                   >
                                     <RefreshCw className="w-3.5 h-3.5" />
@@ -1105,16 +1266,16 @@ export default function AdminSubscriptions() {
                                   value={req.status}
                                   onChange={(e) => handleStatusChange(req, e.target.value)}
                                   className={`px-3 py-1.5 rounded-xl font-bold text-xs transition-all outline-none cursor-pointer text-center appearance-none shadow-xs ${
-                                    req.status === 'active' ? 'bg-emerald-600 text-white hover:bg-emerald-700' :
-                                    req.status === 'expired' ? 'bg-orange-500 text-white hover:bg-orange-600' :
-                                    req.status === 'rejected' ? 'bg-rose-600 text-white hover:bg-rose-700' :
-                                    'bg-blue-600 text-white hover:bg-blue-700'
+                                    req.status === 'active' ? 'bg-emerald-600 text-white' :
+                                    req.status === 'expired' ? 'bg-orange-600 text-white' :
+                                    req.status === 'rejected' ? 'bg-rose-600 text-white' :
+                                    'bg-blue-600 text-white'
                                   }`}
                                 >
-                                  <option value="pending" className="bg-white dark:bg-slate-800 text-blue-600 font-bold">قيد المراجعة ⏱️</option>
-                                  <option value="active" className="bg-white dark:bg-slate-800 text-emerald-600 font-bold">مفعل ✅</option>
-                                  <option value="expired" className="bg-white dark:bg-slate-800 text-orange-600 font-bold">منتهي ⏱️</option>
-                                  <option value="rejected" className="bg-white dark:bg-slate-800 text-rose-600 font-bold">مرفوض ❌</option>
+                                  <option value="pending" className="bg-slate-900 text-blue-400 font-bold">قيد المراجعة ⏱️</option>
+                                  <option value="active" className="bg-slate-900 text-emerald-400 font-bold">مفعل ✅</option>
+                                  <option value="expired" className="bg-slate-900 text-orange-400 font-bold">منتهي ⏱️</option>
+                                  <option value="rejected" className="bg-slate-900 text-rose-400 font-bold">مرفوض ❌</option>
                                 </select>
                               </>
                             )}
@@ -1122,7 +1283,7 @@ export default function AdminSubscriptions() {
                             {/* Delete Button (Unified) */}
                             <button
                               onClick={() => handleDeleteRequest(req)}
-                              className="p-2 bg-rose-50 dark:bg-rose-900/20 text-rose-600 hover:bg-rose-100 dark:hover:bg-rose-900/40 rounded-xl transition-colors shadow-xs cursor-pointer"
+                              className="p-2 bg-slate-950 text-slate-500 hover:text-rose-400 hover:bg-rose-950/30 border border-slate-800 hover:border-rose-900/40 rounded-xl transition-colors cursor-pointer"
                               title="حذف الطلب"
                             >
                               <Trash2 className="w-3.5 h-3.5" />
@@ -1138,16 +1299,28 @@ export default function AdminSubscriptions() {
 
               {/* Empty State */}
               {filteredRequests.length === 0 && (
-                <div className="text-center py-20 bg-gray-50/50 dark:bg-slate-900/30">
-                  <div className="w-20 h-20 rounded-full bg-gray-100 dark:bg-slate-800 flex items-center justify-center mx-auto mb-5 shadow-inner">
-                    <CheckCircle className="w-10 h-10 text-gray-400 dark:text-gray-500" />
+                <div className="text-center py-20 px-4 bg-slate-950/40">
+                  <div className="w-20 h-20 rounded-3xl bg-slate-900 border border-slate-800 flex items-center justify-center mx-auto mb-4 shadow-xl text-slate-400">
+                    <CheckCircle className="w-10 h-10 text-emerald-400" />
                   </div>
-                  <h3 className="text-2xl font-bold text-gray-900 dark:text-white mb-2 font-arabic">
-                    {searchQuery ? 'لا توجد نتائج مطابقة لبحثك' : 'لا توجد طلبات في هذا القسم'}
+                  <h3 className="text-xl font-black text-white mb-2">
+                    {searchQuery ? 'لا توجد نتائج مطابقة لبحثك' : 'لا توجد طلبات في هذا القسم حالياً'}
                   </h3>
-                  <p className="text-gray-500 dark:text-gray-400 text-sm">
-                    {searchQuery ? 'جرب البحث بكلمات أخرى أو مسح حقل البحث' : 'جميع الاشتراكات والطلبات مراجعة ومحدثة أولاً بأول'}
+                  <p className="text-slate-400 text-sm max-w-md mx-auto mb-6">
+                    {searchQuery 
+                      ? 'يرجى التأكد من كتابة الاسم أو رقم المحفظة بشكل صحيح أو مسح حقل البحث'
+                      : filter === 'pending'
+                      ? 'رائع! تم اعتماد ومراجعة جميع طلبات الكورسات وباقات الحصص حتى اللحظة'
+                      : 'يمكنك التبديل بين التبويبات أعلاه لاستعراض الطلبات الأخرى'}
                   </p>
+                  {(searchQuery || filter !== 'all' || typeFilter !== 'all') && (
+                    <button
+                      onClick={() => { setSearchQuery(''); setFilter('all'); setTypeFilter('all'); }}
+                      className="px-5 py-2.5 rounded-full bg-slate-800 hover:bg-slate-700 text-slate-200 text-xs font-bold transition-all border border-slate-700 shadow-md cursor-pointer"
+                    >
+                      إعادة ضبط الفلاتر وعرض الكل
+                    </button>
+                  )}
                 </div>
               )}
             </div>
@@ -1156,52 +1329,50 @@ export default function AdminSubscriptions() {
         </FadeIn>
       </div>
 
-      {/* =========================================================================
-          MODALS
-         ========================================================================= */}
+      {/* ===================== MODALS ===================== */}
 
       {/* 1. Deduct Live Session Modal */}
       {deductModal.isOpen && deductModal.item && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/70 backdrop-blur-sm animate-in fade-in duration-200">
-          <div className="bg-white dark:bg-slate-800 rounded-3xl p-6 sm:p-8 max-w-lg w-full shadow-2xl border border-gray-100 dark:border-slate-700 animate-in zoom-in-95 duration-200">
-            <div className="flex items-center justify-between mb-6 pb-4 border-b border-gray-100 dark:border-slate-700">
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/80 backdrop-blur-md animate-in fade-in duration-200">
+          <div className="bg-slate-900 rounded-3xl p-6 sm:p-8 max-w-lg w-full shadow-2xl border border-slate-800 animate-in zoom-in-95 duration-200">
+            <div className="flex items-center justify-between mb-6 pb-4 border-b border-slate-800">
               <div className="flex items-center gap-3">
-                <div className="w-12 h-12 rounded-2xl bg-purple-50 dark:bg-purple-900/30 text-purple-600 dark:text-purple-400 flex items-center justify-center">
+                <div className="w-12 h-12 rounded-2xl bg-purple-500/20 text-purple-400 flex items-center justify-center border border-purple-500/30">
                   <MinusCircle className="w-6 h-6" />
                 </div>
                 <div>
-                  <h3 className="text-xl font-extrabold text-gray-900 dark:text-white font-arabic">
+                  <h3 className="text-lg font-black text-white">
                     خصم حصة وتسجيل الحضور
                   </h3>
-                  <p className="text-xs text-gray-500 dark:text-gray-400">
-                    تسجيل الحصة المنتهية وإنقاص رصيد باقة الطالب
+                  <p className="text-xs text-slate-400">
+                    تسجيل الحصة المكتملة وإنقاص رصيد باقة الطالب
                   </p>
                 </div>
               </div>
               <button
                 onClick={() => setDeductModal({ isOpen: false, item: null, sessionTitle: '', teacherNotes: '', submitting: false })}
-                className="w-8 h-8 rounded-full bg-gray-100 dark:bg-slate-700 flex items-center justify-center text-gray-400 hover:text-gray-600 dark:hover:text-gray-200"
+                className="w-8 h-8 rounded-full bg-slate-800 flex items-center justify-center text-slate-400 hover:text-white"
               >
                 <X className="w-4 h-4" />
               </button>
             </div>
 
-            {/* Student & Session Balance Preview Card */}
-            <div className="mb-6 p-4 rounded-2xl bg-purple-50/50 dark:bg-purple-950/20 border border-purple-100 dark:border-purple-900/40">
+            {/* Preview Card */}
+            <div className="mb-6 p-4 rounded-2xl bg-purple-950/30 border border-purple-800/40">
               <div className="flex justify-between items-center mb-3">
-                <span className="text-xs font-bold text-gray-600 dark:text-gray-400">الطالب:</span>
-                <span className="text-sm font-black text-purple-900 dark:text-purple-200">
+                <span className="text-xs font-bold text-slate-400">الطالب:</span>
+                <span className="text-sm font-black text-purple-300">
                   {deductModal.item.studentName} ({deductModal.item.gradeName})
                 </span>
               </div>
-              <div className="flex justify-between items-center pt-2 border-t border-purple-200/50 dark:border-purple-800/40">
-                <span className="text-xs font-bold text-gray-600 dark:text-gray-400">رصيد الحصص بعد الخصم:</span>
+              <div className="flex justify-between items-center pt-2 border-t border-purple-800/40">
+                <span className="text-xs font-bold text-slate-400">الرصيد بعد الخصم:</span>
                 <div className="flex items-center gap-2">
-                  <span className="text-sm font-black text-gray-400 line-through">
+                  <span className="text-sm font-black text-slate-500 line-through">
                     {deductModal.item.remainingSessions}
                   </span>
-                  <ArrowRight className="w-3.5 h-3.5 text-purple-600 rtl:rotate-180" />
-                  <span className="text-base font-black text-emerald-600 dark:text-emerald-400">
+                  <ArrowRight className="w-3.5 h-3.5 text-purple-400 rtl:rotate-180" />
+                  <span className="text-base font-black text-emerald-400">
                     {Math.max(0, deductModal.item.remainingSessions - 1)} حصص
                   </span>
                 </div>
@@ -1210,7 +1381,7 @@ export default function AdminSubscriptions() {
 
             <div className="space-y-4 mb-6">
               <div>
-                <label className="block text-xs font-bold text-gray-700 dark:text-gray-300 mb-1.5">
+                <label className="block text-xs font-bold text-slate-300 mb-1.5">
                   عنوان الحصة أو الدرس المشروح:
                 </label>
                 <input
@@ -1218,12 +1389,12 @@ export default function AdminSubscriptions() {
                   value={deductModal.sessionTitle}
                   onChange={(e) => setDeductModal(prev => ({ ...prev, sessionTitle: e.target.value }))}
                   placeholder="مثال: شرح درس النحو + تدريبات تفاعلية"
-                  className="w-full px-4 py-3 bg-gray-50 dark:bg-slate-900 border border-gray-200 dark:border-slate-700 rounded-xl text-sm font-bold outline-none focus:border-purple-500 transition-colors"
+                  className="w-full px-4 py-3 bg-slate-950 border border-slate-800 rounded-xl text-sm font-bold text-white outline-none focus:border-purple-500 transition-colors"
                 />
               </div>
 
               <div>
-                <label className="block text-xs font-bold text-gray-700 dark:text-gray-300 mb-1.5">
+                <label className="block text-xs font-bold text-slate-300 mb-1.5">
                   ملاحظات المعلم وتقييم الطالب في الحصة:
                 </label>
                 <textarea
@@ -1231,7 +1402,7 @@ export default function AdminSubscriptions() {
                   value={deductModal.teacherNotes}
                   onChange={(e) => setDeductModal(prev => ({ ...prev, teacherNotes: e.target.value }))}
                   placeholder="مثال: تم حضور الحصة كاملة وتفاعل ممتاز في الإجابات"
-                  className="w-full px-4 py-3 bg-gray-50 dark:bg-slate-900 border border-gray-200 dark:border-slate-700 rounded-xl text-sm font-bold outline-none focus:border-purple-500 transition-colors resize-none"
+                  className="w-full px-4 py-3 bg-slate-950 border border-slate-800 rounded-xl text-sm font-bold text-white outline-none focus:border-purple-500 transition-colors resize-none"
                 />
               </div>
             </div>
@@ -1240,7 +1411,7 @@ export default function AdminSubscriptions() {
               <button
                 onClick={handleConfirmDeduct}
                 disabled={deductModal.submitting}
-                className="flex-1 py-3 bg-gradient-to-r from-purple-600 to-indigo-600 hover:from-purple-700 hover:to-indigo-700 text-white rounded-xl font-black text-sm transition-all shadow-md flex items-center justify-center gap-2 cursor-pointer disabled:opacity-50"
+                className="flex-1 py-3 bg-gradient-to-r from-purple-600 to-indigo-600 hover:from-purple-500 hover:to-indigo-500 text-white rounded-xl font-black text-sm transition-all shadow-md flex items-center justify-center gap-2 cursor-pointer disabled:opacity-50"
               >
                 {deductModal.submitting ? (
                   <>
@@ -1256,7 +1427,7 @@ export default function AdminSubscriptions() {
               </button>
               <button
                 onClick={() => setDeductModal({ isOpen: false, item: null, sessionTitle: '', teacherNotes: '', submitting: false })}
-                className="px-5 py-3 bg-gray-100 hover:bg-gray-200 dark:bg-slate-700 dark:hover:bg-slate-600 text-gray-700 dark:text-gray-300 rounded-xl font-bold text-sm transition-colors cursor-pointer"
+                className="px-5 py-3 bg-slate-800 hover:bg-slate-700 text-slate-300 rounded-xl font-bold text-sm transition-colors cursor-pointer"
               >
                 إلغاء
               </button>
@@ -1265,39 +1436,39 @@ export default function AdminSubscriptions() {
         </div>
       )}
 
-      {/* 2. Receipt Preview Modal */}
+      {/* 2. Receipt Modal with Full HD Zoom */}
       {selectedReceipt && (
         <div 
-          className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/85 backdrop-blur-sm" 
+          className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/90 backdrop-blur-md" 
           onClick={() => { setSelectedReceipt(null); setZoomLevel(1); }}
         >
           <div className="relative max-w-4xl w-full h-[90vh] flex flex-col items-center justify-center" onClick={e => e.stopPropagation()}>
-            <div className="absolute top-4 right-4 flex items-center gap-3 z-50 bg-black/60 p-2 rounded-2xl backdrop-blur-md border border-white/10">
+            <div className="absolute top-4 right-4 flex items-center gap-3 z-50 bg-slate-900/90 p-2 rounded-2xl backdrop-blur-md border border-slate-800">
               <button 
                 onClick={() => setZoomLevel(prev => Math.min(prev + 0.5, 4))}
-                className="w-10 h-10 bg-white/10 hover:bg-white/20 text-white rounded-xl flex items-center justify-center transition-colors cursor-pointer"
+                className="w-10 h-10 bg-slate-800 hover:bg-slate-700 text-white rounded-xl flex items-center justify-center transition-colors cursor-pointer"
                 title="تكبير"
               >
                 <ZoomIn className="w-5 h-5" />
               </button>
               <button 
                 onClick={() => setZoomLevel(prev => Math.max(prev - 0.5, 0.5))}
-                className="w-10 h-10 bg-white/10 hover:bg-white/20 text-white rounded-xl flex items-center justify-center transition-colors cursor-pointer"
+                className="w-10 h-10 bg-slate-800 hover:bg-slate-700 text-white rounded-xl flex items-center justify-center transition-colors cursor-pointer"
                 title="تصغير"
               >
                 <ZoomOut className="w-5 h-5" />
               </button>
               <button 
                 onClick={() => setZoomLevel(1)}
-                className="w-10 h-10 bg-white/10 hover:bg-white/20 text-white rounded-xl flex items-center justify-center transition-colors cursor-pointer"
+                className="w-10 h-10 bg-slate-800 hover:bg-slate-700 text-white rounded-xl flex items-center justify-center transition-colors cursor-pointer"
                 title="إعادة الضبط"
               >
                 <RotateCcw className="w-5 h-5" />
               </button>
-              <div className="w-px h-6 bg-white/20 mx-1"></div>
+              <div className="w-px h-6 bg-slate-700 mx-1"></div>
               <button 
                 onClick={() => { setSelectedReceipt(null); setZoomLevel(1); }}
-                className="w-10 h-10 bg-red-500/30 hover:bg-red-500/50 text-red-200 rounded-xl flex items-center justify-center transition-colors cursor-pointer"
+                className="w-10 h-10 bg-rose-500/20 hover:bg-rose-500/30 text-rose-300 rounded-xl flex items-center justify-center transition-colors cursor-pointer"
                 title="إغلاق"
               >
                 <X className="w-6 h-6" />
@@ -1316,25 +1487,25 @@ export default function AdminSubscriptions() {
         </div>
       )}
 
-      {/* 3. Extend Course Subscription Modal */}
+      {/* 3. Extend Course Modal */}
       {extendModalConfig.isOpen && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/60 backdrop-blur-sm animate-in fade-in duration-200">
-          <div className="bg-white dark:bg-slate-800 rounded-3xl p-6 sm:p-8 max-w-md w-full shadow-2xl border border-gray-100 dark:border-slate-700 animate-in zoom-in-95 duration-200">
-            <div className="w-14 h-14 rounded-2xl bg-blue-50 dark:bg-blue-900/30 text-blue-600 dark:text-blue-400 flex items-center justify-center mx-auto mb-4">
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/80 backdrop-blur-md animate-in fade-in duration-200">
+          <div className="bg-slate-900 rounded-3xl p-6 sm:p-8 max-w-md w-full shadow-2xl border border-slate-800 animate-in zoom-in-95 duration-200">
+            <div className="w-14 h-14 rounded-2xl bg-blue-500/20 text-blue-400 flex items-center justify-center mx-auto mb-4 border border-blue-500/30">
               <RefreshCw className="w-7 h-7" />
             </div>
             
-            <h3 className="text-xl font-extrabold text-gray-900 dark:text-white font-arabic text-center mb-2">
-              {t('admin_subs_extend_title') || 'تمديد صلاحية الكورس'}
+            <h3 className="text-xl font-black text-white text-center mb-2">
+              تمديد صلاحية الكورس
             </h3>
             
-            <p className="text-sm text-gray-500 dark:text-gray-400 text-center mb-6">
-              تمديد صلاحية كورس الطالب <span className="font-bold text-gray-900 dark:text-white">({extendModalConfig.studentName})</span>
+            <p className="text-sm text-slate-400 text-center mb-6">
+              تمديد صلاحية كورس الطالب <span className="font-bold text-white">({extendModalConfig.studentName})</span>
             </p>
 
             <div className="mb-6">
-              <label className="block text-sm font-bold text-gray-700 dark:text-gray-300 mb-2">
-                {t('admin_subs_extend_desc') || 'أدخل عدد الأيام الإضافية:'}
+              <label className="block text-sm font-bold text-slate-300 mb-2">
+                عدد الأيام الإضافية:
               </label>
               <div className="flex items-center gap-3">
                 <input 
@@ -1343,9 +1514,9 @@ export default function AdminSubscriptions() {
                   max="365"
                   value={customDays}
                   onChange={(e) => setCustomDays(Math.max(1, parseInt(e.target.value) || 1))}
-                  className="w-full px-4 py-3 bg-gray-50 dark:bg-slate-900 border border-gray-200 dark:border-slate-700 rounded-xl font-bold text-center text-lg outline-none focus:border-blue-500 transition-colors"
+                  className="w-full px-4 py-3 bg-slate-950 border border-slate-800 rounded-xl font-bold text-center text-lg text-white outline-none focus:border-blue-500 transition-colors"
                 />
-                <span className="text-gray-500 font-bold whitespace-nowrap">يوم</span>
+                <span className="text-slate-400 font-bold whitespace-nowrap">يوم</span>
               </div>
               <div className="flex gap-2 mt-3">
                 {[2, 7, 15, 30, 60].map(d => (
@@ -1356,7 +1527,7 @@ export default function AdminSubscriptions() {
                     className={`flex-1 py-1.5 rounded-lg text-xs font-bold border transition-colors cursor-pointer ${
                       customDays === d 
                         ? 'bg-blue-600 text-white border-blue-600' 
-                        : 'bg-gray-100 dark:bg-slate-700 text-gray-700 dark:text-gray-300 border-gray-200 dark:border-slate-600 hover:bg-gray-200'
+                        : 'bg-slate-800 text-slate-300 border-slate-700 hover:bg-slate-700'
                     }`}
                   >
                     {d} يوم
@@ -1368,13 +1539,13 @@ export default function AdminSubscriptions() {
             <div className="flex gap-3">
               <button
                 onClick={confirmExtend}
-                className="flex-1 py-3 bg-blue-600 hover:bg-blue-700 text-white rounded-xl font-bold transition-colors shadow-md cursor-pointer"
+                className="flex-1 py-3 bg-blue-600 hover:bg-blue-500 text-white rounded-xl font-black transition-colors shadow-md cursor-pointer"
               >
-                {t('admin_subs_extend_btn') || 'تأكيد التمديد'}
+                تأكيد التمديد
               </button>
               <button
                 onClick={() => setExtendModalConfig({ isOpen: false, requestId: null, studentName: '', currentDays: 30 })}
-                className="px-6 py-3 bg-gray-100 hover:bg-gray-200 dark:bg-slate-700 dark:hover:bg-slate-600 text-gray-700 dark:text-gray-300 rounded-xl font-bold transition-colors cursor-pointer"
+                className="px-6 py-3 bg-slate-800 hover:bg-slate-700 text-slate-300 rounded-xl font-bold transition-colors cursor-pointer"
               >
                 إلغاء
               </button>
@@ -1388,10 +1559,10 @@ export default function AdminSubscriptions() {
         isOpen={deleteConfig.isOpen}
         onClose={() => setDeleteConfig({ isOpen: false, requestId: null, itemType: 'course', studentName: '' })}
         onConfirm={confirmDelete}
-        title={t('admin_subs_delete_title') || 'حذف سجل الطلب'}
+        title="حذف سجل الطلب"
         message={`هل أنت متأكد من حذف طلب الطالب (${deleteConfig.studentName}) نهائياً؟`}
-        confirmText={t('admin_subs_btn_delete') || 'نعم، حذف'}
-        cancelText={t('common_cancel') || 'إلغاء'}
+        confirmText="نعم، حذف الطلب"
+        cancelText="إلغاء"
         isDanger={true}
       />
 

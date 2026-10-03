@@ -95,6 +95,7 @@ export default function AdminLiveSessions() {
   const [historyStudentFilter, setHistoryStudentFilter] = useState('all');
   const [historyMonthFilter, setHistoryMonthFilter] = useState('all');
   const [deleteCompletedModal, setDeleteCompletedModal] = useState({ isOpen: false, id: null });
+  const [historyViewMode, setHistoryViewMode] = useState('cards'); // 'cards' | 'table'
 
   // Dynamic list of students for History filtering
   // Dynamic list of students for History filtering (All registered platform students)
@@ -2089,6 +2090,27 @@ export default function AdminLiveSessions() {
                 </div>
               </div>
 
+              {/* Summary Metrics Cards */}
+              <div className="grid grid-cols-1 sm:grid-cols-3 gap-4 mb-6">
+                <div className="p-4 rounded-2xl bg-purple-50 dark:bg-purple-950/20 border border-purple-100 dark:border-purple-900/30">
+                  <span className="text-xs font-bold text-purple-600 dark:text-purple-400 block mb-1">إجمالي الحصص المكتملة</span>
+                  <span className="text-2xl font-black text-gray-900 dark:text-white">{completedSessions.length} حصة</span>
+                </div>
+                <div className="p-4 rounded-2xl bg-blue-50 dark:bg-blue-950/20 border border-blue-100 dark:border-blue-900/30">
+                  <span className="text-xs font-bold text-blue-600 dark:text-blue-400 block mb-1">الطلاب المسجل لهم حضور</span>
+                  <span className="text-2xl font-black text-gray-900 dark:text-white">
+                    {new Set(completedSessions.filter(c => c.student_name).map(c => c.student_name)).size} طلاب
+                  </span>
+                </div>
+                <div className="p-4 rounded-2xl bg-emerald-50 dark:bg-emerald-950/20 border border-emerald-100 dark:border-emerald-900/30">
+                  <span className="text-xs font-bold text-emerald-600 dark:text-emerald-400 block mb-1">حالة المزامنة المباشرة</span>
+                  <span className="text-base font-black text-emerald-700 dark:text-emerald-400 flex items-center gap-1.5 mt-1">
+                    <span className="w-2.5 h-2.5 rounded-full bg-emerald-500 animate-pulse"></span>
+                    متزامنة لحظياً مع الطلاب ✅
+                  </span>
+                </div>
+              </div>
+
               {/* Multi-Filter Bar: Search + Grade + Student + Month */}
               <div className="bg-gray-50 dark:bg-slate-900/60 p-4 md:p-5 rounded-2xl border border-gray-100 dark:border-slate-700/80 mb-6 space-y-4">
                 <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3">
@@ -2191,19 +2213,49 @@ export default function AdminLiveSessions() {
                     )}
                   </div>
 
-                  {(historyGradeFilter !== 'all' || historyStudentFilter !== 'all' || historyMonthFilter !== 'all' || completedSearch.trim()) && (
-                    <button
-                      onClick={() => {
-                        setHistoryGradeFilter('all');
-                        setHistoryStudentFilter('all');
-                        setHistoryMonthFilter('all');
-                        setCompletedSearch('');
-                      }}
-                      className="px-3.5 py-2 rounded-xl bg-gray-200 hover:bg-gray-300 dark:bg-slate-700 dark:hover:bg-slate-600 text-gray-800 dark:text-gray-200 font-bold text-xs transition-colors cursor-pointer"
-                    >
-                      إعادة ضبط الفلاتر
-                    </button>
-                  )}
+                  <div className="flex items-center gap-2 flex-wrap">
+                    {/* View Switcher: Cards vs Table */}
+                    <div className="flex items-center bg-gray-200/80 dark:bg-slate-800 p-1 rounded-xl border border-gray-300/60 dark:border-slate-700">
+                      <button
+                        type="button"
+                        onClick={() => setHistoryViewMode('cards')}
+                        className={`px-3 py-1.5 rounded-lg text-xs font-bold transition-all cursor-pointer ${
+                          historyViewMode === 'cards'
+                            ? 'bg-white dark:bg-slate-700 text-purple-700 dark:text-purple-300 shadow-xs font-black'
+                            : 'text-gray-600 dark:text-gray-400 hover:text-gray-900 dark:hover:text-white'
+                        }`}
+                        title="عرض كبطاقات تفصيلية مطابقة لشاشة الطالب"
+                      >
+                        🗂️ بطاقات تفصيلية
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => setHistoryViewMode('table')}
+                        className={`px-3 py-1.5 rounded-lg text-xs font-bold transition-all cursor-pointer ${
+                          historyViewMode === 'table'
+                            ? 'bg-white dark:bg-slate-700 text-purple-700 dark:text-purple-300 shadow-xs font-black'
+                            : 'text-gray-600 dark:text-gray-400 hover:text-gray-900 dark:hover:text-white'
+                        }`}
+                        title="عرض كجدول بيانات مضغوط"
+                      >
+                        📊 جدول مضغوط
+                      </button>
+                    </div>
+
+                    {(historyGradeFilter !== 'all' || historyStudentFilter !== 'all' || historyMonthFilter !== 'all' || completedSearch.trim()) && (
+                      <button
+                        onClick={() => {
+                          setHistoryGradeFilter('all');
+                          setHistoryStudentFilter('all');
+                          setHistoryMonthFilter('all');
+                          setCompletedSearch('');
+                        }}
+                        className="px-3.5 py-2 rounded-xl bg-gray-200 hover:bg-gray-300 dark:bg-slate-700 dark:hover:bg-slate-600 text-gray-800 dark:text-gray-200 font-bold text-xs transition-colors cursor-pointer"
+                      >
+                        إعادة ضبط الفلاتر
+                      </button>
+                    )}
+                  </div>
                 </div>
               </div>
 
@@ -2234,7 +2286,84 @@ export default function AdminLiveSessions() {
                     إعادة ضبط الفلاتر وعرض الكل
                   </button>
                 </div>
+              ) : historyViewMode === 'cards' ? (
+                /* ==================== CARD VIEW (IDENTICAL TO STUDENT VIEW) ==================== */
+                <div className="space-y-3">
+                  {filteredCompletedSessions.map(item => {
+                    const dateObj = new Date(item.completed_at || item.created_at);
+                    const formattedDate = !isNaN(dateObj.getTime())
+                      ? dateObj.toLocaleDateString('ar-EG', { weekday: 'long', year: 'numeric', month: 'short', day: 'numeric' })
+                      : '-';
+                    const formattedTime = !isNaN(dateObj.getTime())
+                      ? dateObj.toLocaleTimeString('ar-EG', { hour: '2-digit', minute: '2-digit' })
+                      : '';
+
+                    return (
+                      <div 
+                        key={item.id}
+                        className="p-5 rounded-2xl border border-gray-100 dark:border-slate-700 bg-white dark:bg-slate-900/60 shadow-xs hover:border-purple-300 dark:hover:border-purple-700 transition-all flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4"
+                      >
+                        <div className="space-y-2 flex-1 min-w-0">
+                          <div className="flex items-center gap-2 flex-wrap">
+                            <h4 className="font-black text-base text-gray-900 dark:text-white">
+                              {item.session_title || 'حصة أونلاين مباشرة'}
+                            </h4>
+                            <span className="px-2.5 py-0.5 rounded-full text-[11px] font-bold bg-green-100 text-green-700 dark:bg-green-950/50 dark:text-green-300 inline-flex items-center gap-1">
+                              <CheckCircle2 className="w-3 h-3" />
+                              مكتملة ومحسوبة
+                            </span>
+                            {item.student_name && (
+                              <span className="px-2.5 py-0.5 rounded-full text-[11px] font-black bg-blue-100 text-blue-800 dark:bg-blue-950/60 dark:text-blue-300 inline-flex items-center gap-1 border border-blue-200 dark:border-blue-800/40">
+                                👤 {item.student_name}
+                              </span>
+                            )}
+                          </div>
+
+                          <div className="flex items-center gap-3 text-xs text-gray-500 dark:text-gray-400 font-bold flex-wrap">
+                            <span className="flex items-center gap-1">
+                              <Calendar className="w-3.5 h-3.5 text-purple-500" />
+                              {formattedDate}
+                            </span>
+                            <span>•</span>
+                            <span className="flex items-center gap-1">
+                              <Clock className="w-3.5 h-3.5 text-blue-500" />
+                              {formattedTime}
+                            </span>
+                            {item.grade_level && (
+                              <>
+                                <span>•</span>
+                                <span className="px-2 py-0.5 rounded-md bg-slate-100 dark:bg-slate-800 text-slate-700 dark:text-slate-300">
+                                  {formatGradeName(item.grade_level)}
+                                </span>
+                              </>
+                            )}
+                          </div>
+
+                          {item.teacher_notes && (
+                            <div className="text-xs text-gray-700 dark:text-gray-300 bg-gray-50 dark:bg-slate-800/70 p-2.5 rounded-xl font-medium border border-gray-100 dark:border-slate-700/60 mt-1 inline-block max-w-full">
+                              📝 <span className="font-bold">ملاحظات:</span> {item.teacher_notes}
+                            </div>
+                          )}
+                        </div>
+
+                        <div className="flex items-center gap-2.5 shrink-0 self-end sm:self-center">
+                          <span className="px-3 py-1.5 rounded-xl bg-purple-50 dark:bg-purple-950/40 text-purple-700 dark:text-purple-300 text-xs font-black border border-purple-200 dark:border-purple-800/50">
+                            -1 حصة من الباقة
+                          </span>
+                          <button
+                            onClick={() => setDeleteCompletedModal({ isOpen: true, id: item.id })}
+                            className="p-2 rounded-xl text-red-500 hover:text-white hover:bg-red-600 bg-red-50 dark:bg-red-950/40 border border-red-200 dark:border-red-900/50 transition-all cursor-pointer shadow-xs"
+                            title="حذف هذا السجل من قائمة الحصص المكتملة"
+                          >
+                            <Trash2 className="w-4 h-4" />
+                          </button>
+                        </div>
+                      </div>
+                    );
+                  })}
+                </div>
               ) : (
+                /* ==================== CONDENSED TABLE VIEW ==================== */
                 <div className="overflow-x-auto">
                   <table className="w-full text-right text-sm">
                     <thead>

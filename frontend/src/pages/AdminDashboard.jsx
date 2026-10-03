@@ -361,7 +361,7 @@ export default function AdminDashboard() {
   }
 
   return (
-    <div className="min-h-screen bg-[#F8FAFC] dark:bg-[#0F172A] pb-16 font-arabic selection:bg-blue-500/30">
+    <div className="min-h-screen bg-[#F8FAFC] dark:bg-[#0F172A] pb-16 font-arabic">
       
       {/* High-End Header */}
       <div className="bg-gradient-to-br from-blue-900 via-slate-900 to-indigo-950 pt-24 pb-32 px-4 sm:px-6 lg:px-8 relative overflow-hidden shadow-2xl">

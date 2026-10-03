@@ -1599,7 +1599,7 @@ export default function AdminLiveSessions() {
   };
 
   return (
-    <div className="min-h-screen bg-gray-50 dark:bg-slate-900 pb-16 font-arabic selection:bg-blue-500/30">
+    <div className="min-h-screen bg-gray-50 dark:bg-slate-900 pb-16 font-arabic">
       
       {/* High-End Header */}
       <div className="bg-gradient-to-r from-blue-900 via-indigo-900 to-slate-900 pt-20 pb-28 px-4 sm:px-6 lg:px-8 relative overflow-hidden shadow-xl">
@@ -2517,7 +2517,7 @@ export default function AdminLiveSessions() {
                           : '';
 
                         return (
-                          <tr key={item.id} className="hover:bg-gray-50/50 dark:hover:bg-slate-750 transition-colors">
+                          <tr key={item.id} className="hover:bg-purple-50/60 dark:hover:bg-slate-800/80 transition-all duration-150">
                             <td className="py-4 px-4">
                               <div className="font-bold text-gray-900 dark:text-white flex items-center gap-1.5">
                                 <Calendar className="w-3.5 h-3.5 text-purple-500 shrink-0" />
@@ -2709,7 +2709,7 @@ export default function AdminLiveSessions() {
                       </thead>
                       <tbody className="divide-y divide-gray-100 dark:divide-slate-700">
                         {trialRequests.map(req => (
-                          <tr key={req.id} className="hover:bg-gray-50/50 dark:hover:bg-slate-750 transition-colors">
+                          <tr key={req.id} className="hover:bg-blue-50/60 dark:hover:bg-slate-800/80 transition-all duration-150">
                             <td className="py-3 px-4 font-bold text-gray-900 dark:text-white">
                               {req.student_name || 'طالب تجريبي'}
                             </td>

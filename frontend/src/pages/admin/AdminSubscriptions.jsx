@@ -754,7 +754,7 @@ export default function AdminSubscriptions() {
   }
 
   return (
-    <div className="min-h-screen bg-slate-950 text-slate-100 pb-20 selection:bg-blue-600 selection:text-white font-arabic">
+    <div className="min-h-screen bg-slate-950 text-slate-100 pb-20 font-arabic">
       
       {/* ===================== HERO HEADER ===================== */}
       <div className="relative pt-10 pb-24 px-4 sm:px-6 lg:px-8 overflow-hidden bg-gradient-to-b from-blue-950 via-slate-900 to-slate-950 border-b border-slate-800/80 shadow-2xl">

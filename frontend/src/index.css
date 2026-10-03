@@ -32,13 +32,71 @@
     overflow-x: hidden;
   }
   body {
-    @apply antialiased text-gray-900 bg-gray-50 dark:bg-slate-900 dark:text-gray-100 selection:bg-blue-600 selection:text-white;
+    @apply antialiased text-gray-900 bg-gray-50 dark:bg-slate-900 dark:text-gray-100;
     overflow-x: hidden;
     -webkit-tap-highlight-color: transparent;
   }
-  .dark body {
-    @apply selection:bg-blue-500 selection:text-white;
-  }
+}
+
+/* ==========================================================================
+   Universal High-Definition Selection Highlight (Everywhere Across Platform)
+   ========================================================================== */
+::selection,
+*::selection {
+  background-color: #2563eb !important; /* Rich Royal Blue */
+  color: #ffffff !important;           /* Crisp Pure White */
+  text-shadow: none !important;
+}
+
+::-moz-selection,
+*::-moz-selection {
+  background-color: #2563eb !important;
+  color: #ffffff !important;
+  text-shadow: none !important;
+}
+
+.dark ::selection,
+.dark *::selection,
+html.dark ::selection,
+html.dark *::selection {
+  background-color: #3b82f6 !important; /* Vibrant High-Contrast Blue */
+  color: #ffffff !important;           /* Crisp Pure White */
+  text-shadow: none !important;
+}
+
+.dark ::-moz-selection,
+.dark *::-moz-selection,
+html.dark ::-moz-selection,
+html.dark *::-moz-selection {
+  background-color: #3b82f6 !important;
+  color: #ffffff !important;
+  text-shadow: none !important;
+}
+
+/* Form Controls & Inputs Highlight */
+input::selection,
+textarea::selection {
+  background-color: #2563eb !important;
+  color: #ffffff !important;
+}
+.dark input::selection,
+.dark textarea::selection,
+html.dark input::selection,
+html.dark textarea::selection {
+  background-color: #3b82f6 !important;
+  color: #ffffff !important;
+}
+
+/* Prevent icons and buttons from awkward selection smears */
+button,
+svg {
+  user-select: none;
+  -webkit-user-select: none;
+}
+
+/* Modern, smooth table rows hover and highlight */
+tr {
+  transition: background-color 0.15s ease-in-out, border-color 0.15s ease-in-out;
 }
 
 /* Mobile Friendly Utilities */

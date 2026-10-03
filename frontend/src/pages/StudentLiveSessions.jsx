@@ -632,7 +632,7 @@ export default function StudentLiveSessions() {
   });
 
   return (
-    <div className="min-h-screen bg-gray-50 dark:bg-slate-900 pb-16 pt-24 font-arabic selection:bg-blue-500/30">
+    <div className="min-h-screen bg-gray-50 dark:bg-slate-900 pb-16 pt-24 font-arabic">
       <div className="max-w-6xl mx-auto px-4 sm:px-6 lg:px-8">
 
         <div className="mb-6 flex justify-start">
@@ -1459,7 +1459,7 @@ export default function StudentLiveSessions() {
                 </div>
               )}
               {myTrialRequest?.status === 'rejected' && (
-                <div className="mb-6 p-4 rounded-2xl bg-gray-50 dark:bg-slate-900/50 border border-gray-200 dark:border-slate-750 text-gray-700 dark:text-gray-300 flex items-center gap-2.5">
+                <div className="mb-6 p-4 rounded-2xl bg-gray-50 dark:bg-slate-900/50 border border-gray-200 dark:border-slate-700 text-gray-700 dark:text-gray-300 flex items-center gap-2.5">
                   <Info className="w-5 h-5 text-gray-400 shrink-0" />
                   <span className="text-xs font-bold">شكراً لحضورك الحصة التجريبية. تم تسجيل قرار المعلم، ونتمنى لك دوام التوفيق والنجاح دائماً في رحلتك التعليمية.</span>
                 </div>

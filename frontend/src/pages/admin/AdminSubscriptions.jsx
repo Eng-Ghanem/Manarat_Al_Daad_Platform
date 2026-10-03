@@ -704,12 +704,13 @@ export default function AdminSubscriptions() {
             
             {/* Metric 1: Pending */}
             <div 
-              onClick={() => { setFilter('pending'); }}
+              onClick={() => { setFilter(prev => prev === 'pending' ? 'all' : 'pending'); }}
               className={`p-5 rounded-3xl cursor-pointer transition-all duration-300 border relative overflow-hidden group shadow-lg ${
                 filter === 'pending'
                   ? 'bg-amber-950/40 border-amber-500/80 shadow-amber-500/10 ring-2 ring-amber-500/30'
                   : 'bg-slate-900/90 hover:bg-slate-900 border-slate-800 hover:border-amber-500/40'
               }`}
+              title="تصفية حسب الطلبات قيد المراجعة"
             >
               <div className="flex items-center justify-between mb-3">
                 <div className="w-11 h-11 rounded-2xl bg-amber-500/10 border border-amber-500/20 flex items-center justify-center text-amber-400 group-hover:scale-110 transition-transform">
@@ -733,18 +734,21 @@ export default function AdminSubscriptions() {
 
             {/* Metric 2: Live Packages */}
             <div 
-              onClick={() => { setTypeFilter('live'); }}
+              onClick={() => { setTypeFilter(prev => prev === 'live' ? 'all' : 'live'); }}
               className={`p-5 rounded-3xl cursor-pointer transition-all duration-300 border relative overflow-hidden group shadow-lg ${
                 typeFilter === 'live'
                   ? 'bg-purple-950/40 border-purple-500/80 shadow-purple-500/10 ring-2 ring-purple-500/30'
                   : 'bg-slate-900/90 hover:bg-slate-900 border-slate-800 hover:border-purple-500/40'
               }`}
+              title="تصفية حسب باقات الـ 8 حصص زووم"
             >
               <div className="flex items-center justify-between mb-3">
                 <div className="w-11 h-11 rounded-2xl bg-purple-500/10 border border-purple-500/20 flex items-center justify-center text-purple-400 group-hover:scale-110 transition-transform">
                   <Video className="w-5 h-5" />
                 </div>
-                <span className="px-2.5 py-0.5 rounded-full text-xs font-bold bg-purple-900/40 text-purple-300 border border-purple-500/20">
+                <span className={`px-2.5 py-0.5 rounded-full text-xs font-bold border transition-colors ${
+                  typeFilter === 'live' ? 'bg-purple-600 text-white border-purple-400 font-black' : 'bg-purple-900/40 text-purple-300 border-purple-500/20'
+                }`}>
                   باقة زووم
                 </span>
               </div>
@@ -756,18 +760,21 @@ export default function AdminSubscriptions() {
 
             {/* Metric 3: Recorded Courses */}
             <div 
-              onClick={() => { setTypeFilter('courses'); }}
+              onClick={() => { setTypeFilter(prev => prev === 'courses' ? 'all' : 'courses'); }}
               className={`p-5 rounded-3xl cursor-pointer transition-all duration-300 border relative overflow-hidden group shadow-lg ${
                 typeFilter === 'courses'
                   ? 'bg-blue-950/40 border-blue-500/80 shadow-blue-500/10 ring-2 ring-blue-500/30'
                   : 'bg-slate-900/90 hover:bg-slate-900 border-slate-800 hover:border-blue-500/40'
               }`}
+              title="تصفية حسب الكورسات المسجلة"
             >
               <div className="flex items-center justify-between mb-3">
                 <div className="w-11 h-11 rounded-2xl bg-blue-500/10 border border-blue-500/20 flex items-center justify-center text-blue-400 group-hover:scale-110 transition-transform">
                   <BookOpen className="w-5 h-5" />
                 </div>
-                <span className="px-2.5 py-0.5 rounded-full text-xs font-bold bg-blue-900/40 text-blue-300 border border-blue-500/20">
+                <span className={`px-2.5 py-0.5 rounded-full text-xs font-bold border transition-colors ${
+                  typeFilter === 'courses' ? 'bg-blue-600 text-white border-blue-400 font-black' : 'bg-blue-900/40 text-blue-300 border-blue-500/20'
+                }`}>
                   فيديوهات
                 </span>
               </div>
@@ -779,12 +786,13 @@ export default function AdminSubscriptions() {
 
             {/* Metric 4: Active */}
             <div 
-              onClick={() => { setFilter('active'); }}
+              onClick={() => { setFilter(prev => prev === 'active' ? 'all' : 'active'); }}
               className={`p-5 rounded-3xl cursor-pointer transition-all duration-300 border relative overflow-hidden group shadow-lg ${
                 filter === 'active'
                   ? 'bg-emerald-950/40 border-emerald-500/80 shadow-emerald-500/10 ring-2 ring-emerald-500/30'
                   : 'bg-slate-900/90 hover:bg-slate-900 border-slate-800 hover:border-emerald-500/40'
               }`}
+              title="تصفية حسب الاشتراكات المفعلة السارية"
             >
               <div className="flex items-center justify-between mb-3">
                 <div className="w-11 h-11 rounded-2xl bg-emerald-500/10 border border-emerald-500/20 flex items-center justify-center text-emerald-400 group-hover:scale-110 transition-transform">
@@ -808,93 +816,138 @@ export default function AdminSubscriptions() {
           <div className="bg-slate-900/95 rounded-3xl border border-slate-800 shadow-2xl overflow-hidden backdrop-blur-xl">
 
             {/* Simplified Elegant Controls Bar */}
-            <div className="p-4 sm:p-5 bg-slate-900/90 border-b border-slate-800 flex flex-col gap-4">
+            <div className="p-4 sm:p-5 bg-slate-900/90 border-b border-slate-800 flex flex-col md:flex-row md:items-center justify-between gap-4">
 
-              {/* Row 1: Status Tabs (Right) & Search Bar (Left) */}
-              <div className="flex flex-col md:flex-row md:items-center justify-between gap-3">
-                
-                {/* Status Tabs */}
-                <div className="flex flex-wrap items-center gap-1.5 p-1 bg-slate-950/90 rounded-2xl border border-slate-800">
-                  <button
-                    onClick={() => setFilter('pending')}
-                    className={`flex items-center gap-2 px-3.5 py-1.5 rounded-xl text-xs sm:text-sm font-bold transition-all cursor-pointer ${
-                      filter === 'pending'
-                        ? 'bg-amber-500 text-slate-950 font-black shadow-md shadow-amber-500/20'
-                        : 'text-amber-400 hover:bg-amber-500/10'
-                    }`}
-                  >
-                    <Clock className="w-3.5 h-3.5" />
-                    <span>قيد المراجعة</span>
-                    <span className={`px-2 py-0.5 rounded-full text-[11px] font-black ${
-                      filter === 'pending' ? 'bg-slate-950 text-amber-400' : 'bg-amber-500/20 text-amber-300'
-                    }`}>
-                      {pendingCount}
-                    </span>
-                  </button>
+              {/* Status Tabs */}
+              <div className="flex flex-wrap items-center gap-1.5 p-1 bg-slate-950/90 rounded-2xl border border-slate-800">
+                <button
+                  onClick={() => setFilter('pending')}
+                  className={`flex items-center gap-2 px-3.5 py-1.5 rounded-xl text-xs sm:text-sm font-bold transition-all cursor-pointer ${
+                    filter === 'pending'
+                      ? 'bg-amber-500 text-slate-950 font-black shadow-md shadow-amber-500/20'
+                      : 'text-amber-400 hover:bg-amber-500/10'
+                  }`}
+                >
+                  <Clock className="w-3.5 h-3.5" />
+                  <span>قيد المراجعة</span>
+                  <span className={`px-2 py-0.5 rounded-full text-[11px] font-black ${
+                    filter === 'pending' ? 'bg-slate-950 text-amber-400' : 'bg-amber-500/20 text-amber-300'
+                  }`}>
+                    {pendingCount}
+                  </span>
+                </button>
 
-                  <button
-                    onClick={() => setFilter('active')}
-                    className={`flex items-center gap-2 px-3.5 py-1.5 rounded-xl text-xs sm:text-sm font-bold transition-all cursor-pointer ${
-                      filter === 'active'
-                        ? 'bg-emerald-600 text-white font-black shadow-md shadow-emerald-600/20'
-                        : 'text-emerald-400 hover:bg-emerald-500/10'
-                    }`}
-                  >
-                    <CheckCircle2 className="w-3.5 h-3.5" />
-                    <span>المفعلة السارية</span>
-                    <span className={`px-2 py-0.5 rounded-full text-[11px] font-black ${
-                      filter === 'active' ? 'bg-slate-950 text-emerald-400' : 'bg-emerald-500/20 text-emerald-300'
-                    }`}>
-                      {activeCount}
-                    </span>
-                  </button>
+                <button
+                  onClick={() => setFilter('active')}
+                  className={`flex items-center gap-2 px-3.5 py-1.5 rounded-xl text-xs sm:text-sm font-bold transition-all cursor-pointer ${
+                    filter === 'active'
+                      ? 'bg-emerald-600 text-white font-black shadow-md shadow-emerald-600/20'
+                      : 'text-emerald-400 hover:bg-emerald-500/10'
+                  }`}
+                >
+                  <CheckCircle2 className="w-3.5 h-3.5" />
+                  <span>المفعلة السارية</span>
+                  <span className={`px-2 py-0.5 rounded-full text-[11px] font-black ${
+                    filter === 'active' ? 'bg-slate-950 text-emerald-400' : 'bg-emerald-500/20 text-emerald-300'
+                  }`}>
+                    {activeCount}
+                  </span>
+                </button>
 
-                  <button
-                    onClick={() => setFilter('expired')}
-                    className={`flex items-center gap-2 px-3.5 py-1.5 rounded-xl text-xs sm:text-sm font-bold transition-all cursor-pointer ${
-                      filter === 'expired'
-                        ? 'bg-rose-500 text-white font-black shadow-md shadow-rose-500/20'
-                        : 'text-rose-400 hover:bg-rose-500/10'
-                    }`}
-                  >
-                    <AlertTriangle className="w-3.5 h-3.5" />
-                    <span>المنتهية</span>
-                    <span className={`px-2 py-0.5 rounded-full text-[11px] font-black ${
-                      filter === 'expired' ? 'bg-slate-950 text-rose-300' : 'bg-rose-500/20 text-rose-300'
-                    }`}>
-                      {expiredCount}
-                    </span>
-                  </button>
+                <button
+                  onClick={() => setFilter('expired')}
+                  className={`flex items-center gap-2 px-3.5 py-1.5 rounded-xl text-xs sm:text-sm font-bold transition-all cursor-pointer ${
+                    filter === 'expired'
+                      ? 'bg-rose-500 text-white font-black shadow-md shadow-rose-500/20'
+                      : 'text-rose-400 hover:bg-rose-500/10'
+                  }`}
+                >
+                  <AlertTriangle className="w-3.5 h-3.5" />
+                  <span>المنتهية</span>
+                  <span className={`px-2 py-0.5 rounded-full text-[11px] font-black ${
+                    filter === 'expired' ? 'bg-slate-950 text-rose-300' : 'bg-rose-500/20 text-rose-300'
+                  }`}>
+                    {expiredCount}
+                  </span>
+                </button>
 
-                  <button
-                    onClick={() => setFilter('rejected')}
-                    className={`flex items-center gap-2 px-3.5 py-1.5 rounded-xl text-xs sm:text-sm font-bold transition-all cursor-pointer ${
-                      filter === 'rejected'
-                        ? 'bg-slate-700 text-white font-black'
-                        : 'text-slate-400 hover:bg-slate-800'
-                    }`}
-                  >
-                    <X className="w-3.5 h-3.5" />
-                    <span>المرفوضة</span>
-                    <span className="px-2 py-0.5 rounded-full text-[11px] bg-slate-800 text-slate-400">
-                      {rejectedCount}
-                    </span>
-                  </button>
+                <button
+                  onClick={() => setFilter('rejected')}
+                  className={`flex items-center gap-2 px-3.5 py-1.5 rounded-xl text-xs sm:text-sm font-bold transition-all cursor-pointer ${
+                    filter === 'rejected'
+                      ? 'bg-slate-700 text-white font-black'
+                      : 'text-slate-400 hover:bg-slate-800'
+                  }`}
+                >
+                  <X className="w-3.5 h-3.5" />
+                  <span>المرفوضة</span>
+                  <span className="px-2 py-0.5 rounded-full text-[11px] bg-slate-800 text-slate-400">
+                    {rejectedCount}
+                  </span>
+                </button>
 
-                  <button
-                    onClick={() => setFilter('all')}
-                    className={`px-3 py-1.5 rounded-xl text-xs sm:text-sm font-bold transition-all cursor-pointer ${
-                      filter === 'all'
-                        ? 'bg-blue-600 text-white font-black'
-                        : 'text-slate-400 hover:text-white'
-                    }`}
-                  >
-                    عرض الكل ({typeScopedRequests.length})
-                  </button>
-                </div>
+                <button
+                  onClick={() => setFilter('all')}
+                  className={`px-3 py-1.5 rounded-xl text-xs sm:text-sm font-bold transition-all cursor-pointer ${
+                    filter === 'all'
+                      ? 'bg-blue-600 text-white font-black'
+                      : 'text-slate-400 hover:text-white'
+                  }`}
+                >
+                  عرض الكل ({typeScopedRequests.length})
+                </button>
+              </div>
+
+              {/* Right Controls: Active Service Tag + Grade Filter + Search Input */}
+              <div className="flex flex-wrap items-center gap-2.5">
+
+                {/* Active Service Filter Badge if filtered by top cards */}
+                {typeFilter !== 'all' && (
+                  <div className="flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-purple-950/70 border border-purple-500/50 text-purple-300 text-xs font-bold shadow-xs">
+                    {typeFilter === 'live' ? (
+                      <>
+                        <Video className="w-3.5 h-3.5 text-purple-400" />
+                        <span>باقات الحصص (8)</span>
+                      </>
+                    ) : (
+                      <>
+                        <BookOpen className="w-3.5 h-3.5 text-blue-400" />
+                        <span>الكورسات</span>
+                      </>
+                    )}
+                    <button
+                      onClick={() => setTypeFilter('all')}
+                      className="p-0.5 hover:bg-purple-900/60 rounded text-purple-400 hover:text-white cursor-pointer ml-1"
+                      title="إلغاء تصفية الخدمة والعودة للكل"
+                    >
+                      <X className="w-3 h-3" />
+                    </button>
+                  </div>
+                )}
+
+                {/* Grade Level Dropdown Filter */}
+                <select
+                  value={gradeFilter}
+                  onChange={(e) => setGradeFilter(e.target.value)}
+                  className="px-3 py-2 bg-slate-950 border border-slate-800 rounded-xl text-slate-300 text-xs sm:text-sm font-bold outline-none cursor-pointer hover:border-slate-700 transition-colors shadow-inner"
+                >
+                  <option value="all">جميع المراحل والصفوف</option>
+                  <option value="primary_1">الصف الأول الابتدائي</option>
+                  <option value="primary_2">الصف الثاني الابتدائي</option>
+                  <option value="primary_3">الصف الثالث الابتدائي</option>
+                  <option value="primary_4">الصف الرابع الابتدائي</option>
+                  <option value="primary_5">الصف الخامس الابتدائي</option>
+                  <option value="primary_6">الصف السادس الابتدائي</option>
+                  <option value="prep_1">الصف الأول الإعدادي</option>
+                  <option value="prep_2">الصف الثاني الإعدادي</option>
+                  <option value="prep_3">الصف الثالث الإعدادي</option>
+                  <option value="sec_1">الصف الأول الثانوي</option>
+                  <option value="sec_2">الصف الثاني الثانوي</option>
+                  <option value="sec_3">الصف الثالث الثانوي</option>
+                </select>
 
                 {/* Search Input */}
-                <div className="relative min-w-[240px] sm:w-72">
+                <div className="relative min-w-[220px] sm:w-64">
                   <Search className="w-4 h-4 absolute top-1/2 -translate-y-1/2 rtl:right-3.5 ltr:left-3.5 text-slate-400" />
                   <input
                     type="text"
@@ -913,71 +966,12 @@ export default function AdminSubscriptions() {
                   )}
                 </div>
 
-              </div>
-
-              {/* Row 2: Secondary Quick Filters (Service Type + Grade Dropdown + Counter) */}
-              <div className="flex flex-wrap items-center justify-between gap-3 pt-2 border-t border-slate-800/60 text-xs">
-                
-                <div className="flex flex-wrap items-center gap-2.5">
-                  {/* Service Segmented Switcher */}
-                  <div className="flex items-center p-0.5 bg-slate-950 rounded-xl border border-slate-800">
-                    <button
-                      onClick={() => setTypeFilter('all')}
-                      className={`px-3 py-1 rounded-lg transition-all cursor-pointer font-bold ${
-                        typeFilter === 'all' ? 'bg-slate-800 text-white font-black' : 'text-slate-400 hover:text-slate-200'
-                      }`}
-                    >
-                      كل الخدمات
-                    </button>
-                    <button
-                      onClick={() => setTypeFilter('live')}
-                      className={`flex items-center gap-1.5 px-3 py-1 rounded-lg transition-all cursor-pointer font-bold ${
-                        typeFilter === 'live' ? 'bg-purple-600 text-white font-black' : 'text-purple-400 hover:text-purple-300'
-                      }`}
-                    >
-                      <Video className="w-3 h-3" />
-                      <span>باقات الحصص (8)</span>
-                    </button>
-                    <button
-                      onClick={() => setTypeFilter('courses')}
-                      className={`flex items-center gap-1.5 px-3 py-1 rounded-lg transition-all cursor-pointer font-bold ${
-                        typeFilter === 'courses' ? 'bg-blue-600 text-white font-black' : 'text-blue-400 hover:text-blue-300'
-                      }`}
-                    >
-                      <BookOpen className="w-3 h-3" />
-                      <span>الكورسات</span>
-                    </button>
-                  </div>
-
-                  {/* Grade Level Dropdown Filter */}
-                  <select
-                    value={gradeFilter}
-                    onChange={(e) => setGradeFilter(e.target.value)}
-                    className="px-3 py-1.5 bg-slate-950 border border-slate-800 rounded-xl text-slate-300 font-bold outline-none cursor-pointer hover:border-slate-700 transition-colors"
-                  >
-                    <option value="all">جميع المراحل والصفوف</option>
-                    <option value="primary_1">الصف الأول الابتدائي</option>
-                    <option value="primary_2">الصف الثاني الابتدائي</option>
-                    <option value="primary_3">الصف الثالث الابتدائي</option>
-                    <option value="primary_4">الصف الرابع الابتدائي</option>
-                    <option value="primary_5">الصف الخامس الابتدائي</option>
-                    <option value="primary_6">الصف السادس الابتدائي</option>
-                    <option value="prep_1">الصف الأول الإعدادي</option>
-                    <option value="prep_2">الصف الثاني الإعدادي</option>
-                    <option value="prep_3">الصف الثالث الإعدادي</option>
-                    <option value="sec_1">الصف الأول الثانوي</option>
-                    <option value="sec_2">الصف الثاني الثانوي</option>
-                    <option value="sec_3">الصف الثالث الثانوي</option>
-                  </select>
-                </div>
-
-                {/* Showing X of Y count */}
-                <div className="text-slate-400 text-xs font-bold">
-                  يعرض <span className="text-white font-black">{filteredRequests.length}</span> من أصل <span className="text-white font-black">{typeScopedRequests.length}</span> طلب
+                {/* Counter */}
+                <div className="text-slate-400 text-xs font-bold whitespace-nowrap hidden xl:block px-1">
+                  يعرض <span className="text-white font-black">{filteredRequests.length}</span> من أصل <span className="text-white font-black">{typeScopedRequests.length}</span>
                 </div>
 
               </div>
-
             </div>
 
             {/* Table */}
@@ -1020,15 +1014,10 @@ export default function AdminSubscriptions() {
                               <span className="font-black text-white text-sm">
                                 {req.studentName}
                               </span>
-                              <div className="flex items-center gap-2 mt-0.5 text-xs">
-                                <span className="text-purple-300 font-bold bg-purple-950/60 px-2 py-0.5 rounded-md border border-purple-800/40 text-[11px]">
+                              <div className="flex items-center gap-2 mt-1">
+                                <span className="text-purple-300 font-bold bg-purple-950/60 px-2.5 py-0.5 rounded-lg border border-purple-800/40 text-[11px]">
                                   {req.gradeName || 'الصف الأول الإعدادي'}
                                 </span>
-                                {req.studentPhone && req.studentPhone !== '-' && (
-                                  <span className="text-slate-400 font-mono text-[11px]" dir="ltr">
-                                    {req.studentPhone}
-                                  </span>
-                                )}
                               </div>
                             </div>
                           </div>
@@ -1149,7 +1138,7 @@ export default function AdminSubscriptions() {
 
                         {/* 8. Actions (Instant 1-Click Controls) */}
                         <td className="py-3.5 px-4 whitespace-nowrap text-center">
-                          <div className="flex items-center justify-center gap-1.5">
+                          <div className="flex items-center justify-center gap-2">
 
                             {/* Live Package Controls */}
                             {isLive && (
@@ -1158,15 +1147,15 @@ export default function AdminSubscriptions() {
                                   <>
                                     <button
                                       onClick={() => handleStatusChange(req, 'active')}
-                                      className="px-3 py-1.5 bg-emerald-600 hover:bg-emerald-500 text-white rounded-xl font-black text-xs transition-all shadow-xs flex items-center gap-1 cursor-pointer active:scale-95"
+                                      className="px-3.5 py-2 bg-emerald-600 hover:bg-emerald-500 text-white rounded-xl font-black text-xs transition-all shadow-md shadow-emerald-600/20 flex items-center gap-1.5 cursor-pointer active:scale-95 hover:scale-105"
                                       title="قبول وتفعيل باقة الـ 8 حصص"
                                     >
-                                      <CheckCircle2 className="w-3.5 h-3.5" />
-                                      <span>تفعيل</span>
+                                      <CheckCircle2 className="w-4 h-4" />
+                                      <span>تفعيل الباقة</span>
                                     </button>
                                     <button
                                       onClick={() => handleStatusChange(req, 'rejected')}
-                                      className="px-2.5 py-1.5 bg-rose-950/40 text-rose-400 hover:bg-rose-900/50 border border-rose-800/40 rounded-xl font-bold text-xs transition-colors cursor-pointer"
+                                      className="px-3 py-2 bg-rose-950/50 text-rose-400 hover:bg-rose-900/60 border border-rose-800/50 rounded-xl font-bold text-xs transition-colors cursor-pointer"
                                       title="رفض الطلب"
                                     >
                                       رفض
@@ -1179,27 +1168,29 @@ export default function AdminSubscriptions() {
                                     <button
                                       onClick={() => handleDirectDeduct(req)}
                                       disabled={req.remainingSessions <= 0}
-                                      className="px-2.5 py-1.5 bg-gradient-to-r from-purple-600 to-indigo-600 hover:from-purple-500 hover:to-indigo-500 text-white rounded-xl font-black text-xs transition-all shadow-xs flex items-center gap-1 cursor-pointer hover:scale-105 active:scale-95 disabled:opacity-40 disabled:cursor-not-allowed"
+                                      className="px-3.5 py-2 bg-gradient-to-r from-purple-600 to-indigo-600 hover:from-purple-500 hover:to-indigo-500 text-white rounded-xl font-black text-xs transition-all shadow-md shadow-purple-600/20 flex items-center gap-1.5 cursor-pointer hover:scale-105 active:scale-95 disabled:opacity-40 disabled:cursor-not-allowed"
                                       title="خصم حصة واحدة فورياً (-1)"
                                     >
-                                      <MinusCircle className="w-3.5 h-3.5" />
+                                      <MinusCircle className="w-4 h-4" />
                                       <span>خصم (-1)</span>
                                     </button>
 
                                     <button
                                       onClick={() => handleAddCompensationSession(req)}
-                                      className="px-2 py-1.5 bg-blue-900/40 text-blue-300 hover:bg-blue-800/50 border border-blue-700/40 rounded-xl font-bold text-xs transition-colors cursor-pointer"
+                                      className="px-3 py-2 bg-blue-900/50 text-blue-200 hover:bg-blue-800/60 border border-blue-700/50 rounded-xl font-black text-xs transition-all shadow-sm flex items-center gap-1 cursor-pointer hover:scale-105 active:scale-95"
                                       title="إضافة حصة تعويضية (+1)"
                                     >
-                                      +1
+                                      <PlusCircle className="w-4 h-4" />
+                                      <span>+1</span>
                                     </button>
 
                                     <button
                                       onClick={() => handleRenewLivePackage(req)}
-                                      className="p-1.5 bg-amber-900/40 text-amber-300 hover:bg-amber-800/50 border border-amber-700/40 rounded-xl font-bold text-xs transition-colors cursor-pointer"
+                                      className="px-3 py-2 bg-amber-500/20 text-amber-300 hover:bg-amber-500/30 border border-amber-500/40 rounded-xl font-bold text-xs transition-all shadow-sm flex items-center gap-1.5 cursor-pointer hover:scale-105 active:scale-95"
                                       title="تجديد الباقة إلى 8 حصص جديدة"
                                     >
                                       <RefreshCw className="w-3.5 h-3.5" />
+                                      <span>تجديد (8)</span>
                                     </button>
                                   </>
                                 )}
@@ -1207,11 +1198,11 @@ export default function AdminSubscriptions() {
                                 {req.status === 'expired' && (
                                   <button
                                     onClick={() => handleRenewLivePackage(req)}
-                                    className="px-3 py-1.5 bg-gradient-to-r from-amber-500 to-orange-500 hover:from-amber-400 hover:to-orange-400 text-slate-950 rounded-xl font-black text-xs transition-all shadow-xs flex items-center gap-1 cursor-pointer hover:scale-105"
+                                    className="px-4 py-2 bg-gradient-to-r from-amber-500 to-orange-500 hover:from-amber-400 hover:to-orange-400 text-slate-950 rounded-xl font-black text-xs transition-all shadow-md shadow-amber-500/20 flex items-center gap-1.5 cursor-pointer hover:scale-105"
                                     title="تجديد باقة الـ 8 حصص وتفعيلها"
                                   >
-                                    <RefreshCw className="w-3.5 h-3.5" />
-                                    <span>تجديد (8)</span>
+                                    <RefreshCw className="w-4 h-4" />
+                                    <span>تجديد الباقة (8)</span>
                                   </button>
                                 )}
                               </>
@@ -1223,10 +1214,10 @@ export default function AdminSubscriptions() {
                                 {(req.status === 'expired' || req.status === 'active') && (
                                   <button
                                     onClick={() => openExtendModal(req)}
-                                    className="px-2.5 py-1 bg-blue-900/30 text-blue-300 hover:bg-blue-800/40 border border-blue-700/40 rounded-xl font-bold text-xs transition-colors flex items-center gap-1 shadow-xs cursor-pointer"
+                                    className="px-3 py-2 bg-blue-900/40 text-blue-200 hover:bg-blue-800/60 border border-blue-700/50 rounded-xl font-black text-xs transition-all flex items-center gap-1.5 shadow-sm cursor-pointer hover:scale-105"
                                     title="تمديد مدة الكورس"
                                   >
-                                    <RefreshCw className="w-3 h-3" />
+                                    <RefreshCw className="w-3.5 h-3.5" />
                                     <span>تمديد</span>
                                   </button>
                                 )}
@@ -1234,7 +1225,7 @@ export default function AdminSubscriptions() {
                                 <select
                                   value={req.status}
                                   onChange={(e) => handleStatusChange(req, e.target.value)}
-                                  className={`px-2.5 py-1 rounded-xl font-bold text-xs outline-none cursor-pointer text-center appearance-none shadow-xs ${
+                                  className={`px-3 py-2 rounded-xl font-black text-xs outline-none cursor-pointer text-center appearance-none shadow-sm transition-all ${
                                     req.status === 'active' ? 'bg-emerald-600 text-white' :
                                     req.status === 'expired' ? 'bg-orange-600 text-white' :
                                     req.status === 'rejected' ? 'bg-rose-600 text-white' :
@@ -1252,10 +1243,10 @@ export default function AdminSubscriptions() {
                             {/* Delete Button */}
                             <button
                               onClick={() => handleDeleteRequest(req)}
-                              className="p-1.5 text-slate-500 hover:text-rose-400 hover:bg-rose-950/30 border border-transparent hover:border-rose-900/40 rounded-lg transition-colors cursor-pointer"
+                              className="p-2 text-slate-400 hover:text-rose-400 hover:bg-rose-950/40 border border-slate-800 hover:border-rose-900/40 rounded-xl transition-all cursor-pointer shadow-sm hover:scale-105"
                               title="حذف الطلب"
                             >
-                              <Trash2 className="w-3.5 h-3.5" />
+                              <Trash2 className="w-4 h-4" />
                             </button>
 
                           </div>

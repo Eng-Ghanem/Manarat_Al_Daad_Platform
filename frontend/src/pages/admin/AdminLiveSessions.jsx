@@ -1377,25 +1377,32 @@ export default function AdminLiveSessions() {
               onClick={() => setMainView('sessions')}
               className={`flex items-center justify-center gap-3 py-4 px-6 rounded-2xl font-bold transition-all text-base cursor-pointer ${
                 mainView === 'sessions'
-                  ? 'bg-blue-600 text-white shadow-md shadow-blue-500/20'
+                  ? 'bg-blue-600 text-white shadow-md shadow-blue-500/20 font-black'
                   : 'text-gray-600 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-slate-700/50'
               }`}
             >
               <CalendarDays className="w-5 h-5" />
-              <span>الحصص والجدول الأسبوعي</span>
+              <span>الجدول الأسبوعي الثابت المقرر</span>
+              <span className={`px-2.5 py-0.5 rounded-full text-xs font-black ${
+                mainView === 'sessions' ? 'bg-white/20 text-white' : 'bg-blue-100 text-blue-800 dark:bg-blue-950 dark:text-blue-300'
+              }`}>
+                {weeklySchedules.length}
+              </span>
             </button>
 
             <button
               onClick={() => setMainView('packages')}
               className={`flex items-center justify-center gap-3 py-4 px-6 rounded-2xl font-bold transition-all text-base cursor-pointer ${
                 mainView === 'packages'
-                  ? 'bg-blue-600 text-white shadow-md shadow-blue-500/20'
+                  ? 'bg-emerald-600 text-white shadow-md shadow-emerald-500/20 font-black'
                   : 'text-gray-600 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-slate-700/50'
               }`}
             >
-              <CreditCard className="w-5 h-5" />
-              <span>باقات الطلاب (8 حصص)</span>
-              <span className="px-2 py-0.5 rounded-full text-xs font-black bg-white/20">
+              <Users className="w-5 h-5" />
+              <span>حضور الطلاب ورصيد الباقات (8 حصص)</span>
+              <span className={`px-2.5 py-0.5 rounded-full text-xs font-black ${
+                mainView === 'packages' ? 'bg-white/20 text-white' : 'bg-emerald-100 text-emerald-800 dark:bg-emerald-950 dark:text-emerald-300'
+              }`}>
                 {packages.length}
               </span>
             </button>
@@ -1404,13 +1411,15 @@ export default function AdminLiveSessions() {
               onClick={() => setMainView('trials')}
               className={`flex items-center justify-center gap-3 py-4 px-6 rounded-2xl font-bold transition-all text-base cursor-pointer ${
                 mainView === 'trials'
-                  ? 'bg-blue-600 text-white shadow-md shadow-blue-500/20'
+                  ? 'bg-purple-600 text-white shadow-md shadow-purple-500/20 font-black'
                   : 'text-gray-600 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-slate-700/50'
               }`}
             >
               <Sparkles className="w-5 h-5" />
               <span>الحصص التجريبية (30 دقيقة)</span>
-              <span className="px-2 py-0.5 rounded-full text-xs font-black bg-white/20">
+              <span className={`px-2.5 py-0.5 rounded-full text-xs font-black ${
+                mainView === 'trials' ? 'bg-white/20 text-white' : 'bg-purple-100 text-purple-800 dark:bg-purple-950 dark:text-purple-300'
+              }`}>
                 {trialRequests.length}
               </span>
             </button>
@@ -1425,340 +1434,7 @@ export default function AdminLiveSessions() {
           <FadeIn>
             <div className="bg-white dark:bg-slate-800 rounded-3xl p-6 md:p-8 shadow-sm border border-gray-100 dark:border-slate-700 mb-8">
               
-              {/* Sub-tab Navigation */}
-              <div className="flex flex-wrap items-center gap-2 mb-6 border-b border-gray-100 dark:border-slate-700 pb-4">
-                <button
-                  onClick={() => setSessionsSubTab('live_list')}
-                  className={`px-5 py-2.5 rounded-2xl text-xs font-black transition-all flex items-center gap-2 cursor-pointer ${
-                    sessionsSubTab === 'live_list'
-                      ? 'bg-blue-600 text-white shadow-md shadow-blue-600/20'
-                      : 'text-gray-600 dark:text-gray-400 hover:bg-gray-100 dark:hover:bg-slate-700/60'
-                  }`}
-                >
-                  <Video className="w-4 h-4" />
-                  <span>حصص البث المباشر (مجدولة، مكتملة، مؤجلة، ملغاة)</span>
-                  <span className={`px-2 py-0.5 rounded-full text-[10px] font-black ${
-                    sessionsSubTab === 'live_list' ? 'bg-white/20 text-white' : 'bg-blue-100 text-blue-800 dark:bg-blue-950 dark:text-blue-300'
-                  }`}>
-                    {sessions.length}
-                  </span>
-                </button>
-
-                <button
-                  onClick={() => setSessionsSubTab('schedules')}
-                  className={`px-5 py-2.5 rounded-2xl text-xs font-black transition-all flex items-center gap-2 cursor-pointer ${
-                    sessionsSubTab === 'schedules'
-                      ? 'bg-indigo-600 text-white shadow-md shadow-indigo-600/20'
-                      : 'text-gray-600 dark:text-gray-400 hover:bg-gray-100 dark:hover:bg-slate-700/60'
-                  }`}
-                >
-                  <CalendarDays className="w-4 h-4" />
-                  <span>الجدول الأسبوعي الثابت المتكرر</span>
-                  <span className={`px-2 py-0.5 rounded-full text-[10px] font-black ${
-                    sessionsSubTab === 'schedules' ? 'bg-white/20 text-white' : 'bg-indigo-100 text-indigo-800 dark:bg-indigo-950 dark:text-indigo-300'
-                  }`}>
-                    {weeklySchedules.length}
-                  </span>
-                </button>
-              </div>
-
-              {/* ----------------- SUB-TAB 1: LIVE SESSIONS LIST & STATUSES ----------------- */}
-              {sessionsSubTab === 'live_list' && (
-                <div>
-                  {/* Header */}
-                  <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4 mb-6 pb-6 border-b border-gray-100 dark:border-slate-700">
-                    <div>
-                      <h2 className="text-2xl font-black text-gray-900 dark:text-white flex items-center gap-2">
-                        <Video className="w-7 h-7 text-blue-500" />
-                        حصص البث المباشر ومتابعة حالات الانعقاد
-                      </h2>
-                      <p className="text-gray-500 dark:text-gray-400 text-sm mt-1">
-                        متابعة الحصص المباشرة للطلاب، وتحديث حالتها بنقرة واحدة (مجدولة، مكتملة، مؤجلة، ملغاة) لتظهر فوراً عند المدرس والطالب.
-                      </p>
-                    </div>
-                    <button
-                      onClick={() => handleOpenModal()}
-                      className="bg-blue-600 hover:bg-blue-700 text-white px-5 py-3 rounded-2xl font-bold flex items-center gap-2 transition-all shadow-md shadow-blue-500/20 cursor-pointer shrink-0"
-                    >
-                      <Plus className="w-5 h-5" />
-                      جدولة حصة مباشرة جديدة
-                    </button>
-                  </div>
-
-                  {/* Status & Stage Filter Pills */}
-                  <div className="flex flex-col md:flex-row md:items-center justify-between gap-3 mb-6">
-                    {/* Status Filters */}
-                    <div className="flex flex-wrap items-center gap-1.5 p-1 bg-gray-100 dark:bg-slate-900/60 rounded-2xl border border-gray-200 dark:border-slate-700">
-                      <button
-                        onClick={() => setFilterStatus('all')}
-                        className={`px-3 py-1.5 rounded-xl font-bold text-xs transition-all cursor-pointer ${
-                          filterStatus === 'all'
-                            ? 'bg-white dark:bg-slate-800 text-blue-600 dark:text-blue-400 shadow-sm font-black'
-                            : 'text-gray-600 dark:text-gray-400 hover:text-gray-900'
-                        }`}
-                      >
-                        جميع الحصص ({sessions.length})
-                      </button>
-
-                      <button
-                        onClick={() => setFilterStatus('scheduled')}
-                        className={`flex items-center gap-1 px-3 py-1.5 rounded-xl font-bold text-xs transition-all cursor-pointer ${
-                          filterStatus === 'scheduled'
-                            ? 'bg-blue-600 text-white shadow-sm font-black'
-                            : 'text-blue-600 dark:text-blue-400 hover:bg-blue-50 dark:hover:bg-blue-950/40'
-                        }`}
-                      >
-                        <Calendar className="w-3 h-3" />
-                        <span>مجدولة</span>
-                        <span className="text-[10px] px-1.5 py-0.2 rounded-full bg-blue-500/20">
-                          {sessions.filter(s => (s.status || 'scheduled') === 'scheduled').length}
-                        </span>
-                      </button>
-
-                      <button
-                        onClick={() => setFilterStatus('completed')}
-                        className={`flex items-center gap-1 px-3 py-1.5 rounded-xl font-bold text-xs transition-all cursor-pointer ${
-                          filterStatus === 'completed'
-                            ? 'bg-emerald-600 text-white shadow-sm font-black'
-                            : 'text-emerald-600 dark:text-emerald-400 hover:bg-emerald-50 dark:hover:bg-emerald-950/40'
-                        }`}
-                      >
-                        <CheckCircle className="w-3 h-3" />
-                        <span>مكتملة</span>
-                        <span className="text-[10px] px-1.5 py-0.2 rounded-full bg-emerald-500/20">
-                          {sessions.filter(s => s.status === 'completed').length}
-                        </span>
-                      </button>
-
-                      <button
-                        onClick={() => setFilterStatus('postponed')}
-                        className={`flex items-center gap-1 px-3 py-1.5 rounded-xl font-bold text-xs transition-all cursor-pointer ${
-                          filterStatus === 'postponed'
-                            ? 'bg-amber-600 text-white shadow-sm font-black'
-                            : 'text-amber-600 dark:text-amber-400 hover:bg-amber-50 dark:hover:bg-amber-950/40'
-                        }`}
-                      >
-                        <Clock4 className="w-3 h-3" />
-                        <span>مؤجلة</span>
-                        <span className="text-[10px] px-1.5 py-0.2 rounded-full bg-amber-500/20">
-                          {sessions.filter(s => s.status === 'postponed').length}
-                        </span>
-                      </button>
-
-                      <button
-                        onClick={() => setFilterStatus('canceled')}
-                        className={`flex items-center gap-1 px-3 py-1.5 rounded-xl font-bold text-xs transition-all cursor-pointer ${
-                          filterStatus === 'canceled'
-                            ? 'bg-rose-600 text-white shadow-sm font-black'
-                            : 'text-rose-600 dark:text-rose-400 hover:bg-rose-50 dark:hover:bg-rose-950/40'
-                        }`}
-                      >
-                        <XCircle className="w-3 h-3" />
-                        <span>ملغاة</span>
-                        <span className="text-[10px] px-1.5 py-0.2 rounded-full bg-rose-500/20">
-                          {sessions.filter(s => s.status === 'canceled').length}
-                        </span>
-                      </button>
-                    </div>
-
-                    {/* Stage Filter */}
-                    <div className="flex items-center gap-2">
-                      <select
-                        value={filterGrade}
-                        onChange={(e) => setFilterGrade(e.target.value)}
-                        className="px-3 py-2 rounded-xl bg-gray-50 dark:bg-slate-900 border border-gray-200 dark:border-slate-700 text-xs font-bold text-gray-700 dark:text-gray-300 outline-none"
-                      >
-                        <option value="all">جميع الصفوف الدراسية</option>
-                        <option value="prep_1">{formatGradeName('prep_1')}</option>
-                        <option value="prep_2">{formatGradeName('prep_2')}</option>
-                        <option value="prep_3">{formatGradeName('prep_3')}</option>
-                        <option value="sec_1">{formatGradeName('sec_1')}</option>
-                        <option value="sec_2">{formatGradeName('sec_2')}</option>
-                        <option value="sec_3">{formatGradeName('sec_3')}</option>
-                        <option value="primary_4">{formatGradeName('primary_4')}</option>
-                        <option value="primary_5">{formatGradeName('primary_5')}</option>
-                        <option value="primary_6">{formatGradeName('primary_6')}</option>
-                      </select>
-                    </div>
-                  </div>
-
-                  {/* Sessions Table */}
-                  {loading ? (
-                    <div className="flex justify-center py-20">
-                      <div className="animate-spin rounded-full h-12 w-12 border-4 border-blue-500 border-t-transparent"></div>
-                    </div>
-                  ) : filteredSessions.length === 0 ? (
-                    <div className="text-center py-16 bg-gray-50 dark:bg-slate-900/40 rounded-2xl border border-dashed border-gray-200 dark:border-slate-700">
-                      <Video className="w-12 h-12 text-gray-300 dark:text-slate-600 mx-auto mb-3" />
-                      <p className="text-gray-600 dark:text-gray-400 font-bold">لا توجد حصص في هذا التصنيف حالياً.</p>
-                      <p className="text-xs text-gray-400 mt-1">اضغط على زر "جدولة حصة مباشرة جديدة" لإنشاء حصة ومشاركتها مع الطلاب فوراً.</p>
-                      <button
-                        onClick={() => handleOpenModal()}
-                        className="mt-4 px-4 py-2 rounded-xl bg-blue-600 hover:bg-blue-700 text-white font-bold text-xs transition-colors cursor-pointer inline-flex items-center gap-1.5"
-                      >
-                        <Plus className="w-4 h-4" />
-                        جدولة حصة الآن
-                      </button>
-                    </div>
-                  ) : (
-                    <div className="overflow-x-auto">
-                      <table className="w-full text-right text-sm">
-                        <thead>
-                          <tr className="border-b border-gray-200 dark:border-slate-700 text-xs font-black text-gray-500 dark:text-gray-400 uppercase">
-                            <th className="py-4 px-4">الحصة والموضوع</th>
-                            <th className="py-4 px-4">الصف الدراسي</th>
-                            <th className="py-4 px-4">الموعد والتوقيت</th>
-                            <th className="py-4 px-4">الحالة الحالية</th>
-                            <th className="py-4 px-4 text-center">تحديث الحالة السريع (1-كليك)</th>
-                            <th className="py-4 px-4 text-center">الإجراءات</th>
-                          </tr>
-                        </thead>
-                        <tbody className="divide-y divide-gray-100 dark:divide-slate-700">
-                          {filteredSessions.map((session) => {
-                            const dateObj = new Date(session.start_time);
-                            const formattedDate = !isNaN(dateObj.getTime())
-                              ? dateObj.toLocaleDateString('ar-EG', { weekday: 'long', year: 'numeric', month: 'short', day: 'numeric' })
-                              : '-';
-                            const formattedTime = !isNaN(dateObj.getTime())
-                              ? dateObj.toLocaleTimeString('ar-EG', { hour: '2-digit', minute: '2-digit' })
-                              : '';
-                            const currentStatus = session.status || 'scheduled';
-
-                            return (
-                              <tr key={session.id} className="hover:bg-gray-50/50 dark:hover:bg-slate-750 transition-colors">
-                                {/* 1. Title & Desc */}
-                                <td className="py-4 px-4">
-                                  <div className="font-black text-gray-900 dark:text-white text-base">
-                                    {session.title}
-                                  </div>
-                                  {session.description && (
-                                    <div className="text-xs text-gray-500 dark:text-gray-400 mt-0.5 line-clamp-1">
-                                      {session.description}
-                                    </div>
-                                  )}
-                                </td>
-
-                                {/* 2. Grade */}
-                                <td className="py-4 px-4">
-                                  <span className="px-3 py-1 rounded-full text-xs font-bold bg-indigo-50 dark:bg-indigo-950/40 text-indigo-700 dark:text-indigo-300 border border-indigo-200 dark:border-indigo-800/40">
-                                    {formatGradeName(session.grade_level)}
-                                  </span>
-                                </td>
-
-                                {/* 3. Date & Time */}
-                                <td className="py-4 px-4">
-                                  <div className="font-bold text-gray-900 dark:text-white flex items-center gap-1.5 text-xs">
-                                    <Calendar className="w-3.5 h-3.5 text-blue-500 shrink-0" />
-                                    <span>{formattedDate}</span>
-                                  </div>
-                                  <div className="text-xs text-gray-500 dark:text-gray-400 flex items-center gap-1 mt-0.5">
-                                    <Clock className="w-3 h-3" />
-                                    <span>{formattedTime}</span>
-                                  </div>
-                                </td>
-
-                                {/* 4. Current Status Badge */}
-                                <td className="py-4 px-4 whitespace-nowrap">
-                                  {renderStatusBadge(currentStatus)}
-                                </td>
-
-                                {/* 5. Direct 1-Click Status Switcher */}
-                                <td className="py-4 px-4">
-                                  <div className="flex items-center justify-center gap-1.5 flex-wrap">
-                                    <button
-                                      onClick={() => updateSessionStatus(session.id, 'completed')}
-                                      className={`px-2.5 py-1 rounded-lg text-xs font-bold transition-all cursor-pointer flex items-center gap-1 ${
-                                        currentStatus === 'completed'
-                                          ? 'bg-green-600 text-white ring-2 ring-green-500/50'
-                                          : 'bg-green-50 text-green-700 dark:bg-green-950/40 dark:text-green-300 hover:bg-green-100'
-                                      }`}
-                                      title="تعيين الحصة كمكتملة"
-                                    >
-                                      <CheckCircle className="w-3 h-3" />
-                                      <span>مكتملة</span>
-                                    </button>
-
-                                    <button
-                                      onClick={() => updateSessionStatus(session.id, 'postponed')}
-                                      className={`px-2.5 py-1 rounded-lg text-xs font-bold transition-all cursor-pointer flex items-center gap-1 ${
-                                        currentStatus === 'postponed'
-                                          ? 'bg-amber-600 text-white ring-2 ring-amber-500/50'
-                                          : 'bg-amber-50 text-amber-700 dark:bg-amber-950/40 dark:text-amber-300 hover:bg-amber-100'
-                                      }`}
-                                      title="تعيين الحصة كمؤجلة"
-                                    >
-                                      <Clock4 className="w-3 h-3" />
-                                      <span>مؤجلة</span>
-                                    </button>
-
-                                    <button
-                                      onClick={() => updateSessionStatus(session.id, 'canceled')}
-                                      className={`px-2.5 py-1 rounded-lg text-xs font-bold transition-all cursor-pointer flex items-center gap-1 ${
-                                        currentStatus === 'canceled'
-                                          ? 'bg-rose-600 text-white ring-2 ring-rose-500/50'
-                                          : 'bg-rose-50 text-rose-700 dark:bg-rose-950/40 dark:text-rose-300 hover:bg-rose-100'
-                                      }`}
-                                      title="تعيين الحصة كملغاة"
-                                    >
-                                      <XCircle className="w-3 h-3" />
-                                      <span>ملغاة</span>
-                                    </button>
-
-                                    <button
-                                      onClick={() => updateSessionStatus(session.id, 'scheduled')}
-                                      className={`px-2 py-1 rounded-lg text-xs font-bold transition-all cursor-pointer flex items-center gap-1 ${
-                                        currentStatus === 'scheduled'
-                                          ? 'bg-blue-600 text-white ring-2 ring-blue-500/50'
-                                          : 'bg-gray-100 text-gray-700 dark:bg-slate-700 dark:text-gray-300 hover:bg-gray-200'
-                                      }`}
-                                      title="إعادة الحصة كمجدولة"
-                                    >
-                                      <Calendar className="w-3 h-3" />
-                                      <span>مجدولة</span>
-                                    </button>
-                                  </div>
-                                </td>
-
-                                {/* 6. Actions */}
-                                <td className="py-4 px-4 text-center whitespace-nowrap">
-                                  <div className="flex items-center justify-center gap-1.5">
-                                    <a
-                                      href={getCleanZoomUrl(session.zoom_link)}
-                                      target="_blank"
-                                      rel="noreferrer"
-                                      className="p-2 rounded-xl bg-blue-50 hover:bg-blue-600 text-blue-600 hover:text-white dark:bg-blue-950/40 dark:text-blue-300 transition-colors cursor-pointer"
-                                      title="فتح رابط زووم"
-                                    >
-                                      <Video className="w-4 h-4" />
-                                    </a>
-                                    <button
-                                      onClick={() => handleOpenModal(session)}
-                                      className="p-2 rounded-xl bg-gray-100 hover:bg-indigo-600 text-gray-600 hover:text-white dark:bg-slate-700 dark:text-gray-300 transition-colors cursor-pointer"
-                                      title="تعديل الحصة"
-                                    >
-                                      <Edit className="w-4 h-4" />
-                                    </button>
-                                    <button
-                                      onClick={() => setDeleteModal({ isOpen: true, id: session.id })}
-                                      className="p-2 rounded-xl bg-red-50 hover:bg-red-600 text-red-600 hover:text-white dark:bg-red-950/40 dark:text-red-400 transition-colors cursor-pointer"
-                                      title="حذف الحصة"
-                                    >
-                                      <Trash2 className="w-4 h-4" />
-                                    </button>
-                                  </div>
-                                </td>
-                              </tr>
-                            );
-                          })}
-                        </tbody>
-                      </table>
-                    </div>
-                  )}
-                </div>
-              )}
-
-              {/* ----------------- SUB-TAB 2: RECURRING WEEKLY SCHEDULES ----------------- */}
-              {sessionsSubTab === 'schedules' && (
+              {/* ----------------- RECURRING WEEKLY SCHEDULES ----------------- */}
                 <div>
                   {/* Header */}
                   <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4 mb-6 pb-6 border-b border-gray-100 dark:border-slate-700">
@@ -1910,7 +1586,6 @@ export default function AdminLiveSessions() {
                     </div>
                   )}
                 </div>
-              )}
 
             </div>
           </FadeIn>
@@ -1958,6 +1633,23 @@ export default function AdminLiveSessions() {
                     تسجيل حضور جماعي (-1)
                   </button>
                 </div>
+              </div>
+
+              {/* Academic Attendance vs Financial Billing Notice Banner */}
+              <div className="mb-6 p-4 rounded-2xl bg-indigo-50/80 dark:bg-indigo-950/30 border border-indigo-200/70 dark:border-indigo-800/40 flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3 text-xs">
+                <div className="flex items-center gap-2.5 text-indigo-950 dark:text-indigo-200">
+                  <CheckCircle className="w-5 h-5 text-indigo-600 dark:text-indigo-400 shrink-0" />
+                  <span>
+                    هذا القسم مخصص <strong>لمتابعة الحضور الأكاديمي وخصم الحصص</strong>. لمراجعة إيصالات التحويل، المحافظ، والاعتماد المالي:
+                  </span>
+                </div>
+                <Link
+                  to="/admin-dashboard/subscriptions"
+                  className="inline-flex items-center gap-1.5 px-3.5 py-1.5 bg-indigo-600 hover:bg-indigo-700 text-white rounded-xl font-bold transition-all shadow-xs shrink-0"
+                >
+                  <span>إدارة الاشتراكات والمدفوعات</span>
+                  <ArrowRight className="w-3.5 h-3.5 rtl:rotate-0 ltr:rotate-180" />
+                </Link>
               </div>
 
               {/* Sub-tab Navigation */}
@@ -2065,19 +1757,28 @@ export default function AdminLiveSessions() {
                             return (
                               <tr key={pkg.id} className="hover:bg-gray-50/50 dark:hover:bg-slate-755 transition-colors">
                                 <td className="py-4 px-4">
-                                  <div className="font-bold text-gray-900 dark:text-white">{pkg.full_name}</div>
-                                  <div className="text-xs text-gray-400" dir="ltr">{pkg.phone_number}</div>
+                                  <div className="flex items-center gap-3">
+                                    <div className="w-9 h-9 rounded-xl bg-gradient-to-br from-emerald-500 to-teal-600 text-white font-black text-xs flex items-center justify-center shadow-sm shrink-0">
+                                      {pkg.full_name?.charAt(0) || 'ط'}
+                                    </div>
+                                    <div>
+                                      <div className="font-black text-gray-900 dark:text-white text-sm">{pkg.full_name}</div>
+                                      <div className="text-[11px] text-gray-500 dark:text-gray-400 font-bold">{formatGradeName(pkg.grade_level)}</div>
+                                    </div>
+                                  </div>
                                 </td>
-                                <td className="py-4 px-4 font-bold text-gray-600 dark:text-gray-300">
-                                  {formatGradeName(pkg.grade_level)}
+                                <td className="py-4 px-4 font-bold text-gray-700 dark:text-gray-300">
+                                  <span className="px-2.5 py-1 rounded-lg bg-gray-100 dark:bg-slate-700/60 text-xs font-bold">
+                                    {formatGradeName(pkg.grade_level)}
+                                  </span>
                                 </td>
                                 <td className="py-4 px-4">
                                   <div className="w-48">
-                                    <div className="flex justify-between text-xs font-black mb-1">
+                                    <div className="flex justify-between text-xs font-black mb-1.5">
                                       {isNotSubscribed ? (
-                                        <span className="text-gray-400">غير مشترك (0 حصص)</span>
+                                        <span className="text-gray-400 font-bold">غير مشترك (0 حصص)</span>
                                       ) : isPending ? (
-                                        <span className="text-amber-600 dark:text-amber-400 font-bold">طلب جديد (8 حصص)</span>
+                                        <span className="text-amber-600 dark:text-amber-400 font-bold">بانتظار الاعتماد المالي</span>
                                       ) : isExpired ? (
                                         <span className="text-red-500 font-bold">0 من 8 حصص متبقية</span>
                                       ) : (
@@ -2085,7 +1786,7 @@ export default function AdminLiveSessions() {
                                           {remaining} من 8 حصص متبقية
                                         </span>
                                       )}
-                                      <span className="text-gray-400">{percent}%</span>
+                                      <span className="text-gray-400 font-mono text-[11px]">{percent}%</span>
                                     </div>
                                     <div className="w-full h-2 rounded-full bg-gray-200 dark:bg-slate-700 overflow-hidden">
                                       <div 
@@ -2098,32 +1799,26 @@ export default function AdminLiveSessions() {
                                         style={{ width: `${isPending ? 100 : percent}%` }}
                                       ></div>
                                     </div>
-                                    {isPending && pkg.wallet_number && (
-                                      <div className="text-[11px] text-gray-500 dark:text-gray-400 mt-1 flex items-center gap-1">
-                                        <span>محفظة:</span>
-                                        <span className="font-mono font-bold" dir="ltr">{pkg.wallet_number}</span>
-                                      </div>
-                                    )}
                                   </div>
                                 </td>
                                 <td className="py-4 px-4">
                                   {isNotSubscribed ? (
-                                    <span className="inline-flex items-center gap-1 px-3 py-1 rounded-full text-xs font-bold bg-slate-100 text-slate-700 dark:bg-slate-800 dark:text-slate-300">
+                                    <span className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-xs font-bold bg-slate-100 text-slate-700 dark:bg-slate-800 dark:text-slate-300">
                                       <UserX className="w-3.5 h-3.5" />
                                       غير مشترك
                                     </span>
                                   ) : isPending ? (
-                                    <span className="inline-flex items-center gap-1 px-3 py-1 rounded-full text-xs font-bold bg-amber-100 text-amber-800 dark:bg-amber-950 dark:text-amber-300 animate-pulse">
+                                    <span className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-xs font-bold bg-amber-100 text-amber-800 dark:bg-amber-950 dark:text-amber-300 animate-pulse">
                                       <Clock className="w-3.5 h-3.5" />
-                                      قيد المراجعة والتفعيل
+                                      قيد المراجعة المالية
                                     </span>
                                   ) : isExpired ? (
-                                    <span className="inline-flex items-center gap-1 px-3 py-1 rounded-full text-xs font-bold bg-red-100 text-red-700 dark:bg-red-900/30 dark:text-red-400">
+                                    <span className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-xs font-bold bg-red-100 text-red-700 dark:bg-red-900/30 dark:text-red-400">
                                       <AlertCircle className="w-3.5 h-3.5" />
-                                      منتهية (بحاجة للتجديد)
+                                      منتهية (0 حصص)
                                     </span>
                                   ) : (
-                                    <span className="inline-flex items-center gap-1 px-3 py-1 rounded-full text-xs font-bold bg-emerald-100 text-emerald-700 dark:bg-emerald-900/30 dark:text-emerald-400">
+                                    <span className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-xs font-bold bg-emerald-100 text-emerald-700 dark:bg-emerald-900/30 dark:text-emerald-400">
                                       <CheckCircle className="w-3.5 h-3.5" />
                                       نشطة ({remaining})
                                     </span>
@@ -2134,71 +1829,50 @@ export default function AdminLiveSessions() {
                                     {isNotSubscribed ? (
                                       <button
                                         onClick={() => handleRenewPackage(pkg)}
-                                        className="px-4 py-2 rounded-xl bg-emerald-600 hover:bg-emerald-700 text-white text-xs font-black flex items-center gap-1.5 transition-colors shadow-sm cursor-pointer"
+                                        className="px-4 py-2 rounded-xl bg-emerald-600 hover:bg-emerald-700 text-white text-xs font-black flex items-center gap-1.5 transition-all shadow-md shadow-emerald-600/20 cursor-pointer hover:scale-105 active:scale-95"
                                         title="تفعيل باقة 8 حصص لهذا الطالب"
                                       >
                                         <CheckCircle2 className="w-4 h-4" />
                                         تفعيل الباقة (8 حصص)
                                       </button>
                                     ) : isPending ? (
-                                      <>
-                                        <button
-                                          onClick={() => handleRenewPackage(pkg)}
-                                          className="px-4 py-2 rounded-xl bg-emerald-600 hover:bg-emerald-700 text-white text-xs font-black flex items-center gap-1.5 transition-colors shadow-sm cursor-pointer"
-                                          title="قبول التحويل وتفعيل باقة 8 حصص"
-                                        >
-                                          <CheckCircle2 className="w-4 h-4" />
-                                          قبول وتفعيل (8 حصص)
-                                        </button>
-                                        {pkg.receipt_url && (
-                                          <button
-                                            onClick={() => setReceiptPreviewUrl(pkg.receipt_url)}
-                                            className="p-2 rounded-xl bg-blue-50 text-blue-600 dark:bg-blue-900/30 dark:text-blue-400 hover:bg-blue-100 transition-colors cursor-pointer"
-                                            title="معاينة إيصال التحويل"
-                                          >
-                                            <Eye className="w-4 h-4" />
-                                          </button>
-                                        )}
-                                      </>
+                                      <Link
+                                        to="/admin-dashboard/subscriptions"
+                                        className="px-3.5 py-2 rounded-xl bg-amber-500/15 border border-amber-500/30 text-amber-600 dark:text-amber-300 hover:bg-amber-500/25 text-xs font-bold flex items-center gap-1.5 transition-all shadow-xs"
+                                        title="انتقل لإدارة الاشتراكات لمراجعة الإيصال والاعتماد المالي"
+                                      >
+                                        <Clock className="w-3.5 h-3.5" />
+                                        <span>اعتماد مالي ↗</span>
+                                      </Link>
+                                    ) : isExpired ? (
+                                      <button
+                                        onClick={() => handleRenewPackage(pkg)}
+                                        className="px-4 py-2 rounded-xl bg-amber-600 hover:bg-amber-700 text-white text-xs font-black flex items-center gap-1.5 transition-all shadow-md shadow-amber-600/20 cursor-pointer hover:scale-105 active:scale-95"
+                                        title="تجديد وتفعيل باقة 8 حصص جديدة"
+                                      >
+                                        <RefreshCw className="w-4 h-4" />
+                                        تجديد وتفعيل (8 حصص)
+                                      </button>
                                     ) : (
                                       <>
                                         <button
-                                          onClick={() => handleUpdatePackageSessions(pkg, -1)}
+                                          onClick={() => handleOpenDeductModal(pkg)}
                                           disabled={remaining <= 0}
-                                          className="px-3.5 py-1.5 rounded-xl bg-amber-50 hover:bg-amber-100 dark:bg-amber-950/40 text-amber-700 dark:text-amber-400 text-xs font-bold flex items-center gap-1.5 transition-colors disabled:opacity-40 disabled:cursor-not-allowed cursor-pointer shadow-sm"
-                                          title="خصم حصة واحدة مباشرة"
+                                          className="px-4 py-2 rounded-xl bg-purple-600 hover:bg-purple-700 text-white text-xs font-black flex items-center gap-1.5 transition-all shadow-md shadow-purple-600/20 cursor-pointer disabled:opacity-40 disabled:cursor-not-allowed hover:scale-105 active:scale-95"
+                                          title="خصم حصة وتسجيل الحضور والملاحظات للطالب"
                                         >
                                           <MinusCircle className="w-4 h-4" />
-                                          خصم حصة (-1)
+                                          <span>خصم حصة (تسجيل حضور)</span>
                                         </button>
 
                                         <button
                                           onClick={() => handleUpdatePackageSessions(pkg, 1)}
-                                          className="px-3 py-1.5 rounded-xl bg-gray-100 hover:bg-gray-200 dark:bg-slate-700 text-gray-700 dark:text-gray-300 text-xs font-bold flex items-center gap-1 transition-colors cursor-pointer"
+                                          className="px-3 py-2 rounded-xl bg-gray-100 hover:bg-gray-200 dark:bg-slate-700 text-gray-700 dark:text-gray-300 text-xs font-bold flex items-center gap-1 transition-all cursor-pointer shadow-xs hover:scale-105 active:scale-95"
                                           title="إضافة حصة تعويضية (+1)"
                                         >
                                           <PlusCircle className="w-3.5 h-3.5" />
                                           +1
                                         </button>
-
-                                        <button
-                                          onClick={() => handleRenewPackage(pkg)}
-                                          className="px-4 py-1.5 rounded-xl bg-emerald-600 hover:bg-emerald-700 text-white text-xs font-black flex items-center gap-1 transition-colors shadow-sm cursor-pointer"
-                                          title="تجديد باقة 8 حصص جديدة"
-                                        >
-                                          <RefreshCw className="w-3.5 h-3.5" />
-                                          تجديد (8 حصص)
-                                        </button>
-
-                                        {pkg.receipt_url && (
-                                          <button
-                                            onClick={() => setReceiptPreviewUrl(pkg.receipt_url)}
-                                            className="p-1.5 rounded-lg bg-blue-50 text-blue-600 dark:bg-blue-900/30 dark:text-blue-400 hover:bg-blue-100 transition-colors cursor-pointer"
-                                            title="عرض إيصال التحويل"
-                                          >
-                                            <Eye className="w-4 h-4" />
-                                          </button>
-                                        )}
                                       </>
                                     )}
                                   </div>

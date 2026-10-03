@@ -11,7 +11,7 @@ import { Link } from 'react-router-dom';
 import FadeIn from '../../components/FadeIn';
 import ConfirmModal from '../../components/ConfirmModal';
 import { supabase } from '../../lib/supabase';
-import { getDirectImageUrl, calculateSubscriptionStatus, formatGradeName, getScheduledSessionInfo } from '../../utils/helpers';
+import { getDirectImageUrl, calculateSubscriptionStatus, formatGradeName, getScheduledSessionInfo, cleanTeacherNotes, cleanSessionTitle } from '../../utils/helpers';
 import toast from 'react-hot-toast';
 
 const apiUrl = import.meta.env.VITE_API_URL || 'http://localhost:5000';
@@ -418,8 +418,8 @@ export default function AdminSubscriptions() {
       weeklySchedules
     );
 
-    const sTitle = schedInfo.title;
-    const tNotes = schedInfo.notes;
+    const sTitle = cleanSessionTitle(schedInfo.title);
+    const tNotes = cleanTeacherNotes(schedInfo.notes);
     const completedAt = schedInfo.completedAt;
 
     // Optimistic UI update
@@ -477,8 +477,8 @@ export default function AdminSubscriptions() {
     const item = deductModal.item;
     const newRemaining = Math.max(0, item.remainingSessions - 1);
     const newStatus = newRemaining === 0 ? 'expired' : 'active';
-    const sTitle = deductModal.sessionTitle.trim() || 'حصة أونلاين مباشرة';
-    const tNotes = deductModal.teacherNotes.trim();
+    const sTitle = cleanSessionTitle(deductModal.sessionTitle.trim() || 'حصة أونلاين مباشرة');
+    const tNotes = cleanTeacherNotes(deductModal.teacherNotes.trim());
     const completedAt = new Date().toISOString();
 
     setDeductModal(prev => ({ ...prev, submitting: true }));

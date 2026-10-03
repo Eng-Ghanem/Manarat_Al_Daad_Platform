@@ -12,7 +12,7 @@ import FadeIn from '../../components/FadeIn';
 import { supabase } from '../../lib/supabase';
 import ConfirmModal from '../../components/ConfirmModal';
 import toast from 'react-hot-toast';
-import { formatSessionTitle, formatSessionDesc, formatGradeName, formatTime12h, formatTimeRange12h, GRADE_OPTIONS, getScheduledSessionInfo } from '../../utils/helpers';
+import { formatSessionTitle, formatSessionDesc, formatGradeName, formatTime12h, formatTimeRange12h, GRADE_OPTIONS, getScheduledSessionInfo, cleanTeacherNotes, cleanSessionTitle } from '../../utils/helpers';
 
 // Helper for <input type="datetime-local" /> in local timezone
 const toLocalDatetimeStr = (utcStr) => {
@@ -760,10 +760,11 @@ export default function AdminLiveSessions() {
       pkg.user_id,
       weeklySchedules,
       deductModal.sessionTitle,
-      deductModal.teacherNotes
+      deductModal.teacherNotes,
+      deductModal.completedAt ? new Date(deductModal.completedAt) : new Date()
     );
-    const sTitle = schedInfo.title;
-    const tNotes = schedInfo.notes;
+    const sTitle = cleanSessionTitle(deductModal.sessionTitle?.trim() || schedInfo.title);
+    const tNotes = cleanTeacherNotes(deductModal.teacherNotes?.trim() || schedInfo.notes);
     // Real-time moment of submission or user-chosen time
     const completedAt = deductModal.completedAt 
       ? new Date(deductModal.completedAt).toISOString() 
@@ -1014,10 +1015,11 @@ export default function AdminLiveSessions() {
       null,
       weeklySchedules,
       bulkDeductModal.sessionTitle,
-      bulkDeductModal.teacherNotes
+      bulkDeductModal.teacherNotes,
+      bulkDeductModal.completedAt ? new Date(bulkDeductModal.completedAt) : new Date()
     );
-    const sTitle = schedInfo.title;
-    const tNotes = schedInfo.notes;
+    const sTitle = cleanSessionTitle(bulkDeductModal.sessionTitle?.trim() || schedInfo.title);
+    const tNotes = cleanTeacherNotes(bulkDeductModal.teacherNotes?.trim() || schedInfo.notes);
     // Real-time moment of submission or user-chosen time
     const completedAt = bulkDeductModal.completedAt 
       ? new Date(bulkDeductModal.completedAt).toISOString() 
@@ -1122,8 +1124,8 @@ export default function AdminLiveSessions() {
       id: item.id,
       studentName: item.student_name || 'الطالب',
       gradeLevel: item.grade_level || '',
-      sessionTitle: item.session_title || '',
-      teacherNotes: item.teacher_notes || '',
+      sessionTitle: cleanSessionTitle(item.session_title || ''),
+      teacherNotes: cleanTeacherNotes(item.teacher_notes || ''),
       completedAt: toLocalDatetimeStr(item.completed_at || item.created_at || new Date()),
       submitting: false
     });
@@ -1138,12 +1140,14 @@ export default function AdminLiveSessions() {
       const updatedDateIso = editCompletedModal.completedAt
         ? new Date(editCompletedModal.completedAt).toISOString()
         : new Date().toISOString();
+      const cleanedTitle = cleanSessionTitle(editCompletedModal.sessionTitle?.trim());
+      const cleanedNotes = cleanTeacherNotes(editCompletedModal.teacherNotes?.trim());
 
       const { error } = await supabase
         .from('completed_live_sessions')
         .update({
-          session_title: editCompletedModal.sessionTitle.trim(),
-          teacher_notes: editCompletedModal.teacherNotes.trim(),
+          session_title: cleanedTitle,
+          teacher_notes: cleanedNotes,
           completed_at: updatedDateIso
         })
         .eq('id', editCompletedModal.id);
@@ -1157,8 +1161,8 @@ export default function AdminLiveSessions() {
         item.id === editCompletedModal.id
           ? {
               ...item,
-              session_title: editCompletedModal.sessionTitle.trim(),
-              teacher_notes: editCompletedModal.teacherNotes.trim(),
+              session_title: cleanedTitle,
+              teacher_notes: cleanedNotes,
               completed_at: updatedDateIso
             }
           : item
@@ -2431,7 +2435,7 @@ export default function AdminLiveSessions() {
 
                           {item.teacher_notes && (
                             <div className="text-xs text-gray-700 dark:text-gray-300 bg-gray-50 dark:bg-slate-800/70 p-2.5 rounded-xl font-medium border border-gray-100 dark:border-slate-700/60 mt-1 inline-block max-w-full">
-                              📝 <span className="font-bold">ملاحظات:</span> {item.teacher_notes}
+                              📝 <span className="font-bold">ملاحظات:</span> {cleanTeacherNotes(item.teacher_notes)}
                             </div>
                           )}
                         </div>
@@ -2507,7 +2511,7 @@ export default function AdminLiveSessions() {
                               {item.session_title || 'حصة أونلاين مباشرة'}
                             </td>
                             <td className="py-4 px-4 text-xs text-gray-600 dark:text-gray-300 max-w-xs">
-                              {item.teacher_notes || <span className="text-gray-400 italic">لا توجد ملاحظات</span>}
+                              {cleanTeacherNotes(item.teacher_notes) || <span className="text-gray-400 italic">لا توجد ملاحظات</span>}
                             </td>
                             <td className="py-4 px-4 text-center">
                               <div className="flex items-center justify-center gap-1.5">
@@ -3390,7 +3394,27 @@ export default function AdminLiveSessions() {
                   type="datetime-local"
                   required
                   value={deductModal.completedAt}
-                  onChange={(e) => setDeductModal({ ...deductModal, completedAt: e.target.value })}
+                  onChange={(e) => {
+                    const newTime = e.target.value;
+                    if (deductModal.pkg) {
+                      const schedInfo = getScheduledSessionInfo(
+                        deductModal.pkg.grade_level,
+                        deductModal.pkg.user_id,
+                        weeklySchedules,
+                        '',
+                        '',
+                        newTime ? new Date(newTime) : new Date()
+                      );
+                      setDeductModal(prev => ({
+                        ...prev,
+                        completedAt: newTime,
+                        sessionTitle: schedInfo.title,
+                        teacherNotes: schedInfo.notes
+                      }));
+                    } else {
+                      setDeductModal(prev => ({ ...prev, completedAt: newTime }));
+                    }
+                  }}
                   className="w-full px-4 py-2.5 rounded-xl bg-gray-50 dark:bg-slate-900 border border-gray-200 dark:border-slate-700 text-sm font-bold text-gray-900 dark:text-white outline-none focus:border-amber-500"
                 />
               </div>
@@ -3473,7 +3497,23 @@ export default function AdminLiveSessions() {
                   type="datetime-local"
                   required
                   value={bulkDeductModal.completedAt}
-                  onChange={(e) => setBulkDeductModal({ ...bulkDeductModal, completedAt: e.target.value })}
+                  onChange={(e) => {
+                    const newTime = e.target.value;
+                    const schedInfo = getScheduledSessionInfo(
+                      bulkDeductModal.gradeLevel,
+                      null,
+                      weeklySchedules,
+                      '',
+                      '',
+                      newTime ? new Date(newTime) : new Date()
+                    );
+                    setBulkDeductModal(prev => ({
+                      ...prev,
+                      completedAt: newTime,
+                      sessionTitle: schedInfo.title,
+                      teacherNotes: schedInfo.notes
+                    }));
+                  }}
                   className="w-full px-4 py-2.5 rounded-xl bg-gray-50 dark:bg-slate-900 border border-gray-200 dark:border-slate-700 text-sm font-bold text-gray-900 dark:text-white outline-none focus:border-emerald-500"
                 />
               </div>

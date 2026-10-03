@@ -322,15 +322,37 @@ export const compressImage = async (file, maxWidth = 1200, maxHeight = 1200, qua
 };
 
 /**
+ * Cleans duplicate identical parenthesized time ranges or phrases in teacher notes
+ * e.g. "تم حضور الحصة... (من 01:00 م إلى 02:00 م) (من 01:00 م إلى 02:00 م)" -> "... (من 01:00 م إلى 02:00 م)"
+ */
+export const cleanTeacherNotes = (notes) => {
+  if (!notes || typeof notes !== 'string') return '';
+  let cleaned = notes.trim();
+  cleaned = cleaned.replace(/(\([^\)]+\))\s*\1+/g, '$1');
+  return cleaned;
+};
+
+export const cleanSessionTitle = (title) => {
+  if (!title || typeof title !== 'string') return '';
+  return title.trim().replace(/(\([^\)]+\))\s*\1+/g, '$1');
+};
+
+/**
  * Calculates official scheduled session info (title, completed_at, notes)
  * based on weekly schedules configured by the teacher.
- * Even if deduction is performed hours after the class,
- * it anchors to the scheduled day and start/end time.
  */
-export const getScheduledSessionInfo = (gradeLevel, studentId, schedules = [], customTitle = '', customNotes = '') => {
+export const getScheduledSessionInfo = (
+  gradeLevel, 
+  studentId, 
+  schedules = [], 
+  customTitle = '', 
+  customNotes = '',
+  targetDate = new Date()
+) => {
   const AR_DAYS = ['الأحد', 'الإثنين', 'الثلاثاء', 'الأربعاء', 'الخميس', 'الجمعة', 'السبت'];
-  const now = new Date();
-  const todayDayName = AR_DAYS[now.getDay()];
+  const d = targetDate instanceof Date ? targetDate : new Date(targetDate || Date.now());
+  const validDate = isNaN(d.getTime()) ? new Date() : d;
+  const currentDayName = AR_DAYS[validDate.getDay()];
 
   // 1. Find matching schedule: prioritize specific student schedule, then grade schedule
   const relevantSchedules = (schedules || []).filter(s => {
@@ -340,31 +362,46 @@ export const getScheduledSessionInfo = (gradeLevel, studentId, schedules = [], c
     return s.grade_level === gradeLevel;
   });
 
-  // 2. Prefer schedule matching today's day of the week
-  let matchedSchedule = relevantSchedules.find(s => Array.isArray(s.days) && s.days.includes(todayDayName));
-  if (!matchedSchedule && relevantSchedules.length > 0) {
-    matchedSchedule = relevantSchedules[0];
+  // 2. Prefer schedule matching the session's actual day of the week
+  const matchedSchedule = relevantSchedules.find(s => Array.isArray(s.days) && s.days.includes(currentDayName));
+
+  // The day name must ALWAYS match the session's actual day (e.g. السبت)
+  const dayName = currentDayName;
+
+  let startTime;
+  let endTime;
+
+  if (matchedSchedule?.start_time && matchedSchedule?.end_time) {
+    startTime = matchedSchedule.start_time;
+    endTime = matchedSchedule.end_time;
+  } else if (relevantSchedules.length > 0 && relevantSchedules[0].start_time && relevantSchedules[0].end_time) {
+    // If the teacher has a schedule for this grade, use that schedule's configured time slot
+    startTime = relevantSchedules[0].start_time;
+    endTime = relevantSchedules[0].end_time;
+  } else {
+    // Default to the hour window of validDate
+    const sH = validDate.getHours();
+    const eH = (sH + 1) % 24;
+    startTime = `${String(sH).padStart(2, '0')}:00`;
+    endTime = `${String(eH).padStart(2, '0')}:00`;
   }
 
-  const dayName = (matchedSchedule && Array.isArray(matchedSchedule.days) && matchedSchedule.days.includes(todayDayName))
-    ? todayDayName
-    : (matchedSchedule?.days?.[0] || todayDayName);
-
-  const startTime = matchedSchedule?.start_time || '13:00';
-  const endTime = matchedSchedule?.end_time || '14:00';
   const timeFormatted = formatTimeRange12h(startTime, endTime);
 
   // Real-time moment of submission / deduction
-  const completedAt = now.toISOString();
+  const completedAt = validDate.toISOString();
 
   const gradeName = formatGradeName(gradeLevel);
   const title = customTitle && customTitle.trim()
-    ? customTitle.trim()
+    ? cleanSessionTitle(customTitle)
     : `حصة ${dayName} (${timeFormatted}) - ${gradeName}`;
 
-  const notes = customNotes && customNotes.trim()
-    ? `${customNotes.trim()} (${timeFormatted})`
+  // If customNotes is provided, use it directly without re-appending timeFormatted
+  let notes = customNotes && customNotes.trim()
+    ? customNotes.trim()
     : `تم حضور الحصة واكتمالها بنجاح وفق الجدول المقرر (${timeFormatted})`;
+
+  notes = cleanTeacherNotes(notes);
 
   return {
     dayName,

@@ -12,7 +12,7 @@ import { useAuth } from '../context/AuthContext';
 import { Link } from 'react-router-dom';
 import BackButton from '../components/BackButton';
 import toast from 'react-hot-toast';
-import { formatSessionTitle, formatSessionDesc, formatGradeName, formatTime12h, formatTimeRange12h, compressImage } from '../utils/helpers';
+import { formatSessionTitle, formatSessionDesc, formatGradeName, formatTime12h, formatTimeRange12h, compressImage, cleanTeacherNotes, cleanSessionTitle } from '../utils/helpers';
 
 export default function StudentLiveSessions() {
   const { t, i18n } = useTranslation();
@@ -1182,7 +1182,7 @@ export default function StudentLiveSessions() {
                       >
                         <div className="space-y-1">
                           <div className="flex items-center gap-2 flex-wrap">
-                            <h4 className="font-black text-base text-gray-900 dark:text-white">{cs.session_title}</h4>
+                            <h4 className="font-black text-base text-gray-900 dark:text-white">{cleanSessionTitle(cs.session_title)}</h4>
                             <span className="px-2.5 py-0.5 rounded-full text-[11px] font-bold bg-green-100 text-green-700 dark:bg-green-950/50 dark:text-green-300">
                               مكتملة ومحسوبة ✅
                             </span>
@@ -1208,7 +1208,7 @@ export default function StudentLiveSessions() {
 
                           {cs.teacher_notes && (
                             <p className="text-xs text-gray-600 dark:text-gray-300 bg-gray-50 dark:bg-slate-800/60 p-2 rounded-xl mt-2 font-medium">
-                              📝 ملاحظات: {cs.teacher_notes}
+                              📝 ملاحظات: {cleanTeacherNotes(cs.teacher_notes)}
                             </p>
                           )}
                         </div>

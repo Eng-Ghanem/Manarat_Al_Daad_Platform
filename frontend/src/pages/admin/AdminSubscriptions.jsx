@@ -664,7 +664,14 @@ export default function AdminSubscriptions() {
               <span>لوحة التحكم الرئيسية</span>
             </Link>
 
-            <div className="flex items-center gap-3">
+            <div className="flex flex-wrap items-center gap-2.5">
+              <Link 
+                to="/admin-dashboard/live-sessions?tab=completed" 
+                className="flex items-center gap-2 px-4 py-2 bg-gradient-to-r from-purple-900/60 to-indigo-900/60 hover:from-purple-800/80 hover:to-indigo-800/80 text-purple-200 hover:text-white rounded-full transition-all text-xs font-bold border border-purple-500/40 shadow-sm backdrop-blur-md"
+              >
+                <BookOpen className="w-4 h-4 text-purple-300" />
+                <span>سجل الحصص المكتملة والحضور</span>
+              </Link>
               <Link 
                 to="/admin-dashboard/live-sessions" 
                 className="flex items-center gap-2 px-4 py-2 bg-purple-900/30 hover:bg-purple-800/40 text-purple-200 rounded-full transition-all text-xs font-bold border border-purple-500/30 shadow-sm backdrop-blur-md"
@@ -858,23 +865,6 @@ export default function AdminSubscriptions() {
                     filter === 'active' ? 'bg-slate-950 text-emerald-400' : 'bg-emerald-500/20 text-emerald-300'
                   }`}>
                     {activeCount}
-                  </span>
-                </button>
-
-                <button
-                  onClick={() => setFilter('expired')}
-                  className={`flex items-center gap-2 px-3.5 py-1.5 rounded-xl text-xs sm:text-sm font-bold transition-all cursor-pointer ${
-                    filter === 'expired'
-                      ? 'bg-rose-500 text-white font-black shadow-md shadow-rose-500/20'
-                      : 'text-rose-400 hover:bg-rose-500/10'
-                  }`}
-                >
-                  <AlertTriangle className="w-3.5 h-3.5" />
-                  <span>المنتهية</span>
-                  <span className={`px-2 py-0.5 rounded-full text-[11px] font-black ${
-                    filter === 'expired' ? 'bg-slate-950 text-rose-300' : 'bg-rose-500/20 text-rose-300'
-                  }`}>
-                    {expiredCount}
                   </span>
                 </button>
 
@@ -1202,6 +1192,14 @@ export default function AdminSubscriptions() {
                                       <RefreshCw className="w-3.5 h-3.5" />
                                       <span>تجديد (8)</span>
                                     </button>
+                                    <Link
+                                      to={`/admin-dashboard/live-sessions?tab=completed&student=${req.user_id}`}
+                                      className="px-2.5 py-2 bg-purple-500/20 text-purple-300 hover:bg-purple-500/30 border border-purple-500/40 rounded-xl font-bold text-xs transition-all shadow-sm flex items-center gap-1 cursor-pointer hover:scale-105 active:scale-95"
+                                      title="عرض سجل حصص هذا الطالب وتاريخ الحضور"
+                                    >
+                                      <BookOpen className="w-3.5 h-3.5 text-purple-400" />
+                                      <span>سجل الحصص</span>
+                                    </Link>
                                   </>
                                 )}
 

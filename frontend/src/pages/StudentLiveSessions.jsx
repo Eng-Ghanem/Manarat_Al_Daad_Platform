@@ -85,10 +85,12 @@ export default function StudentLiveSessions() {
 
     return Array.from(set).sort().reverse().map(ym => {
       const [y, m] = ym.split('-');
-      const name = AR_MONTHS[parseInt(m, 10) - 1] || m;
+      const mNum = parseInt(m, 10);
+      const name = AR_MONTHS[mNum - 1] || m;
       return {
         value: ym,
-        label: `${name} ${y}`
+        monthNum: mNum,
+        label: `شهر ${mNum} (${name} ${y})`
       };
     });
   }, [completedSessions]);

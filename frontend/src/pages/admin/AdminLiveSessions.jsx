@@ -19,7 +19,15 @@ export default function AdminLiveSessions() {
   const isRTL = i18n.language === 'ar';
   
   // Main Top-level View Switcher
-  const [mainView, setMainView] = useState('sessions'); // 'sessions' | 'packages' | 'trials'
+  const [mainView, setMainView] = useState(() => {
+    if (typeof window !== 'undefined') {
+      const tab = new URLSearchParams(window.location.search).get('tab');
+      if (tab === 'completed' || tab === 'history') return 'completed';
+      if (tab === 'packages') return 'packages';
+      if (tab === 'trials') return 'trials';
+    }
+    return 'sessions';
+  }); // 'sessions' | 'packages' | 'completed' | 'trials'
   const [sessionsSubTab, setSessionsSubTab] = useState('live_list'); // 'live_list' | 'schedules'
 
   // Sessions state
@@ -89,25 +97,34 @@ export default function AdminLiveSessions() {
   const [deleteCompletedModal, setDeleteCompletedModal] = useState({ isOpen: false, id: null });
 
   // Dynamic list of students for History filtering
+  // Dynamic list of students for History filtering (All registered platform students)
   const historyStudentsList = useMemo(() => {
     const map = new Map();
-    completedSessions.forEach(cs => {
-      const key = cs.student_id || cs.student_name;
-      if (key && !map.has(key)) {
-        map.set(key, {
-          id: key,
-          name: cs.student_name || 'طالب',
-          grade: cs.grade_level
-        });
-      }
-    });
+    // 1. Add all registered students from packages first (contains all profiles where role = 'student')
     packages.forEach(p => {
-      if (p.user_id && !map.has(p.user_id)) {
+      if (p.user_id) {
         map.set(p.user_id, {
           id: p.user_id,
           name: p.full_name || 'طالب',
           grade: p.grade_level
         });
+      }
+    });
+    // 2. Add any completed sessions students if they are not already mapped
+    completedSessions.forEach(cs => {
+      const existing = Array.from(map.values()).find(
+        s => (cs.student_id && s.id === cs.student_id) || 
+             (cs.student_name && s.name.trim().toLowerCase() === cs.student_name.trim().toLowerCase())
+      );
+      if (!existing) {
+        const key = cs.student_id || cs.student_name;
+        if (key) {
+          map.set(key, {
+            id: key,
+            name: cs.student_name || 'طالب',
+            grade: cs.grade_level
+          });
+        }
       }
     });
     return Array.from(map.values()).sort((a, b) => (a.name || '').localeCompare(b.name || '', 'ar'));
@@ -117,8 +134,12 @@ export default function AdminLiveSessions() {
   const historyMonthsList = useMemo(() => {
     const set = new Set();
     const now = new Date();
-    const currentYM = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}`;
-    set.add(currentYM);
+    const curYear = now.getFullYear();
+
+    // Include all 12 months for current year
+    for (let m = 1; m <= 12; m++) {
+      set.add(`${curYear}-${String(m).padStart(2, '0')}`);
+    }
 
     completedSessions.forEach(cs => {
       const d = cs.completed_at || cs.created_at;
@@ -134,10 +155,13 @@ export default function AdminLiveSessions() {
 
     return Array.from(set).sort().reverse().map(ym => {
       const [y, m] = ym.split('-');
-      const name = AR_MONTHS[parseInt(m, 10) - 1] || m;
+      const mNum = parseInt(m, 10);
+      const name = AR_MONTHS[mNum - 1] || m;
       return {
         value: ym,
-        label: `${name} ${y}`
+        monthNum: mNum,
+        year: y,
+        label: `شهر ${mNum} (${name} ${y})`
       };
     });
   }, [completedSessions]);
@@ -162,9 +186,13 @@ export default function AdminLiveSessions() {
         if (cs.grade_level !== historyGradeFilter) return false;
       }
 
-      // 3. Student Filter
+      // 3. Student Filter (matches student_id, student_name, or matching student profile name)
       if (historyStudentFilter !== 'all') {
-        const matches = (cs.student_id === historyStudentFilter) || (cs.student_name === historyStudentFilter);
+        const selStudent = historyStudentsList.find(s => s.id === historyStudentFilter);
+        const selName = selStudent ? selStudent.name : null;
+        const matches = (cs.student_id === historyStudentFilter) || 
+                        (cs.student_name === historyStudentFilter) ||
+                        (selName && cs.student_name && cs.student_name.trim().toLowerCase() === selName.trim().toLowerCase());
         if (!matches) return false;
       }
 
@@ -182,7 +210,7 @@ export default function AdminLiveSessions() {
 
       return true;
     });
-  }, [completedSessions, completedSearch, historyGradeFilter, historyStudentFilter, historyMonthFilter]);
+  }, [completedSessions, completedSearch, historyGradeFilter, historyStudentFilter, historyMonthFilter, historyStudentsList]);
 
   // Selected student object for active summary
   const selectedHistoryStudent = useMemo(() => {
@@ -243,6 +271,28 @@ export default function AdminLiveSessions() {
     fetchPackages();
     fetchCompletedSessions();
     fetchTrialData();
+
+    // Read URL query parameters (e.g. ?tab=completed or ?student=...)
+    try {
+      const params = new URLSearchParams(window.location.search);
+      const tabParam = params.get('tab');
+      if (tabParam === 'completed' || tabParam === 'history') {
+        setMainView('completed');
+      } else if (tabParam === 'packages') {
+        setMainView('packages');
+      } else if (tabParam === 'trials') {
+        setMainView('trials');
+      }
+
+      const studentParam = params.get('student');
+      if (studentParam) {
+        setHistoryStudentFilter(studentParam);
+      }
+      const gradeParam = params.get('grade');
+      if (gradeParam) {
+        setHistoryGradeFilter(gradeParam);
+      }
+    } catch (_) {}
   }, []);
 
   // Real-time synchronization for Admin across packages, completed sessions, and trial requests
@@ -1478,18 +1528,18 @@ export default function AdminLiveSessions() {
         
         {/* ===================== Top Nav Switcher ===================== */}
         <div className="bg-white dark:bg-slate-800 rounded-3xl p-3 shadow-lg border border-gray-100 dark:border-slate-700 mb-8">
-          <div className="grid grid-cols-1 sm:grid-cols-3 gap-2">
+          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-2">
             <button
               onClick={() => setMainView('sessions')}
-              className={`flex items-center justify-center gap-3 py-4 px-6 rounded-2xl font-bold transition-all text-base cursor-pointer ${
+              className={`flex items-center justify-center gap-2.5 py-3.5 px-4 rounded-2xl font-bold transition-all text-sm cursor-pointer ${
                 mainView === 'sessions'
                   ? 'bg-blue-600 text-white shadow-md shadow-blue-500/20 font-black'
                   : 'text-gray-600 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-slate-700/50'
               }`}
             >
-              <CalendarDays className="w-5 h-5" />
-              <span>الجدول الأسبوعي الثابت المقرر</span>
-              <span className={`px-2.5 py-0.5 rounded-full text-xs font-black ${
+              <CalendarDays className="w-5 h-5 shrink-0" />
+              <span>الجدول الأسبوعي المقرر</span>
+              <span className={`px-2 py-0.5 rounded-full text-xs font-black ${
                 mainView === 'sessions' ? 'bg-white/20 text-white' : 'bg-blue-100 text-blue-800 dark:bg-blue-950 dark:text-blue-300'
               }`}>
                 {weeklySchedules.length}
@@ -1498,15 +1548,15 @@ export default function AdminLiveSessions() {
 
             <button
               onClick={() => setMainView('packages')}
-              className={`flex items-center justify-center gap-3 py-4 px-6 rounded-2xl font-bold transition-all text-base cursor-pointer ${
+              className={`flex items-center justify-center gap-2.5 py-3.5 px-4 rounded-2xl font-bold transition-all text-sm cursor-pointer ${
                 mainView === 'packages'
                   ? 'bg-emerald-600 text-white shadow-md shadow-emerald-500/20 font-black'
                   : 'text-gray-600 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-slate-700/50'
               }`}
             >
-              <Users className="w-5 h-5" />
-              <span>حضور الطلاب ورصيد الباقات (8 حصص)</span>
-              <span className={`px-2.5 py-0.5 rounded-full text-xs font-black ${
+              <Users className="w-5 h-5 shrink-0" />
+              <span>رصيد باقات الـ 8 حصص</span>
+              <span className={`px-2 py-0.5 rounded-full text-xs font-black ${
                 mainView === 'packages' ? 'bg-white/20 text-white' : 'bg-emerald-100 text-emerald-800 dark:bg-emerald-950 dark:text-emerald-300'
               }`}>
                 {packages.length}
@@ -1514,17 +1564,34 @@ export default function AdminLiveSessions() {
             </button>
 
             <button
-              onClick={() => setMainView('trials')}
-              className={`flex items-center justify-center gap-3 py-4 px-6 rounded-2xl font-bold transition-all text-base cursor-pointer ${
-                mainView === 'trials'
+              onClick={() => setMainView('completed')}
+              className={`flex items-center justify-center gap-2.5 py-3.5 px-4 rounded-2xl font-bold transition-all text-sm cursor-pointer ${
+                mainView === 'completed'
                   ? 'bg-purple-600 text-white shadow-md shadow-purple-500/20 font-black'
                   : 'text-gray-600 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-slate-700/50'
               }`}
             >
-              <Sparkles className="w-5 h-5" />
+              <BookOpen className="w-5 h-5 shrink-0" />
+              <span>سجل الحصص المكتملة</span>
+              <span className={`px-2 py-0.5 rounded-full text-xs font-black ${
+                mainView === 'completed' ? 'bg-white/20 text-white' : 'bg-purple-100 text-purple-800 dark:bg-purple-950 dark:text-purple-300'
+              }`}>
+                {completedSessions.length}
+              </span>
+            </button>
+
+            <button
+              onClick={() => setMainView('trials')}
+              className={`flex items-center justify-center gap-2.5 py-3.5 px-4 rounded-2xl font-bold transition-all text-sm cursor-pointer ${
+                mainView === 'trials'
+                  ? 'bg-amber-600 text-white shadow-md shadow-amber-500/20 font-black'
+                  : 'text-gray-600 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-slate-700/50'
+              }`}
+            >
+              <Sparkles className="w-5 h-5 shrink-0" />
               <span>الحصص التجريبية (30 دقيقة)</span>
-              <span className={`px-2.5 py-0.5 rounded-full text-xs font-black ${
-                mainView === 'trials' ? 'bg-white/20 text-white' : 'bg-purple-100 text-purple-800 dark:bg-purple-950 dark:text-purple-300'
+              <span className={`px-2 py-0.5 rounded-full text-xs font-black ${
+                mainView === 'trials' ? 'bg-white/20 text-white' : 'bg-amber-100 text-amber-800 dark:bg-amber-950 dark:text-amber-300'
               }`}>
                 {trialRequests.length}
               </span>
@@ -1761,12 +1828,8 @@ export default function AdminLiveSessions() {
               {/* Sub-tab Navigation */}
               <div className="flex items-center gap-2 mb-6 border-b border-gray-100 dark:border-slate-700 pb-3">
                 <button
-                  onClick={() => setPackageSubTab('packages')}
-                  className={`px-5 py-2.5 rounded-2xl text-xs font-black transition-all flex items-center gap-2 cursor-pointer ${
-                    packageSubTab === 'packages'
-                      ? 'bg-emerald-600 text-white shadow-md shadow-emerald-600/20'
-                      : 'text-gray-600 dark:text-gray-400 hover:bg-gray-100 dark:hover:bg-slate-700/60'
-                  }`}
+                  type="button"
+                  className="px-5 py-2.5 rounded-2xl text-xs font-black transition-all flex items-center gap-2 bg-emerald-600 text-white shadow-md shadow-emerald-600/20"
                 >
                   <CreditCard className="w-4 h-4" />
                   <span>باقات واشتراكات الطلاب</span>
@@ -1776,16 +1839,13 @@ export default function AdminLiveSessions() {
                 </button>
 
                 <button
-                  onClick={() => setPackageSubTab('history')}
-                  className={`px-5 py-2.5 rounded-2xl text-xs font-black transition-all flex items-center gap-2 cursor-pointer ${
-                    packageSubTab === 'history'
-                      ? 'bg-emerald-600 text-white shadow-md shadow-emerald-600/20'
-                      : 'text-gray-600 dark:text-gray-400 hover:bg-gray-100 dark:hover:bg-slate-700/60'
-                  }`}
+                  type="button"
+                  onClick={() => setMainView('completed')}
+                  className="px-5 py-2.5 rounded-2xl text-xs font-black transition-all flex items-center gap-2 cursor-pointer bg-purple-50 hover:bg-purple-100 dark:bg-purple-950/40 dark:hover:bg-purple-900/40 text-purple-700 dark:text-purple-300 border border-purple-200 dark:border-purple-800/40"
                 >
-                  <BookOpen className="w-4 h-4" />
-                  <span>سجل الحصص المكتملة والحضور</span>
-                  <span className="px-2 py-0.5 rounded-full text-[10px] font-black bg-emerald-100 text-emerald-800 dark:bg-emerald-950 dark:text-emerald-300">
+                  <BookOpen className="w-4 h-4 text-purple-600 dark:text-purple-400" />
+                  <span>فتح سجل الحصص المكتملة</span>
+                  <span className="px-2 py-0.5 rounded-full text-[10px] font-black bg-purple-200 text-purple-900 dark:bg-purple-900 dark:text-purple-200">
                     {completedSessions.length}
                   </span>
                 </button>
@@ -1993,219 +2053,260 @@ export default function AdminLiveSessions() {
                 </div>
               )}
 
-              {/* TAB 2: COMPLETED SESSIONS HISTORY */}
-              {packageSubTab === 'history' && (
+            </div>
+          </FadeIn>
+        )}
+
+        {/* ========================================================================= */}
+        {/* VIEW 3: COMPLETED SESSIONS HISTORY (سجل الحصص المكتملة والحضور)          */}
+        {/* ========================================================================= */}
+        {mainView === 'completed' && (
+          <FadeIn>
+            <div className="bg-white dark:bg-slate-800 rounded-3xl p-6 md:p-8 shadow-sm border border-gray-100 dark:border-slate-700 mb-8">
+              
+              {/* Header */}
+              <div className="flex flex-col lg:flex-row justify-between items-start lg:items-center gap-4 mb-6 pb-6 border-b border-gray-100 dark:border-slate-700">
                 <div>
-                  {/* Multi-Filter Bar: Search + Grade + Student + Month */}
-                  <div className="bg-gray-50 dark:bg-slate-900/60 p-4 md:p-5 rounded-2xl border border-gray-100 dark:border-slate-700/80 mb-6 space-y-4">
-                    <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3">
-                      {/* 1. Text Search */}
-                      <div className="relative">
-                        <Search className="w-4 h-4 text-gray-400 absolute right-3.5 top-1/2 -translate-y-1/2 pointer-events-none" />
-                        <input
-                          type="text"
-                          placeholder="بحث بالاسم أو الدرس أو الملاحظات..."
-                          value={completedSearch}
-                          onChange={(e) => setCompletedSearch(e.target.value)}
-                          className="w-full pr-10 pl-4 py-2.5 rounded-xl bg-white dark:bg-slate-800 border border-gray-200 dark:border-slate-700 text-xs font-bold text-gray-900 dark:text-white outline-none focus:ring-2 focus:ring-emerald-500/30"
-                        />
-                      </div>
+                  <h2 className="text-2xl font-black text-gray-900 dark:text-white flex items-center gap-2">
+                    <BookOpen className="w-7 h-7 text-purple-600 dark:text-purple-400" />
+                    سجل الحصص المكتملة وتقرير حضور الطلاب
+                  </h2>
+                  <p className="text-gray-500 dark:text-gray-400 text-sm mt-1">
+                    توثيق تفصيلي لجميع الحصص التي تم تقديمها وإنجازها وخصمها من باقات الطلاب، متزامنة لحظياً مع شاشات الطلاب.
+                  </p>
+                </div>
 
-                      {/* 2. Grade Filter */}
-                      <div>
-                        <select
-                          value={historyGradeFilter}
-                          onChange={(e) => setHistoryGradeFilter(e.target.value)}
-                          className="w-full px-3.5 py-2.5 rounded-xl bg-white dark:bg-slate-800 border border-gray-200 dark:border-slate-700 text-xs font-bold text-gray-900 dark:text-white outline-none cursor-pointer focus:ring-2 focus:ring-emerald-500/30"
-                        >
-                          <option value="all">📚 جميع المراحل والصفوف</option>
-                          <option value="prep_1">الصف الأول الإعدادي</option>
-                          <option value="prep_2">الصف الثاني الإعدادي</option>
-                          <option value="prep_3">الصف الثالث الإعدادي</option>
-                          <option value="sec_1">الصف الأول الثانوي</option>
-                          <option value="sec_2">الصف الثاني الثانوي</option>
-                          <option value="sec_3">الصف الثالث الثانوي</option>
-                        </select>
-                      </div>
+                <div className="flex items-center gap-3">
+                  <button
+                    onClick={() => setMainView('packages')}
+                    className="px-4 py-2.5 bg-emerald-600 hover:bg-emerald-700 text-white rounded-xl text-xs font-bold flex items-center gap-2 transition-all shadow-md shadow-emerald-600/20 cursor-pointer"
+                  >
+                    <UserCheck className="w-4 h-4" />
+                    <span>تسجيل حضور جديد / خصم حصة</span>
+                  </button>
+                  <button
+                    onClick={() => {
+                      fetchCompletedSessions();
+                      fetchPackages();
+                    }}
+                    className="p-2.5 bg-gray-100 hover:bg-gray-200 dark:bg-slate-700 dark:hover:bg-slate-600 rounded-xl text-gray-600 dark:text-gray-300 transition-colors cursor-pointer"
+                    title="تحديث السجل الآن"
+                  >
+                    <RefreshCw className="w-4 h-4" />
+                  </button>
+                </div>
+              </div>
 
-                      {/* 3. Student Filter */}
-                      <div>
-                        <select
-                          value={historyStudentFilter}
-                          onChange={(e) => setHistoryStudentFilter(e.target.value)}
-                          className="w-full px-3.5 py-2.5 rounded-xl bg-white dark:bg-slate-800 border border-gray-200 dark:border-slate-700 text-xs font-bold text-gray-900 dark:text-white outline-none cursor-pointer focus:ring-2 focus:ring-emerald-500/30"
-                        >
-                          <option value="all">👤 جميع الطلاب (تحديد طالب)</option>
-                          {historyStudentsList
-                            .filter(s => historyGradeFilter === 'all' || !s.grade || s.grade === historyGradeFilter)
-                            .map(s => (
-                              <option key={s.id} value={s.id}>
-                                {s.name} ({formatGradeName(s.grade)})
-                              </option>
-                            ))}
-                        </select>
-                      </div>
-
-                      {/* 4. Month & Year Filter */}
-                      <div>
-                        <select
-                          value={historyMonthFilter}
-                          onChange={(e) => setHistoryMonthFilter(e.target.value)}
-                          className="w-full px-3.5 py-2.5 rounded-xl bg-white dark:bg-slate-800 border border-gray-200 dark:border-slate-700 text-xs font-bold text-gray-900 dark:text-white outline-none cursor-pointer focus:ring-2 focus:ring-emerald-500/30"
-                        >
-                          <option value="all">📅 جميع الشهور والأعوام</option>
-                          {historyMonthsList.map(m => (
-                            <option key={m.value} value={m.value}>
-                              🗓️ {m.label}
-                            </option>
-                          ))}
-                        </select>
-                      </div>
-                    </div>
-
-                    {/* Active Filters Summary / Status Banner */}
-                    <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-3 pt-3 border-t border-gray-200/60 dark:border-slate-800 text-xs">
-                      <div className="flex items-center gap-2 flex-wrap">
-                        {selectedHistoryStudent ? (
-                          <div className="flex items-center gap-2 bg-emerald-50 dark:bg-emerald-950/30 border border-emerald-200 dark:border-emerald-800/50 px-3 py-1.5 rounded-xl text-emerald-800 dark:text-emerald-300 font-bold">
-                            <span className="w-2 h-2 rounded-full bg-emerald-500 animate-pulse"></span>
-                            <span>الطالب: <strong>{selectedHistoryStudent.name}</strong></span>
-                            <span>•</span>
-                            <span>{formatGradeName(selectedHistoryStudent.grade)}</span>
-                            <span>•</span>
-                            <span className="text-emerald-900 dark:text-emerald-200 font-black">
-                              أخذ {filteredCompletedSessions.length} {filteredCompletedSessions.length === 1 ? 'حصة' : filteredCompletedSessions.length === 2 ? 'حصتين' : 'حصص'}
-                              {historyMonthFilter !== 'all' ? ` في شهر ${historyMonthsList.find(m => m.value === historyMonthFilter)?.label || historyMonthFilter}` : ' إجمالاً'}
-                            </span>
-                          </div>
-                        ) : (
-                          <div className="flex items-center gap-2 text-gray-600 dark:text-gray-300 font-bold">
-                            <span>عرض النتائج: <strong>{filteredCompletedSessions.length} حصة مكتملة</strong></span>
-                            {historyMonthFilter !== 'all' && (
-                              <span className="px-2 py-0.5 rounded-lg bg-blue-100 dark:bg-blue-900/40 text-blue-700 dark:text-blue-300 text-[11px]">
-                                شهر: {historyMonthsList.find(m => m.value === historyMonthFilter)?.label || historyMonthFilter}
-                              </span>
-                            )}
-                            {historyGradeFilter !== 'all' && (
-                              <span className="px-2 py-0.5 rounded-lg bg-purple-100 dark:bg-purple-900/40 text-purple-700 dark:text-purple-300 text-[11px]">
-                                {formatGradeName(historyGradeFilter)}
-                              </span>
-                            )}
-                          </div>
-                        )}
-                      </div>
-
-                      {(historyGradeFilter !== 'all' || historyStudentFilter !== 'all' || historyMonthFilter !== 'all' || completedSearch.trim()) && (
-                        <button
-                          onClick={() => {
-                            setHistoryGradeFilter('all');
-                            setHistoryStudentFilter('all');
-                            setHistoryMonthFilter('all');
-                            setCompletedSearch('');
-                          }}
-                          className="px-3 py-1.5 rounded-xl bg-gray-200 hover:bg-gray-300 dark:bg-slate-800 dark:hover:bg-slate-700 text-gray-700 dark:text-gray-300 font-bold text-xs transition-colors cursor-pointer"
-                        >
-                          إعادة ضبط الفلاتر
-                        </button>
-                      )}
-                    </div>
+              {/* Multi-Filter Bar: Search + Grade + Student + Month */}
+              <div className="bg-gray-50 dark:bg-slate-900/60 p-4 md:p-5 rounded-2xl border border-gray-100 dark:border-slate-700/80 mb-6 space-y-4">
+                <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3">
+                  {/* 1. Text Search */}
+                  <div className="relative">
+                    <Search className="w-4 h-4 text-gray-400 absolute right-3.5 top-1/2 -translate-y-1/2 pointer-events-none" />
+                    <input
+                      type="text"
+                      placeholder="بحث بالاسم أو الدرس أو الملاحظات..."
+                      value={completedSearch}
+                      onChange={(e) => setCompletedSearch(e.target.value)}
+                      className="w-full pr-10 pl-4 py-2.5 rounded-xl bg-white dark:bg-slate-800 border border-gray-200 dark:border-slate-700 text-xs font-bold text-gray-900 dark:text-white outline-none focus:ring-2 focus:ring-purple-500/30"
+                    />
                   </div>
 
-                  {completedLoading ? (
-                    <div className="flex justify-center py-20">
-                      <div className="animate-spin rounded-full h-12 w-12 border-4 border-emerald-500 border-t-transparent"></div>
-                    </div>
-                  ) : completedSessions.length === 0 ? (
-                    <div className="text-center py-16 bg-gray-50 dark:bg-slate-900/40 rounded-2xl border border-dashed border-gray-200 dark:border-slate-700">
-                      <BookOpen className="w-12 h-12 text-gray-300 dark:text-slate-600 mx-auto mb-3" />
-                      <p className="text-gray-600 dark:text-gray-400 font-bold">لا توجد حصص مكتملة مسجلة حتى الآن.</p>
-                      <p className="text-xs text-gray-400 mt-1">عند تسجيل حضور أي طالب وخصم حصة، ستظهر تلقائياً هنا وفي حساب الطالب مع التاريخ والملاحظات.</p>
-                    </div>
-                  ) : filteredCompletedSessions.length === 0 ? (
-                    <div className="text-center py-16 bg-gray-50 dark:bg-slate-900/40 rounded-2xl border border-dashed border-gray-200 dark:border-slate-700">
-                      <Calendar className="w-12 h-12 text-gray-400 dark:text-slate-600 mx-auto mb-3" />
-                      <p className="text-gray-700 dark:text-gray-300 font-black text-base">لا توجد حصص مكتملة تطابق معايير الفلترة المحددة</p>
-                      <p className="text-xs text-gray-400 mt-1">جرب تغيير الشهر أو اختيار طالب آخر أو إعادة ضبط الفلاتر.</p>
-                      <button
-                        onClick={() => {
-                          setHistoryGradeFilter('all');
-                          setHistoryStudentFilter('all');
-                          setHistoryMonthFilter('all');
-                          setCompletedSearch('');
-                        }}
-                        className="mt-4 px-4 py-2 bg-emerald-600 hover:bg-emerald-700 text-white rounded-xl text-xs font-bold transition-colors cursor-pointer shadow-sm"
-                      >
-                        إعادة ضبط الفلاتر وعرض الكل
-                      </button>
-                    </div>
-                  ) : (
-                    <div className="overflow-x-auto">
-                      <table className="w-full text-right text-sm">
-                        <thead>
-                          <tr className="border-b border-gray-200 dark:border-slate-700 text-xs font-black text-gray-500 dark:text-gray-400 uppercase">
-                            <th className="py-4 px-4">تاريخ الحصة وتوقيتها</th>
-                            <th className="py-4 px-4">الطالب</th>
-                            <th className="py-4 px-4">الصف الدراسي</th>
-                            <th className="py-4 px-4">عنوان الحصة / الدرس</th>
-                            <th className="py-4 px-4">ملاحظات المعلم</th>
-                            <th className="py-4 px-4 text-center">حذف السجل</th>
-                          </tr>
-                        </thead>
-                        <tbody className="divide-y divide-gray-100 dark:divide-slate-700">
-                          {filteredCompletedSessions.map(item => {
-                              const dateObj = new Date(item.completed_at || item.created_at);
-                              const formattedDate = !isNaN(dateObj.getTime())
-                                ? dateObj.toLocaleDateString('ar-EG', { weekday: 'long', year: 'numeric', month: 'short', day: 'numeric' })
-                                : '-';
-                              const formattedTime = !isNaN(dateObj.getTime())
-                                ? dateObj.toLocaleTimeString('ar-EG', { hour: '2-digit', minute: '2-digit' })
-                                : '';
+                  {/* 2. Grade Filter */}
+                  <div>
+                    <select
+                      value={historyGradeFilter}
+                      onChange={(e) => setHistoryGradeFilter(e.target.value)}
+                      className="w-full px-3.5 py-2.5 rounded-xl bg-white dark:bg-slate-800 border border-gray-200 dark:border-slate-700 text-xs font-bold text-gray-900 dark:text-white outline-none cursor-pointer focus:ring-2 focus:ring-purple-500/30"
+                    >
+                      <option value="all">📚 جميع المراحل والصفوف</option>
+                      <option value="prep_1">{formatGradeName('prep_1')}</option>
+                      <option value="prep_2">{formatGradeName('prep_2')}</option>
+                      <option value="prep_3">{formatGradeName('prep_3')}</option>
+                      <option value="sec_1">{formatGradeName('sec_1')}</option>
+                      <option value="sec_2">{formatGradeName('sec_2')}</option>
+                      <option value="sec_3">{formatGradeName('sec_3')}</option>
+                      <option value="primary_4">{formatGradeName('primary_4')}</option>
+                      <option value="primary_5">{formatGradeName('primary_5')}</option>
+                      <option value="primary_6">{formatGradeName('primary_6')}</option>
+                    </select>
+                  </div>
 
-                              return (
-                                <tr key={item.id} className="hover:bg-gray-50/50 dark:hover:bg-slate-750 transition-colors">
-                                  <td className="py-4 px-4">
-                                    <div className="font-bold text-gray-900 dark:text-white flex items-center gap-1.5">
-                                      <Calendar className="w-3.5 h-3.5 text-emerald-500 shrink-0" />
-                                      <span>{formattedDate}</span>
-                                    </div>
-                                    <div className="text-xs text-gray-400 flex items-center gap-1 mt-0.5">
-                                      <Clock className="w-3 h-3" />
-                                      <span>{formattedTime}</span>
-                                    </div>
-                                  </td>
-                                  <td className="py-4 px-4 font-black text-gray-900 dark:text-white">
-                                    {item.student_name || 'طالب'}
-                                  </td>
-                                  <td className="py-4 px-4">
-                                    <span className="px-2.5 py-1 rounded-full text-xs font-bold bg-slate-100 dark:bg-slate-700 text-slate-700 dark:text-slate-300">
-                                      {formatGradeName(item.grade_level)}
-                                    </span>
-                                  </td>
-                                  <td className="py-4 px-4 font-bold text-emerald-700 dark:text-emerald-400">
-                                    {item.session_title || 'حصة أونلاين مباشرة'}
-                                  </td>
-                                  <td className="py-4 px-4 text-xs text-gray-600 dark:text-gray-300 max-w-xs">
-                                    {item.teacher_notes || <span className="text-gray-400 italic">لا توجد ملاحظات</span>}
-                                  </td>
-                                  <td className="py-4 px-4 text-center">
-                                    <button
-                                      onClick={() => setDeleteCompletedModal({ isOpen: true, id: item.id })}
-                                      className="p-2 rounded-xl text-red-600 hover:bg-red-50 dark:hover:bg-red-950/40 transition-colors cursor-pointer"
-                                      title="حذف هذا السجل من قائمة الحصص المكتملة"
-                                    >
-                                      <Trash2 className="w-4 h-4" />
-                                    </button>
-                                  </td>
-                                </tr>
-                              );
-                            })}
-                        </tbody>
-                      </table>
-                    </div>
+                  {/* 3. Student Filter */}
+                  <div>
+                    <select
+                      value={historyStudentFilter}
+                      onChange={(e) => setHistoryStudentFilter(e.target.value)}
+                      className="w-full px-3.5 py-2.5 rounded-xl bg-white dark:bg-slate-800 border border-gray-200 dark:border-slate-700 text-xs font-bold text-gray-900 dark:text-white outline-none cursor-pointer focus:ring-2 focus:ring-purple-500/30"
+                    >
+                      <option value="all">👤 جميع الطلاب (تحديد طالب)</option>
+                      {historyStudentsList
+                        .filter(s => historyGradeFilter === 'all' || !s.grade || s.grade === historyGradeFilter)
+                        .map(s => (
+                          <option key={s.id} value={s.id}>
+                            {s.name} ({formatGradeName(s.grade)})
+                          </option>
+                        ))}
+                    </select>
+                  </div>
+
+                  {/* 4. Month & Year Filter */}
+                  <div>
+                    <select
+                      value={historyMonthFilter}
+                      onChange={(e) => setHistoryMonthFilter(e.target.value)}
+                      className="w-full px-3.5 py-2.5 rounded-xl bg-white dark:bg-slate-800 border border-gray-200 dark:border-slate-700 text-xs font-bold text-gray-900 dark:text-white outline-none cursor-pointer focus:ring-2 focus:ring-purple-500/30"
+                    >
+                      <option value="all">📅 جميع الشهور والأعوام</option>
+                      {historyMonthsList.map(m => (
+                        <option key={m.value} value={m.value}>
+                          🗓️ {m.label}
+                        </option>
+                      ))}
+                    </select>
+                  </div>
+                </div>
+
+                {/* Active Filters Summary / Status Banner */}
+                <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-3 pt-3 border-t border-gray-200/60 dark:border-slate-800 text-xs">
+                  <div className="flex items-center gap-2 flex-wrap">
+                    {selectedHistoryStudent ? (
+                      <div className="flex items-center gap-2 bg-purple-50 dark:bg-purple-950/40 border border-purple-200 dark:border-purple-800/50 px-3.5 py-2 rounded-2xl text-purple-900 dark:text-purple-200 font-bold shadow-sm">
+                        <span className="w-2.5 h-2.5 rounded-full bg-purple-500 animate-pulse"></span>
+                        <span>الطالب: <strong className="text-purple-950 dark:text-white">{selectedHistoryStudent.name}</strong></span>
+                        <span>•</span>
+                        <span className="text-purple-700 dark:text-purple-300">{formatGradeName(selectedHistoryStudent.grade)}</span>
+                        <span>•</span>
+                        <span className="text-purple-900 dark:text-purple-100 font-black bg-purple-200/70 dark:bg-purple-800/70 px-2.5 py-1 rounded-xl">
+                          أخذ {filteredCompletedSessions.length} {filteredCompletedSessions.length === 1 ? 'حصة' : filteredCompletedSessions.length === 2 ? 'حصتين' : 'حصص'}
+                          {historyMonthFilter !== 'all' ? ` في ${historyMonthsList.find(m => m.value === historyMonthFilter)?.label || historyMonthFilter}` : ' إجمالاً'}
+                        </span>
+                      </div>
+                    ) : (
+                      <div className="flex items-center gap-2 text-gray-600 dark:text-gray-300 font-bold">
+                        <span>عرض النتائج: <strong className="text-gray-900 dark:text-white font-black">{filteredCompletedSessions.length} حصة مكتملة</strong></span>
+                        {historyMonthFilter !== 'all' && (
+                          <span className="px-2.5 py-1 rounded-xl bg-blue-100 dark:bg-blue-900/40 text-blue-700 dark:text-blue-300 text-xs font-bold">
+                            {historyMonthsList.find(m => m.value === historyMonthFilter)?.label || historyMonthFilter}
+                          </span>
+                        )}
+                        {historyGradeFilter !== 'all' && (
+                          <span className="px-2.5 py-1 rounded-xl bg-purple-100 dark:bg-purple-900/40 text-purple-700 dark:text-purple-300 text-xs font-bold">
+                            {formatGradeName(historyGradeFilter)}
+                          </span>
+                        )}
+                      </div>
+                    )}
+                  </div>
+
+                  {(historyGradeFilter !== 'all' || historyStudentFilter !== 'all' || historyMonthFilter !== 'all' || completedSearch.trim()) && (
+                    <button
+                      onClick={() => {
+                        setHistoryGradeFilter('all');
+                        setHistoryStudentFilter('all');
+                        setHistoryMonthFilter('all');
+                        setCompletedSearch('');
+                      }}
+                      className="px-3.5 py-2 rounded-xl bg-gray-200 hover:bg-gray-300 dark:bg-slate-700 dark:hover:bg-slate-600 text-gray-800 dark:text-gray-200 font-bold text-xs transition-colors cursor-pointer"
+                    >
+                      إعادة ضبط الفلاتر
+                    </button>
                   )}
                 </div>
-              )}
+              </div>
 
+              {completedLoading ? (
+                <div className="flex justify-center py-20">
+                  <div className="animate-spin rounded-full h-12 w-12 border-4 border-purple-500 border-t-transparent"></div>
+                </div>
+              ) : completedSessions.length === 0 ? (
+                <div className="text-center py-16 bg-gray-50 dark:bg-slate-900/40 rounded-2xl border border-dashed border-gray-200 dark:border-slate-700">
+                  <BookOpen className="w-12 h-12 text-gray-300 dark:text-slate-600 mx-auto mb-3" />
+                  <p className="text-gray-600 dark:text-gray-400 font-bold">لا توجد حصص مكتملة مسجلة حتى الآن.</p>
+                  <p className="text-xs text-gray-400 mt-1">عند تسجيل حضور أي طالب وخصم حصة، ستظهر تلقائياً هنا وفي حساب الطالب مع التاريخ والملاحظات.</p>
+                </div>
+              ) : filteredCompletedSessions.length === 0 ? (
+                <div className="text-center py-16 bg-gray-50 dark:bg-slate-900/40 rounded-2xl border border-dashed border-gray-200 dark:border-slate-700">
+                  <Calendar className="w-12 h-12 text-gray-400 dark:text-slate-600 mx-auto mb-3" />
+                  <p className="text-gray-700 dark:text-gray-300 font-black text-base">لا توجد حصص مكتملة تطابق معايير الفلترة المحددة</p>
+                  <p className="text-xs text-gray-400 mt-1">جرب تغيير الشهر أو اختيار طالب آخر أو إعادة ضبط الفلاتر.</p>
+                  <button
+                    onClick={() => {
+                      setHistoryGradeFilter('all');
+                      setHistoryStudentFilter('all');
+                      setHistoryMonthFilter('all');
+                      setCompletedSearch('');
+                    }}
+                    className="mt-4 px-4 py-2 bg-purple-600 hover:bg-purple-700 text-white rounded-xl text-xs font-bold transition-colors cursor-pointer shadow-sm"
+                  >
+                    إعادة ضبط الفلاتر وعرض الكل
+                  </button>
+                </div>
+              ) : (
+                <div className="overflow-x-auto">
+                  <table className="w-full text-right text-sm">
+                    <thead>
+                      <tr className="border-b border-gray-200 dark:border-slate-700 text-xs font-black text-gray-500 dark:text-gray-400 uppercase">
+                        <th className="py-4 px-4">تاريخ الحصة وتوقيتها</th>
+                        <th className="py-4 px-4">الطالب</th>
+                        <th className="py-4 px-4">الصف الدراسي</th>
+                        <th className="py-4 px-4">عنوان الحصة / الدرس</th>
+                        <th className="py-4 px-4">ملاحظات المعلم</th>
+                        <th className="py-4 px-4 text-center">حذف السجل</th>
+                      </tr>
+                    </thead>
+                    <tbody className="divide-y divide-gray-100 dark:divide-slate-700">
+                      {filteredCompletedSessions.map(item => {
+                        const dateObj = new Date(item.completed_at || item.created_at);
+                        const formattedDate = !isNaN(dateObj.getTime())
+                          ? dateObj.toLocaleDateString('ar-EG', { weekday: 'long', year: 'numeric', month: 'short', day: 'numeric' })
+                          : '-';
+                        const formattedTime = !isNaN(dateObj.getTime())
+                          ? dateObj.toLocaleTimeString('ar-EG', { hour: '2-digit', minute: '2-digit' })
+                          : '';
+
+                        return (
+                          <tr key={item.id} className="hover:bg-gray-50/50 dark:hover:bg-slate-750 transition-colors">
+                            <td className="py-4 px-4">
+                              <div className="font-bold text-gray-900 dark:text-white flex items-center gap-1.5">
+                                <Calendar className="w-3.5 h-3.5 text-purple-500 shrink-0" />
+                                <span>{formattedDate}</span>
+                              </div>
+                              <div className="text-xs text-gray-400 flex items-center gap-1 mt-0.5">
+                                <Clock className="w-3 h-3" />
+                                <span>{formattedTime}</span>
+                              </div>
+                            </td>
+                            <td className="py-4 px-4 font-black text-gray-900 dark:text-white">
+                              {item.student_name || 'طالب'}
+                            </td>
+                            <td className="py-4 px-4">
+                              <span className="px-2.5 py-1 rounded-full text-xs font-bold bg-slate-100 dark:bg-slate-700 text-slate-700 dark:text-slate-300">
+                                {formatGradeName(item.grade_level)}
+                              </span>
+                            </td>
+                            <td className="py-4 px-4 font-bold text-purple-700 dark:text-purple-400">
+                              {item.session_title || 'حصة أونلاين مباشرة'}
+                            </td>
+                            <td className="py-4 px-4 text-xs text-gray-600 dark:text-gray-300 max-w-xs">
+                              {item.teacher_notes || <span className="text-gray-400 italic">لا توجد ملاحظات</span>}
+                            </td>
+                            <td className="py-4 px-4 text-center">
+                              <button
+                                onClick={() => setDeleteCompletedModal({ isOpen: true, id: item.id })}
+                                className="p-2 rounded-xl text-red-600 hover:bg-red-50 dark:hover:bg-red-950/40 transition-colors cursor-pointer"
+                                title="حذف هذا السجل من قائمة الحصص المكتملة"
+                              >
+                                <Trash2 className="w-4 h-4" />
+                              </button>
+                            </td>
+                          </tr>
+                        );
+                      })}
+                    </tbody>
+                  </table>
+                </div>
+              )}
             </div>
           </FadeIn>
         )}

@@ -72,11 +72,33 @@ export default function AdminStudents() {
   const [deleteLoading, setDeleteLoading] = useState(false);
 
   useEffect(() => {
-    fetchStudents();
+    fetchStudents(true);
+
+    const channel = supabase
+      .channel('admin_students_realtime')
+      .on('postgres_changes', { event: '*', schema: 'public', table: 'profiles' }, () => {
+        fetchStudents(false);
+      })
+      .subscribe();
+
+    const handleFocus = () => {
+      fetchStudents(false);
+    };
+    window.addEventListener('focus', handleFocus);
+    const handleVisibility = () => {
+      if (document.visibilityState === 'visible') handleFocus();
+    };
+    document.addEventListener('visibilitychange', handleVisibility);
+
+    return () => {
+      supabase.removeChannel(channel);
+      window.removeEventListener('focus', handleFocus);
+      document.removeEventListener('visibilitychange', handleVisibility);
+    };
   }, []);
 
-  const fetchStudents = async () => {
-    setLoading(true);
+  const fetchStudents = async (showLoading = true) => {
+    if (showLoading) setLoading(true);
     try {
       const { data, error } = await supabase
         .from('profiles')
@@ -89,7 +111,7 @@ export default function AdminStudents() {
     } catch (err) {
       console.error('Error fetching students:', err);
     } finally {
-      setLoading(false);
+      if (showLoading) setLoading(false);
     }
   };
 

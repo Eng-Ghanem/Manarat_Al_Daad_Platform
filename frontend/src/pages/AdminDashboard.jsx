@@ -73,10 +73,32 @@ export default function AdminDashboard() {
       .on('postgres_changes', { event: '*', schema: 'public', table: 'live_subscriptions' }, () => {
         fetchDashboardData();
       })
+      .on('postgres_changes', { event: '*', schema: 'public', table: 'profiles' }, () => {
+        fetchDashboardData();
+        fetchStudentsLeaderboard();
+      })
+      .on('postgres_changes', { event: '*', schema: 'public', table: 'quizzes' }, () => {
+        fetchDashboardData();
+      })
+      .on('postgres_changes', { event: '*', schema: 'public', table: 'courses' }, () => {
+        fetchDashboardData();
+      })
       .subscribe();
+
+    const handleFocus = () => {
+      fetchDashboardData();
+      fetchStudentsLeaderboard();
+    };
+    window.addEventListener('focus', handleFocus);
+    const handleVisibility = () => {
+      if (document.visibilityState === 'visible') handleFocus();
+    };
+    document.addEventListener('visibilitychange', handleVisibility);
 
     return () => {
       supabase.removeChannel(channel);
+      window.removeEventListener('focus', handleFocus);
+      document.removeEventListener('visibilitychange', handleVisibility);
     };
   }, []);
 

@@ -323,7 +323,7 @@ export default function AdminLiveSessions() {
     } catch (_) {}
   }, []);
 
-  // Real-time synchronization for Admin across packages, completed sessions, and trial requests
+  // Real-time synchronization for Admin across packages, completed sessions, schedules, and trials
   useEffect(() => {
     const channel = supabase
       .channel('admin_live_management_realtime')
@@ -337,10 +337,37 @@ export default function AdminLiveSessions() {
       .on('postgres_changes', { event: '*', schema: 'public', table: 'trial_requests' }, () => {
         fetchTrialData();
       })
+      .on('postgres_changes', { event: '*', schema: 'public', table: 'trial_sessions' }, () => {
+        fetchTrialData();
+      })
+      .on('postgres_changes', { event: '*', schema: 'public', table: 'weekly_schedules' }, () => {
+        fetchWeeklySchedules();
+      })
+      .on('postgres_changes', { event: '*', schema: 'public', table: 'online_sessions' }, () => {
+        fetchData();
+      })
+      .on('postgres_changes', { event: '*', schema: 'public', table: 'profiles' }, () => {
+        fetchPackages();
+      })
       .subscribe();
+
+    const handleFocus = () => {
+      fetchPackages();
+      fetchCompletedSessions();
+      fetchWeeklySchedules();
+      fetchData();
+      fetchTrialData();
+    };
+    window.addEventListener('focus', handleFocus);
+    const handleVisibility = () => {
+      if (document.visibilityState === 'visible') handleFocus();
+    };
+    document.addEventListener('visibilitychange', handleVisibility);
 
     return () => {
       supabase.removeChannel(channel);
+      window.removeEventListener('focus', handleFocus);
+      document.removeEventListener('visibilitychange', handleVisibility);
     };
   }, []);
 

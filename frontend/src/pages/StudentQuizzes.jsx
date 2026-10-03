@@ -27,15 +27,47 @@ export default function StudentQuizzes() {
 
   useEffect(() => {
     if (studentId) {
-      fetchQuizzes();
+      fetchQuizzes(true);
+
+      // Realtime synchronization for student quizzes
+      const channel = supabase
+        .channel(`student_quizzes_sync_${studentId}`)
+        .on('postgres_changes', { event: '*', schema: 'public', table: 'quizzes' }, () => {
+          fetchQuizzes(false);
+        })
+        .on('postgres_changes', { event: '*', schema: 'public', table: 'quiz_submissions' }, () => {
+          fetchQuizzes(false);
+        })
+        .on('postgres_changes', { event: '*', schema: 'public', table: 'subscriptions' }, () => {
+          fetchQuizzes(false);
+        })
+        .on('postgres_changes', { event: '*', schema: 'public', table: 'profiles' }, () => {
+          fetchQuizzes(false);
+        })
+        .subscribe();
+
+      const handleFocus = () => {
+        fetchQuizzes(false);
+      };
+      window.addEventListener('focus', handleFocus);
+      const handleVisibility = () => {
+        if (document.visibilityState === 'visible') handleFocus();
+      };
+      document.addEventListener('visibilitychange', handleVisibility);
+
+      return () => {
+        supabase.removeChannel(channel);
+        window.removeEventListener('focus', handleFocus);
+        document.removeEventListener('visibilitychange', handleVisibility);
+      };
     } else {
       setLoading(false);
     }
   }, [studentId, profile?.grade_level]);
 
-  const fetchQuizzes = async () => {
+  const fetchQuizzes = async (showLoading = true) => {
     try {
-      setLoading(true);
+      if (showLoading) setLoading(true);
       let currentUserId = studentId;
       if (!currentUserId) {
         const { data: sessionData } = await supabase.auth.getSession();

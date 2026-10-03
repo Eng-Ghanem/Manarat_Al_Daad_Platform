@@ -133,19 +133,15 @@ export default function StudentLiveSessions() {
   useEffect(() => {
     if (!user) return;
 
-    // 1. Supabase Realtime channel (Instant silent push updates)
+    // 1. Supabase Realtime channel (Instant silent push updates across all teacher actions)
     const channel = supabase
       .channel(`student_live_sync_${user.id}`)
-      .on('postgres_changes', { event: '*', schema: 'public', table: 'live_subscriptions', filter: `user_id=eq.${user.id}` }, () => {
+      .on('postgres_changes', { event: '*', schema: 'public', table: 'live_subscriptions' }, () => {
         fetchMyPackage(false);
       })
-      .on('postgres_changes', { event: '*', schema: 'public', table: 'completed_live_sessions' }, (payload) => {
-        const sid = payload?.new?.student_id;
-        const sGrade = payload?.new?.grade_level;
-        if (!sid || sid === user.id || (profile?.grade_level && sGrade === profile.grade_level)) {
-          fetchCompletedSessions(false);
-          fetchMyPackage(false);
-        }
+      .on('postgres_changes', { event: '*', schema: 'public', table: 'completed_live_sessions' }, () => {
+        fetchCompletedSessions(false);
+        fetchMyPackage(false);
       })
       .on('postgres_changes', { event: '*', schema: 'public', table: 'weekly_schedules' }, () => {
         fetchWeeklySchedules();
@@ -153,11 +149,15 @@ export default function StudentLiveSessions() {
       .on('postgres_changes', { event: '*', schema: 'public', table: 'online_sessions' }, () => {
         fetchSessions(false);
       })
-      .on('postgres_changes', { event: '*', schema: 'public', table: 'trial_requests', filter: `user_id=eq.${user.id}` }, () => {
+      .on('postgres_changes', { event: '*', schema: 'public', table: 'trial_requests' }, () => {
         fetchTrialSessions();
       })
       .on('postgres_changes', { event: '*', schema: 'public', table: 'trial_sessions' }, () => {
         fetchTrialSessions();
+      })
+      .on('postgres_changes', { event: '*', schema: 'public', table: 'profiles' }, () => {
+        fetchMyPackage(false);
+        fetchCompletedSessions(false);
       })
       .subscribe();
 

@@ -80,6 +80,35 @@ export const AuthProvider = ({ children }) => {
     return () => subscription.unsubscribe();
   }, []);
 
+  // Real-time synchronization for active user's profile, XP, and badges
+  useEffect(() => {
+    if (!user?.id) return;
+
+    const channel = supabase
+      .channel(`user_profile_realtime_${user.id}`)
+      .on('postgres_changes', { event: '*', schema: 'public', table: 'profiles' }, (payload) => {
+        if (!payload?.new?.id || payload.new.id === user.id) {
+          fetchProfile(user.id);
+        }
+      })
+      .subscribe();
+
+    const handleFocus = () => {
+      fetchProfile(user.id);
+    };
+    window.addEventListener('focus', handleFocus);
+    const handleVisibility = () => {
+      if (document.visibilityState === 'visible') handleFocus();
+    };
+    document.addEventListener('visibilitychange', handleVisibility);
+
+    return () => {
+      supabase.removeChannel(channel);
+      window.removeEventListener('focus', handleFocus);
+      document.removeEventListener('visibilitychange', handleVisibility);
+    };
+  }, [user?.id]);
+
   const fetchProfile = async (userId) => {
     try {
       const { data, error } = await supabase

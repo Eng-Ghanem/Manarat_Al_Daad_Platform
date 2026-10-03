@@ -154,6 +154,32 @@ export default function Dashboard() {
     };
 
     fetchDashboardData();
+
+    // Realtime synchronization for courses and lessons
+    const channel = supabase
+      .channel(`student_dashboard_realtime_${user.id}`)
+      .on('postgres_changes', { event: '*', schema: 'public', table: 'subscriptions' }, () => {
+        fetchDashboardData();
+      })
+      .on('postgres_changes', { event: '*', schema: 'public', table: 'lesson_progress' }, () => {
+        fetchDashboardData();
+      })
+      .subscribe();
+
+    const handleFocus = () => {
+      fetchDashboardData();
+    };
+    window.addEventListener('focus', handleFocus);
+    const handleVisibility = () => {
+      if (document.visibilityState === 'visible') handleFocus();
+    };
+    document.addEventListener('visibilitychange', handleVisibility);
+
+    return () => {
+      supabase.removeChannel(channel);
+      window.removeEventListener('focus', handleFocus);
+      document.removeEventListener('visibilitychange', handleVisibility);
+    };
   }, [user, navigate, isRTL]);
   
   const studentName = profile?.full_name || user?.email || '';

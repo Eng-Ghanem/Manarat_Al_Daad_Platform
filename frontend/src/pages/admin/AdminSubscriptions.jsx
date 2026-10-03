@@ -55,7 +55,7 @@ export default function AdminSubscriptions() {
   useEffect(() => {
     fetchRequests();
 
-    // Supabase Realtime synchronization across courses, live packages, and completed sessions
+    // Supabase Realtime synchronization across courses, live packages, schedules, and profiles
     const channel = supabase
       .channel('admin_subscriptions_master_realtime')
       .on('postgres_changes', { event: '*', schema: 'public', table: 'subscriptions' }, () => {
@@ -67,10 +67,27 @@ export default function AdminSubscriptions() {
       .on('postgres_changes', { event: '*', schema: 'public', table: 'completed_live_sessions' }, () => {
         fetchRequests();
       })
+      .on('postgres_changes', { event: '*', schema: 'public', table: 'weekly_schedules' }, () => {
+        fetchRequests();
+      })
+      .on('postgres_changes', { event: '*', schema: 'public', table: 'profiles' }, () => {
+        fetchRequests();
+      })
       .subscribe();
+
+    const handleFocus = () => {
+      fetchRequests();
+    };
+    window.addEventListener('focus', handleFocus);
+    const handleVisibility = () => {
+      if (document.visibilityState === 'visible') handleFocus();
+    };
+    document.addEventListener('visibilitychange', handleVisibility);
 
     return () => {
       supabase.removeChannel(channel);
+      window.removeEventListener('focus', handleFocus);
+      document.removeEventListener('visibilitychange', handleVisibility);
     };
   }, []);
 

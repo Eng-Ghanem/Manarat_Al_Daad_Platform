@@ -23,12 +23,40 @@ export default function QuizSubmissions() {
   const [selectedSubmission, setSelectedSubmission] = useState(null);
 
   useEffect(() => {
-    fetchSubmissions();
+    fetchSubmissions(true);
+
+    if (!id) return;
+
+    // Supabase Realtime synchronization for quiz submissions
+    const channel = supabase
+      .channel(`admin_quiz_submissions_${id}`)
+      .on('postgres_changes', { event: '*', schema: 'public', table: 'quiz_submissions' }, () => {
+        fetchSubmissions(false);
+      })
+      .on('postgres_changes', { event: '*', schema: 'public', table: 'profiles' }, () => {
+        fetchSubmissions(false);
+      })
+      .subscribe();
+
+    const handleFocus = () => {
+      fetchSubmissions(false);
+    };
+    window.addEventListener('focus', handleFocus);
+    const handleVisibility = () => {
+      if (document.visibilityState === 'visible') handleFocus();
+    };
+    document.addEventListener('visibilitychange', handleVisibility);
+
+    return () => {
+      supabase.removeChannel(channel);
+      window.removeEventListener('focus', handleFocus);
+      document.removeEventListener('visibilitychange', handleVisibility);
+    };
   }, [id]);
 
-  const fetchSubmissions = async () => {
+  const fetchSubmissions = async (showLoading = true) => {
     try {
-      setLoading(true);
+      if (showLoading) setLoading(true);
 
       // Fetch Quiz Details
       const { data: quizData, error: quizError } = await supabase
@@ -55,9 +83,9 @@ export default function QuizSubmissions() {
 
     } catch (error) {
       console.error('Error fetching submissions:', error);
-      toast.error('حدث خطأ أثناء تحميل نتائج الطلاب');
+      if (showLoading) toast.error('حدث خطأ أثناء تحميل نتائج الطلاب');
     } finally {
-      setLoading(false);
+      if (showLoading) setLoading(false);
     }
   };
 

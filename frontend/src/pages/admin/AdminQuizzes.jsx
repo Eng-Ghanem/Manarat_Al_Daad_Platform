@@ -21,12 +21,37 @@ export default function AdminQuizzes() {
   const [deleteModal, setDeleteModal] = useState({ isOpen: false, quizId: null });
 
   useEffect(() => {
-    fetchQuizzes();
+    fetchQuizzes(true);
+
+    const channel = supabase
+      .channel('admin_quizzes_realtime')
+      .on('postgres_changes', { event: '*', schema: 'public', table: 'quizzes' }, () => {
+        fetchQuizzes(false);
+      })
+      .on('postgres_changes', { event: '*', schema: 'public', table: 'quiz_submissions' }, () => {
+        fetchQuizzes(false);
+      })
+      .subscribe();
+
+    const handleFocus = () => {
+      fetchQuizzes(false);
+    };
+    window.addEventListener('focus', handleFocus);
+    const handleVisibility = () => {
+      if (document.visibilityState === 'visible') handleFocus();
+    };
+    document.addEventListener('visibilitychange', handleVisibility);
+
+    return () => {
+      supabase.removeChannel(channel);
+      window.removeEventListener('focus', handleFocus);
+      document.removeEventListener('visibilitychange', handleVisibility);
+    };
   }, []);
 
-  const fetchQuizzes = async () => {
+  const fetchQuizzes = async (showLoading = true) => {
     try {
-      setLoading(true);
+      if (showLoading) setLoading(true);
       const { data, error } = await supabase
         .from('quizzes')
         .select(`
@@ -41,9 +66,9 @@ export default function AdminQuizzes() {
       setQuizzes(data || []);
     } catch (error) {
       console.error('Error fetching quizzes:', error);
-      toast.error('حدث خطأ أثناء جلب الامتحانات');
+      if (showLoading) toast.error('حدث خطأ أثناء جلب الامتحانات');
     } finally {
-      setLoading(false);
+      if (showLoading) setLoading(false);
     }
   };
 
